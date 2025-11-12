@@ -32,16 +32,44 @@ export class TemplateService {
   ) {}
 
   async listTemplates(query: TemplateQueryDto) {
-    const { page = 1, limit = 20, status, mode, keyword } = query;
+    const { page = 1, limit = 20, status, mode, keyword, modePrimary, modeTags } = query;
+
+    // 调试日志
+    console.log('[TemplateService] Query params:', { mode, status, modePrimary, modeTags, keyword });
 
     const qb = this.templateRepository.createQueryBuilder('template');
 
-    if (status) {
+    // 只有当 status 不为 'all' 时才添加过滤条件
+    if (status && status !== 'all') {
       qb.andWhere('template.status = :status', { status });
     }
 
-    if (mode) {
-      qb.andWhere('template.mode = :mode', { mode });
+    // 只有当 mode 不为 'all' 时才添加过滤条件
+    if (mode && mode !== 'all' && mode.trim() !== 'all') {
+      qb.andWhere('template.mode = :mode', { mode: mode.trim() });
+    }
+
+    // 支持 modePrimary 过滤
+    if (modePrimary) {
+      qb.andWhere('template.modePrimary = :modePrimary', { modePrimary });
+    }
+
+    // 支持 modeTags 过滤（支持逗号分隔的多个标签，使用 LIKE 匹配）
+    if (modeTags) {
+      const tags = Array.isArray(modeTags) 
+        ? modeTags.map(t => String(t).trim()).filter(t => t)
+        : String(modeTags).split(',').map(t => t.trim()).filter(t => t);
+      if (tags.length > 0) {
+        const tagConditions = tags.map((tag, index) => {
+          const paramName = `tag${index}`;
+          return `template.modeTags ILIKE :${paramName}`;
+        });
+        const tagParams: Record<string, string> = {};
+        tags.forEach((tag, index) => {
+          tagParams[`tag${index}`] = `%${tag}%`;
+        });
+        qb.andWhere(`(${tagConditions.join(' OR ')})`, tagParams);
+      }
     }
 
     if (keyword) {

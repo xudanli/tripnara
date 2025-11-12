@@ -187,15 +187,24 @@ export class CreateTemplateDto {
 export class UpdateTemplateDto extends PartialType(CreateTemplateDto) {}
 
 export class TemplateQueryDto {
-  @ApiPropertyOptional({ description: '状态过滤 draft/published/archived' })
+  @ApiPropertyOptional({ description: '状态过滤 draft/published/archived/all' })
   @IsOptional()
   @IsString()
   status?: string;
 
-  @ApiPropertyOptional({ description: '模式过滤 inspiration/planner/seeker' })
+  @ApiPropertyOptional({ description: '模式过滤 inspiration/planner/seeker/all' })
   @IsOptional()
   @IsString()
   mode?: string;
+
+  @ApiPropertyOptional({ description: '主模式分类过滤' })
+  @IsOptional()
+  @IsString()
+  modePrimary?: string;
+
+  @ApiPropertyOptional({ description: '模式标签过滤（逗号分隔或数组）' })
+  @IsOptional()
+  modeTags?: string | string[];
 
   @ApiPropertyOptional({ description: '关键字搜索（名称/摘要）' })
   @IsOptional()
