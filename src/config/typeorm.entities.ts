@@ -36,6 +36,12 @@ import {
   MediaAssetEntity,
   ExternalApiKeyEntity,
 } from '../modules/persistence/entities/reference.entity';
+import {
+  VisaPolicyEntity,
+  VisaUnionEntity,
+  VisaUnionCountryEntity,
+  VisaPolicyHistoryEntity,
+} from '../modules/persistence/entities/visa.entity';
 
 export const TYPEORM_ENTITIES = [
   JourneyEntity,
@@ -64,4 +70,8 @@ export const TYPEORM_ENTITIES = [
   PreparationProfileEntity,
   MediaAssetEntity,
   ExternalApiKeyEntity,
+  VisaPolicyEntity,
+  VisaUnionEntity,
+  VisaUnionCountryEntity,
+  VisaPolicyHistoryEntity,
 ];

@@ -16,6 +16,8 @@ import { validateEnv } from './config/env.validation';
 import { TYPEORM_ENTITIES } from './config/typeorm.entities';
 import { MonitoringModule } from './modules/monitoring/monitoring.module';
 import { TemplateModule } from './modules/templates/template.module';
+import { VisaModule } from './modules/visa/visa.module';
+import { AuthModule } from './modules/auth/auth.module';
 
 const resolveEnvFilePaths = (): string[] => {
   const env = process.env.NODE_ENV?.toLowerCase();
@@ -91,6 +93,8 @@ const resolveEnvFilePaths = (): string[] => {
     PersistenceModule,
     TaskModule,
     MonitoringModule,
+    VisaModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

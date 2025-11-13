@@ -23,7 +23,7 @@ import {
 import { TemplateService } from './template.service';
 
 @ApiTags('Templates')
-@Controller('api/v1/templates')
+@Controller('v1/templates')
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class TemplateController {
   constructor(private readonly templateService: TemplateService) {}

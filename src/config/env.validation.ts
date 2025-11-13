@@ -20,6 +20,9 @@ const envSchema = z.object({
   EVENTBRITE_BASE_URL: z.string().url().optional(),
   GUIDES_GOOGLE_API_KEY: z.string().min(1).optional(),
   GUIDES_GOOGLE_CX: z.string().min(1).optional(),
+  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+  JWT_SECRET: z.string().min(1).optional(),
+  JWT_EXPIRES_IN: z.string().optional(),
 });
 
 export type EnvSchema = z.infer<typeof envSchema>;
