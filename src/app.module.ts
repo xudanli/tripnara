@@ -18,6 +18,7 @@ import { MonitoringModule } from './modules/monitoring/monitoring.module';
 import { TemplateModule } from './modules/templates/template.module';
 import { VisaModule } from './modules/visa/visa.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { PreferencesModule } from './modules/preferences/preferences.module';
 
 const resolveEnvFilePaths = (): string[] => {
   const env = process.env.NODE_ENV?.toLowerCase();
@@ -95,6 +96,7 @@ const resolveEnvFilePaths = (): string[] => {
     MonitoringModule,
     VisaModule,
     AuthModule,
+    PreferencesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
