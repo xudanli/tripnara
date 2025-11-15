@@ -30,6 +30,7 @@ export class AuthService {
   private readonly googleClientId: string;
   private readonly googleClientSecret: string;
   private readonly googleRedirectUri: string;
+  private readonly googleTokenEndpoint: string;
   private readonly frontendOrigin: string;
   private readonly appSessionSecret: string;
   private readonly stateCookieName = 'oauth_state';
@@ -53,6 +54,9 @@ export class AuthService {
     this.googleRedirectUri = this.configService.getOrThrow<string>(
       'GOOGLE_REDIRECT_URI',
     );
+    this.googleTokenEndpoint =
+      this.configService.get<string>('GOOGLE_TOKEN_ENDPOINT') ??
+      'https://oauth2.googleapis.com/token';
     this.frontendOrigin =
       this.configService.getOrThrow<string>('FRONTEND_ORIGIN');
     this.appSessionSecret = this.configService.getOrThrow<string>(
@@ -309,7 +313,7 @@ export class AuthService {
         grant_type: 'authorization_code',
       });
       const { data } = await axios.post(
-        'https://oauth2.googleapis.com/token',
+        this.googleTokenEndpoint,
         payload.toString(),
         {
           headers: {
