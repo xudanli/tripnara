@@ -24,18 +24,29 @@ export class AuthController {
   }
 
   @Get('google/callback')
-  @ApiOperation({ summary: 'Google OAuth 回调处理' })
+  @ApiOperation({ summary: 'Google OAuth 回调处理 ' })
   async googleCallback(
     @Query('code') code: string,
     @Query('state') state: string,
     @Req() req: Request,
     @Res() res: Response,
   ) {
+    console.log('[AuthController] /auth/google/callback hit', { code, state });
+  
     if (!code || !state) {
       throw new BadRequestException('缺少必要的 code 或 state');
     }
-    await this.authService.handleGoogleCallback(code, state, req, res);
-  }
+  
+    try {
+      await this.authService.handleGoogleCallback(code, state, req, res);
+    } catch (e: any) {
+      console.error(
+        '[AuthController] handleGoogleCallback error:',
+        e?.response?.data ?? e,
+      );
+      throw e; // 让 Nest 正常返回 401/500 到浏览器
+    }
+  }  
 
   @Get('me')
   @ApiOperation({ summary: '读取当前登录用户信息（基于 app_session）' })
