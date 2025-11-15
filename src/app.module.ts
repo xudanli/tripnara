@@ -20,6 +20,7 @@ import { VisaModule } from './modules/visa/visa.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { PreferencesModule } from './modules/preferences/preferences.module';
 import { ExternalModule } from './modules/external/external.module';
+import { EventbriteModule } from './modules/eventbrite/eventbrite.module';
 
 const resolveEnvFilePaths = (): string[] => {
   const env = process.env.NODE_ENV?.toLowerCase();
@@ -98,6 +99,7 @@ const resolveEnvFilePaths = (): string[] => {
     AuthModule,
     PreferencesModule,
     ExternalModule,
+    EventbriteModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -66,6 +66,21 @@ export class InitSchema20251111000100 implements MigrationInterface {
       CONSTRAINT "UQ_user_preferences_user" UNIQUE ("user_id")
     )`);
 
+    await queryRunner.query(`CREATE TABLE IF NOT EXISTS "eventbrite_connections" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      "user_id" uuid NOT NULL,
+      "eventbrite_user_id" varchar,
+      "access_token" text NOT NULL,
+      "refresh_token" text,
+      "token_type" varchar,
+      "scope" text,
+      "expires_at" timestamptz,
+      "created_at" timestamptz NOT NULL DEFAULT now(),
+      "updated_at" timestamptz NOT NULL DEFAULT now(),
+      CONSTRAINT "UQ_eventbrite_connections_user" UNIQUE ("user_id"),
+      CONSTRAINT "FK_eventbrite_connections_user" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE
+    )`);
+
     await queryRunner.query(`CREATE TABLE IF NOT EXISTS "journey_templates" (
       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       "status" varchar(20) NOT NULL DEFAULT 'draft',
@@ -386,6 +401,7 @@ export class InitSchema20251111000100 implements MigrationInterface {
     await queryRunner.query(`DROP TABLE IF EXISTS "template_time_slots"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "template_days"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "journey_templates"`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "eventbrite_connections"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "user_preferences"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "user_settings"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "user_auth_providers"`);
