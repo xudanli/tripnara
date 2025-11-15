@@ -86,6 +86,18 @@ apiClient.interceptors.response.use(
 
 ## 后端保护路由
 
+## Google OAuth 相关端点
+
+为避免浏览器或代理自动将 `http` 请求升级为 `https` 的兼容问题，以下地址请全部使用 **HTTPS**：
+
+| 类型 | 官方地址 |
+|------|----------|
+| 授权页 | `https://accounts.google.com/o/oauth2/v2/auth` |
+| Token 交换 | `https://oauth2.googleapis.com/token` |
+| 用户信息 | `https://www.googleapis.com/oauth2/v3/userinfo` |
+
+> `userinfo` 接口需在服务端携带 `Authorization: Bearer <access_token>` 调用，禁止在前端直接请求以免暴露令牌。
+
 ```typescript
 import { UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';

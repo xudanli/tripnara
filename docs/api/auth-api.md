@@ -250,6 +250,18 @@ await fetch('/api/v1/journeys', {
 
 ---
 
+## Google OAuth 官方端点（全部使用 HTTPS）
+
+| 功能 | URL |
+|------|-----|
+| 授权页 | `https://accounts.google.com/o/oauth2/v2/auth` |
+| Token 交换 | `https://oauth2.googleapis.com/token` |
+| 用户信息 | `https://www.googleapis.com/oauth2/v3/userinfo` |
+
+> `userinfo` 接口需在服务端携带 `Authorization: Bearer <access_token>` 访问，请勿在前端直接调用以免泄露令牌。
+
+---
+
 ## 更新日志
 
 - 2024-01-01: 初始版本，支持 Google OAuth 登录和 JWT 认证
