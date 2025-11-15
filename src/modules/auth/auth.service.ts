@@ -5,7 +5,9 @@ import { OAuth2Client } from 'google-auth-library';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { Response, Request } from 'express';
-import axios from 'axios';
+import axios, { AxiosRequestConfig } from 'axios';
+import { HttpsProxyAgent } from 'https-proxy-agent';
+import type { Agent as HttpsAgent } from 'https';
 import {
   randomBytes,
   createHash,
@@ -325,14 +327,18 @@ export class AuthService {
         redirect_uri: this.googleRedirectUri,
         grant_type: 'authorization_code',
       });
+      const httpsAgent = this.createProxyAgentIfNeeded();
+      const axiosConfig: AxiosRequestConfig = {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        httpsAgent,
+        proxy: httpsAgent ? false : undefined,
+      };
       const { data } = await axios.post(
         this.googleTokenEndpoint,
         payload.toString(),
-        {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-        },
+        axiosConfig,
       );
       return data as {
         access_token: string;
@@ -387,6 +393,21 @@ export class AuthService {
     } catch (error) {
       throw new UnauthorizedException('登录态已失效，请重新登录');
     }
+  }
+
+  private createProxyAgentIfNeeded(): HttpsAgent | undefined {
+    const proxyUrl =
+      this.configService.get<string>('HTTPS_PROXY') ??
+      this.configService.get<string>('HTTP_PROXY') ??
+      process.env.HTTPS_PROXY ??
+      process.env.https_proxy ??
+      process.env.HTTP_PROXY ??
+      process.env.http_proxy;
+    if (!proxyUrl) {
+      return undefined;
+    }
+    this.logger.log(`[AuthService] using proxy ${proxyUrl}`);
+    return new HttpsProxyAgent(proxyUrl);
   }
 
   private generateCodeVerifier() {
