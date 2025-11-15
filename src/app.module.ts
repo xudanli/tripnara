@@ -60,10 +60,10 @@ const resolveEnvFilePaths = (): string[] => {
 
         if (isTest) {
           return {
-            type: 'sqljs' as const,
-            autoSave: false,
-            synchronize: true,
+            type: 'sqlite' as const,
+            database: ':memory:',
             entities: TYPEORM_ENTITIES,
+            synchronize: true,
             logging: false,
           };
         }
@@ -76,9 +76,8 @@ const resolveEnvFilePaths = (): string[] => {
         return {
           type: 'postgres' as const,
           url: databaseUrl,
-          synchronize: !isProduction,
-          autoLoadEntities: false,
           entities: TYPEORM_ENTITIES,
+          synchronize: !isProduction,
           logging: !isProduction,
         };
       },
