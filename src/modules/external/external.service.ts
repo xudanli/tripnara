@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
+import { TravelGuideResponseDto, TravelGuideSearchQueryDto } from './dto/travel-guides.dto';
 
 interface CacheEntry<T> {
   value: T;
@@ -118,6 +119,79 @@ export class ExternalService {
         { message: 'TRAVEL_ADVISOR_SERVICE_UNAVAILABLE' },
         HttpStatus.BAD_GATEWAY,
       );
+    }
+  }
+
+  async searchTravelGuides(
+    dto: TravelGuideSearchQueryDto,
+  ): Promise<TravelGuideResponseDto> {
+    const limit = dto.limit ?? 50;
+    const language = dto.language ?? 'zh-CN';
+    if (!this.travelAdvisorApiKey) {
+      return {
+        success: true,
+        data: [],
+        message: 'TripAdvisor API 未配置，返回空结果',
+        error: 'TRAVEL_ADVISOR_KEY_MISSING',
+      };
+    }
+
+    try {
+      const searchUrl = new URL(
+        '/locations/search',
+        this.travelAdvisorBaseUrl,
+      ).toString();
+      const { data } = await axios.get(searchUrl, {
+        params: {
+          query: dto.destination,
+          limit,
+          lang: language,
+        },
+        headers: {
+          'X-RapidAPI-Key': this.travelAdvisorApiKey,
+          'X-RapidAPI-Host': this.travelAdvisorApiHost,
+        },
+      });
+
+      const entries =
+        Array.isArray((data as any)?.data) ? (data as any).data : [];
+      const guides = entries.slice(0, limit).map(
+        (item: any, index: number) => ({
+          id:
+            item?.result_object?.location_id ??
+            `tripadvisor_${Date.now()}_${index}`,
+          title: item?.result_object?.name ?? dto.destination,
+          excerpt:
+            item?.result_object?.geo_description ??
+            item?.details ??
+            '精彩旅行推荐',
+          url: item?.result_object?.web_url ?? '',
+          source: 'TripAdvisor',
+          publishedAt: item?.result_object?.published_date ?? null,
+          tags: [dto.destination],
+          imageUrl: item?.result_object?.photo?.images?.large?.url ?? null,
+          author: item?.result_object?.write_review ?? null,
+          readTime: null,
+        }),
+      );
+
+      return {
+        success: true,
+        data: guides,
+        message: null,
+        error: null,
+      };
+    } catch (error) {
+      this.logger.error(
+        'TripAdvisor guide API error',
+        (error as any)?.response?.data ?? error,
+      );
+      return {
+        success: true,
+        data: [],
+        message: 'TripAdvisor 数据暂不可用',
+        error: 'TRIPADVISOR_SERVICE_ERROR',
+      };
     }
   }
 

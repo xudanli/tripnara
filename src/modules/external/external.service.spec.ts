@@ -54,5 +54,42 @@ describe('ExternalService', () => {
     await service.searchLocations('北京');
     expect(mockedAxios.get).toHaveBeenCalledTimes(1);
   });
+
+  it('returns guides from tripadvisor data', async () => {
+    mockedAxios.get.mockResolvedValue({
+      data: {
+        data: [
+          {
+            result_object: {
+              location_id: '123',
+              name: 'Tokyo Highlights',
+              web_url: 'https://tripadvisor.com/guide/tokyo',
+              geo_description: 'Best of Tokyo',
+              photo: { images: { large: { url: 'https://img' } } },
+            },
+          },
+        ],
+      },
+    });
+    const resp = await service.searchTravelGuides({
+      destination: '东京',
+      limit: 5,
+      language: 'zh-CN',
+    });
+    expect(resp.success).toBe(true);
+    expect(resp.data.length).toBe(1);
+    expect(resp.data[0].title).toContain('Tokyo');
+  });
+
+  it('falls back to empty guides when error', async () => {
+    mockedAxios.get.mockRejectedValue(new Error('boom'));
+    const resp = await service.searchTravelGuides({
+      destination: '上海',
+      limit: 5,
+    });
+    expect(resp.data).toHaveLength(0);
+    expect(resp.success).toBe(true);
+    expect(resp.error).toBe('TRIPADVISOR_SERVICE_ERROR');
+  });
 });
 
