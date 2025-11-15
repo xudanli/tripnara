@@ -55,6 +55,7 @@ const envSchema = z.object({
     .string()
     .url('FRONTEND_ORIGIN must be a valid URL')
     .default('http://localhost:5173'),
+  FRONTEND_EXTRA_ORIGINS: z.string().optional(),
   JWT_SECRET: z.string().min(1).optional(),
   JWT_EXPIRES_IN: z.string().optional(),
 });

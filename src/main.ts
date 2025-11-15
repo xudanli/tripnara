@@ -12,10 +12,18 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
   const frontendOrigin = configService.get<string>('FRONTEND_ORIGIN');
+  const extraOrigins =
+    configService
+      .get<string>('FRONTEND_EXTRA_ORIGINS')
+      ?.split(',')
+      .map((origin) => origin.trim())
+      .filter((origin) => origin.length > 0) ?? [];
+  const allowedOrigins =
+    extraOrigins.length > 0 ? [frontendOrigin, ...extraOrigins] : frontendOrigin;
   const appSessionSecret = configService.get<string>('APP_SESSION_SECRET');
 
   app.enableCors({
-    origin: frontendOrigin,
+    origin: allowedOrigins,
     credentials: true,
   });
 
