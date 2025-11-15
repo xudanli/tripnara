@@ -74,7 +74,11 @@ export class AuthService {
       this.googleClientSecret &&
       this.googleRedirectUri
     ) {
-      this.googleClient = new OAuth2Client(this.googleClientId);
+      this.googleClient = new OAuth2Client({
+        clientId: this.googleClientId,
+        clientSecret: this.googleClientSecret,
+        redirectUri: this.googleRedirectUri,
+      });
     } else {
       throw new Error('Google OAuth 环境变量未正确配置');
     }
@@ -310,6 +314,9 @@ export class AuthService {
 
   private async exchangeCodeForToken(code: string, codeVerifier: string) {
     try {
+      this.logger.log(
+        `[AuthService] token endpoint = ${this.googleTokenEndpoint}`,
+      );
       const payload = new URLSearchParams({
         code,
         code_verifier: codeVerifier,
@@ -338,11 +345,13 @@ export class AuthService {
     } catch (error) {
       const status = (error as any)?.response?.status;
       const responseData = (error as any)?.response?.data;
+      const requestUrl = (error as any)?.config?.url;
       this.logger.error(
         `Google token exchange failed${
           status ? ` (status ${status})` : ''
         }: ${JSON.stringify(responseData)}`,
       );
+      console.error('[AuthService] axios error url =', requestUrl);
       console.error(
         '[AuthService] Google token exchange failed',
         status,
