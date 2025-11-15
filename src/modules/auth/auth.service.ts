@@ -261,7 +261,7 @@ export class AuthService {
 
     let user: UserEntity;
 
-    if (authProvider) {
+    if (authProvider && authProvider.user) {
       user = authProvider.user;
       let shouldUpdate = false;
       if (email && !user.email) {
@@ -280,6 +280,9 @@ export class AuthService {
         await this.userRepository.save(user);
       }
     } else {
+      if (authProvider && !authProvider.user) {
+        await this.authProviderRepository.remove(authProvider);
+      }
       if (email) {
         const existingUser = await this.userRepository.findOne({
           where: { email },
