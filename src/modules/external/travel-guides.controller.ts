@@ -1,5 +1,5 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger;
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ExternalService } from './external.service';
 import { TravelGuideResponseDto, TravelGuideSearchQueryDto } from './dto/travel-guides.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
