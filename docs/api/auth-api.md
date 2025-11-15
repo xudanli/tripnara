@@ -15,11 +15,11 @@
 # Google OAuth
 GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-google-client-secret
-GOOGLE_REDIRECT_URI=https://your-backend.com/api/auth/google/callback
+GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/google/callback
 
 # Session & 前端
 APP_SESSION_SECRET=change-me-at-least-32-characters
-FRONTEND_ORIGIN=https://your-frontend.com
+FRONTEND_ORIGIN=http://localhost:3000
 
 # JWT
 JWT_SECRET=your-secret-key-change-in-production
