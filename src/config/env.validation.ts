@@ -17,7 +17,22 @@ const envSchema = z.object({
   MAPBOX_ACCESS_TOKEN: z.string().min(1).optional(),
   MAPBOX_BASE_URL: z.string().url().optional(),
   EVENTBRITE_API_TOKEN: z.string().min(1).optional(),
-  EVENTBRITE_BASE_URL: z.string().url().optional(),
+  EVENTBRITE_BASE_URL: z
+    .string()
+    .url()
+    .optional()
+    .default('https://www.eventbriteapi.com'),
+  TRAVEL_ADVISOR_API_KEY: z.string().min(1).optional(),
+  TRAVEL_ADVISOR_API_HOST: z
+    .string()
+    .min(1)
+    .optional()
+    .default('travel-advisor.p.rapidapi.com'),
+  TRAVEL_ADVISOR_BASE_URL: z
+    .string()
+    .url()
+    .optional()
+    .default('https://travel-advisor.p.rapidapi.com'),
   GUIDES_GOOGLE_API_KEY: z.string().min(1).optional(),
   GUIDES_GOOGLE_CX: z.string().min(1).optional(),
   GOOGLE_CLIENT_ID: z
