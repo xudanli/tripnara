@@ -54,9 +54,15 @@ export class AuthService {
     this.googleRedirectUri = this.configService.getOrThrow<string>(
       'GOOGLE_REDIRECT_URI',
     );
-    this.googleTokenEndpoint =
+    const tokenEndpoint =
       this.configService.get<string>('GOOGLE_TOKEN_ENDPOINT') ??
       'https://oauth2.googleapis.com/token';
+    if (!tokenEndpoint.startsWith('https://')) {
+      throw new Error(
+        `GOOGLE_TOKEN_ENDPOINT must start with https://, got: ${tokenEndpoint}`,
+      );
+    }
+    this.googleTokenEndpoint = tokenEndpoint;
     this.frontendOrigin =
       this.configService.getOrThrow<string>('FRONTEND_ORIGIN');
     this.appSessionSecret = this.configService.getOrThrow<string>(
