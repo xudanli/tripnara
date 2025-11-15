@@ -30,6 +30,15 @@ export class JourneyTemplateEntity {
   @Column({ name: 'mode_tags', type: 'varchar', length: 255, nullable: true })
   modeTags?: string;
 
+  @Column({
+    name: 'language',
+    type: 'varchar',
+    length: 10,
+    nullable: true,
+    default: 'zh-CN',
+  })
+  language?: string;
+
   @Column({ type: 'varchar', length: 255 })
   title!: string;
 

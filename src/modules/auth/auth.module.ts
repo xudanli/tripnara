@@ -10,6 +10,7 @@ import { UserEntity, UserAuthProviderEntity } from '../persistence/entities/user
 
 @Module({
   imports: [
+    ConfigModule,
     TypeOrmModule.forFeature([UserEntity, UserAuthProviderEntity]),
     PassportModule,
     JwtModule.registerAsync({

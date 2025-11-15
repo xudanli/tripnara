@@ -50,6 +50,15 @@ export class VisaPolicyEntity {
   @Column({ name: 'visa_type', type: 'varchar', length: 20 })
   visaType!: VisaType;
 
+  @Column({
+    name: 'language',
+    type: 'varchar',
+    length: 10,
+    nullable: true,
+    default: 'zh-CN',
+  })
+  language?: string;
+
   @Column({ type: 'text', nullable: true })
   description?: string;
 

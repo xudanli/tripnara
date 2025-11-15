@@ -3,7 +3,7 @@
 ## 基础信息
 
 - **Base URL**: `http://localhost:3000/api`
-- **认证方式**: JWT Bearer Token
+- **认证方式**: HttpOnly Cookie（`app_session`，内部保存 JWT）
 - **数据格式**: JSON
 - **字符编码**: UTF-8
 
@@ -12,152 +12,80 @@
 在 `.env` 文件中配置以下变量：
 
 ```env
-# Google OAuth 配置
+# Google OAuth
 GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_REDIRECT_URI=https://your-backend.com/api/auth/google/callback
 
-# JWT 配置
+# Session & 前端
+APP_SESSION_SECRET=change-me-at-least-32-characters
+FRONTEND_ORIGIN=https://your-frontend.com
+
+# JWT
 JWT_SECRET=your-secret-key-change-in-production
 JWT_EXPIRES_IN=7d
 ```
 
 ## 接口列表
 
-### 1. Google OAuth 登录
+### 1. 发起 Google OAuth 登录
 
-使用 Google ID Token 进行登录，后端验证 token 后返回应用的 JWT token。
+后端会生成 `state` 与 `code_verifier`，通过加密 cookie 临时保存，然后 302 跳转到 Google 授权页面。
 
-**接口地址**: `POST /api/auth/google`
+- **接口地址**: `GET /api/auth/google`
+- **请求方式**: 浏览器直接访问 / 重定向
+- **响应**: 302 -> `https://accounts.google.com/...`
 
-**请求参数** (Request Body):
+### 2. Google OAuth 回调
 
-```json
-{
-  "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IjE2Nz..."
-}
+Google 完成授权后回调此接口，后端会：
+
+1. 校验 `state` 是否匹配
+2. 使用 `code + code_verifier` 向 Google 换取 `id_token`
+3. 校验 `id_token` 并同步用户
+4. 签发 HttpOnly `app_session` Cookie（存放 JWT）
+5. 302 回 `FRONTEND_ORIGIN`
+
+- **接口地址**: `GET /api/auth/google/callback?code=xxx&state=yyy`
+
+### 3. 获取当前用户（Cookie）
+
+```bash
+GET /api/auth/me
 ```
 
-**请求字段说明**:
+- 自动读取 `app_session` Cookie，返回用户资料
+- 用于前端在登录成功后确认身份
 
-| 字段名 | 类型 | 必填 | 说明 |
-|--------|------|------|------|
-| token | string | 是 | Google ID Token（从 Google 登录 SDK 获取） |
+### 4. 退出登录
 
-**响应格式**:
-```json
-{
-  "success": true,
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "user": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "email": "user@example.com",
-    "nickname": "John Doe",
-    "avatarUrl": "https://lh3.googleusercontent.com/..."
-  }
-}
+```bash
+POST /api/auth/logout
 ```
 
-**响应字段说明**:
+- 清除 `app_session` Cookie
 
-| 字段名 | 类型 | 说明 |
-|--------|------|------|
-| success | boolean | 是否成功 |
-| token | string | JWT Token，用于后续请求认证 |
-| user | object | 用户信息 |
-| user.id | string | 用户 ID（UUID） |
-| user.email | string | 用户邮箱 |
-| user.nickname | string | 用户昵称 |
-| user.avatarUrl | string | 用户头像 URL |
+> 兼容接口：`GET /api/auth/profile` 仍支持 `Authorization: Bearer <jwt>`，用于脚本或未迁移的客户端。
 
-**错误响应**:
-```json
-{
-  "statusCode": 401,
-  "message": "Google 认证失败",
-  "error": "Unauthorized"
-}
-```
+---
 
-**前端集成示例**:
+### 前端集成（React 示例）
 
 ```typescript
-// React + Google Sign-In
-import { GoogleLogin } from '@react-oauth/google';
-
 function LoginButton() {
-  const handleGoogleSuccess = async (credentialResponse: any) => {
-    try {
-      const response = await fetch('/api/auth/google', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          token: credentialResponse.credential,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        // 存储 token
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        
-        // 跳转到主页
-        window.location.href = '/';
-      }
-    } catch (error) {
-      console.error('登录失败:', error);
-    }
+  const handleLogin = () => {
+    window.location.href = '/api/auth/google';
   };
 
-  return (
-    <GoogleLogin
-      onSuccess={handleGoogleSuccess}
-      onError={() => {
-        console.log('登录失败');
-      }}
-    />
-  );
+  return <button onClick={handleLogin}>使用 Google 登录</button>;
 }
-```
 
-**JavaScript 示例**:
-
-```javascript
-// 使用 Google Identity Services
-async function signInWithGoogle() {
-  try {
-    // 1. 使用 Google Identity Services 获取 ID Token
-    const tokenResponse = await google.accounts.oauth2.initTokenClient({
-      client_id: 'YOUR_GOOGLE_CLIENT_ID',
-      scope: 'email profile',
-      callback: async (response) => {
-        // 2. 发送 token 到后端
-        const result = await fetch('/api/auth/google', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            token: response.id_token,
-          }),
-        });
-
-        const data = await result.json();
-        
-        if (data.success) {
-          // 3. 存储 token
-          localStorage.setItem('token', data.token);
-          console.log('登录成功:', data.user);
-        }
-      },
-    });
-
-    tokenResponse.requestAccessToken();
-  } catch (error) {
-    console.error('登录失败:', error);
-  }
+async function fetchProfile() {
+  const response = await fetch('/api/auth/me', {
+    credentials: 'include',
+  });
+  if (!response.ok) throw new Error('未登录');
+  return response.json();
 }
 ```
 
@@ -188,61 +116,24 @@ Authorization: Bearer <your-jwt-token>
 }
 ```
 
-**前端调用示例**:
+**Server-to-Server 调用示例**（在服务器或脚本中直接使用 Bearer Token）:
 
-```typescript
-async function getCurrentUser() {
-  const token = localStorage.getItem('token');
-  
-  if (!token) {
-    throw new Error('未登录');
-  }
-
-  const response = await fetch('/api/auth/profile', {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    },
-  });
-
-  if (response.status === 401) {
-    // Token 过期或无效，清除本地存储
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    throw new Error('登录已过期');
-  }
-
-  return await response.json();
-}
+```bash
+# 将浏览器中的 app_session Cookie 复制出来后可直接请求
+curl -H "Authorization: Bearer <jwt-from-app_session>" https://api.example.com/api/auth/profile
 ```
 
 ---
 
-## 使用 JWT Token 保护路由
+## 使用 Cookie 保护路由
 
-在需要认证的接口中，前端需要在请求头中携带 JWT token：
+- 浏览器请求时需开启 `credentials: 'include'`
+- `app_session` Cookie 会自动携带，不需要手动设置 `Authorization`
 
 ```typescript
-// 创建带认证的 fetch 封装
-async function authenticatedFetch(url: string, options: RequestInit = {}) {
-  const token = localStorage.getItem('token');
-  
-  if (!token) {
-    throw new Error('未登录');
-  }
-
-  return fetch(url, {
-    ...options,
-    headers: {
-      ...options.headers,
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  });
-}
-
-// 使用示例
-const response = await authenticatedFetch('/api/v1/journeys', {
+await fetch('/api/v1/journeys', {
   method: 'GET',
+  credentials: 'include',
 });
 ```
 
@@ -251,37 +142,22 @@ const response = await authenticatedFetch('/api/v1/journeys', {
 ```typescript
 import axios from 'axios';
 
-// 创建 axios 实例
 const apiClient = axios.create({
   baseURL: '/api',
+  withCredentials: true,
 });
 
-// 添加请求拦截器，自动添加 token
-apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// 添加响应拦截器，处理 token 过期
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Token 过期，清除本地存储并跳转到登录页
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
       window.location.href = '/login';
     }
     return Promise.reject(error);
   }
 );
 
-// 使用
-const user = await apiClient.get('/auth/profile');
-const journeys = await apiClient.get('/v1/journeys');
+const user = await apiClient.get('/auth/me');
 ```
 
 ---
@@ -322,10 +198,7 @@ export class JourneyController {
 ```typescript
 async function handleApiError(response: Response) {
   if (response.status === 401) {
-    // Token 过期，清除本地存储
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    // 跳转到登录页
+    // 清理本地状态并跳转登录
     window.location.href = '/login';
   } else if (response.status === 400) {
     const error = await response.json();
@@ -338,33 +211,30 @@ async function handleApiError(response: Response) {
 
 ---
 
-## 完整的前端登录流程
+## 完整的前端登录流程（Cookie）
 
 ```typescript
-// 1. 用户点击 Google 登录按钮
-// 2. Google SDK 返回 ID Token
-const googleToken = await getGoogleIdToken();
+// 1. 用户点击按钮 -> 跳转 /api/auth/google
+window.location.href = '/api/auth/google';
 
-// 3. 发送到后端验证
-const response = await fetch('/api/auth/google', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ token: googleToken }),
-});
-
-const { success, token, user } = await response.json();
-
-if (success) {
-  // 4. 存储 token 和用户信息
-  localStorage.setItem('token', token);
-  localStorage.setItem('user', JSON.stringify(user));
-  
-  // 5. 更新应用状态（如果使用状态管理）
-  // setUser(user);
-  
-  // 6. 跳转到主页
-  router.push('/');
+// 2. 登录成功返回前端后，调用 /api/auth/me
+async function bootstrapAuth() {
+  const response = await fetch('/api/auth/me', {
+    credentials: 'include',
+  });
+  if (!response.ok) {
+    throw new Error('未登录');
+  }
+  const user = await response.json();
+  // 3. 将用户信息放到全局状态 / context
+  setUser(user);
 }
+
+// 4. 调用业务接口
+await fetch('/api/v1/journeys', {
+  method: 'GET',
+  credentials: 'include',
+});
 ```
 
 ---
@@ -373,11 +243,10 @@ if (success) {
 
 1. **JWT Secret**: 生产环境必须使用强随机字符串作为 `JWT_SECRET`
 2. **HTTPS**: 生产环境必须使用 HTTPS 传输
-3. **Token 存储**: 
-   - Web 应用：使用 `localStorage` 或 `sessionStorage`
-   - 移动应用：使用安全存储（Keychain/Keystore）
-4. **Token 过期**: 建议设置合理的过期时间（如 7 天）
-5. **刷新 Token**: 可以实现 refresh token 机制延长登录状态
+3. **Cookie 安全**: 后端默认设置 `HttpOnly + SameSite=Lax + Secure`，请务必在 HTTPS 环境下部署
+4. **Session 轮换**: 定期轮换 `APP_SESSION_SECRET` 并使旧会话失效
+5. **Token 过期**: 默认 7 天，可按需调整 `JWT_EXPIRES_IN`
+6. **Refresh Token（可选）**: 如需长期会话，可在数据库中存储并旋转 Google refresh token
 
 ---
 

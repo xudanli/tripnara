@@ -1,34 +1,4 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
-
-export class GoogleAuthRequestDto {
-  @ApiProperty({
-    description: 'Google ID Token（从 Google 登录获取）',
-    example: 'eyJhbGciOiJSUzI1NiIsImtpZCI6IjE2Nz...',
-  })
-  @IsString()
-  @IsNotEmpty()
-  token!: string;
-}
-
-export class AuthResponseDto {
-  @ApiProperty({ description: '是否成功' })
-  success!: boolean;
-
-  @ApiProperty({ description: 'JWT Token' })
-  token!: string;
-
-  @ApiProperty({ description: '用户信息' })
-  user!: {
-    id: string;
-    email?: string;
-    nickname?: string;
-    avatarUrl?: string;
-  };
-
-  @ApiPropertyOptional({ description: '错误消息' })
-  message?: string;
-}
 
 export class UserProfileDto {
   @ApiProperty({ description: '用户 ID' })

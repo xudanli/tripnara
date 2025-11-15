@@ -248,6 +248,7 @@ export class VisaService {
       applicantCountryCode,
       visaType,
       isActive,
+      language,
     } = query;
 
     const qb = this.visaPolicyRepository.createQueryBuilder('policy');
@@ -276,6 +277,10 @@ export class VisaService {
       qb.andWhere('policy.isActive = :isActive', { isActive });
     }
 
+    if (language) {
+      qb.andWhere('policy.language = :language', { language });
+    }
+
     qb.orderBy('policy.lastUpdatedAt', 'DESC');
     qb.skip((page - 1) * limit).take(limit);
 
@@ -300,6 +305,7 @@ export class VisaService {
       ...dto,
       destinationCountryCode: dto.destinationCountryCode.toUpperCase(),
       applicantCountryCode: dto.applicantCountryCode.toUpperCase(),
+      language: dto.language || 'zh-CN',
       effectiveDate: dto.effectiveDate
         ? new Date(dto.effectiveDate)
         : undefined,
@@ -360,6 +366,9 @@ export class VisaService {
     }
     if (dto.description !== undefined) {
       policy.description = dto.description;
+    }
+    if (dto.language !== undefined) {
+      policy.language = dto.language;
     }
     if (dto.durationDays !== undefined) {
       policy.durationDays = dto.durationDays;

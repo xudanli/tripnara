@@ -20,7 +20,26 @@ const envSchema = z.object({
   EVENTBRITE_BASE_URL: z.string().url().optional(),
   GUIDES_GOOGLE_API_KEY: z.string().min(1).optional(),
   GUIDES_GOOGLE_CX: z.string().min(1).optional(),
-  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_CLIENT_ID: z
+    .string()
+    .min(1, 'GOOGLE_CLIENT_ID is required')
+    .default('local-google-client-id'),
+  GOOGLE_CLIENT_SECRET: z
+    .string()
+    .min(1, 'GOOGLE_CLIENT_SECRET is required')
+    .default('local-google-client-secret'),
+  GOOGLE_REDIRECT_URI: z
+    .string()
+    .url('GOOGLE_REDIRECT_URI must be a valid URL')
+    .default('http://localhost:3000/api/auth/google/callback'),
+  APP_SESSION_SECRET: z
+    .string()
+    .min(32, 'APP_SESSION_SECRET must be at least 32 characters')
+    .default('local-development-session-secret-please-change-me'),
+  FRONTEND_ORIGIN: z
+    .string()
+    .url('FRONTEND_ORIGIN must be a valid URL')
+    .default('http://localhost:5173'),
   JWT_SECRET: z.string().min(1).optional(),
   JWT_EXPIRES_IN: z.string().optional(),
 });

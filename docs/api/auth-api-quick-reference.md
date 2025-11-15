@@ -4,116 +4,79 @@
 
 ```env
 GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_REDIRECT_URI=https://your-backend.com/api/auth/google/callback
+APP_SESSION_SECRET=change-me-at-least-32-characters
+FRONTEND_ORIGIN=https://your-frontend.com
 JWT_SECRET=your-secret-key
 JWT_EXPIRES_IN=7d
 ```
 
 ## 接口列表
 
-### 1. Google OAuth 登录
+### 1. 发起 Google OAuth
 
 ```bash
-POST /api/auth/google
-Content-Type: application/json
-
-{
-  "token": "google-id-token"
-}
+GET /api/auth/google           # 浏览器直接访问，后端返回 302
 ```
 
-**响应**:
-```json
-{
-  "success": true,
-  "token": "jwt-token",
-  "user": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "nickname": "John Doe",
-    "avatarUrl": "https://..."
-  }
-}
-```
-
-### 2. 获取当前用户信息
+### 2. Google 回调
 
 ```bash
-GET /api/auth/profile
-Authorization: Bearer <jwt-token>
+GET /api/auth/google/callback?code=xxx&state=yyy   # 仅由 Google 调用，成功后 302 回前端
 ```
 
-**响应**:
-```json
-{
-  "id": "uuid",
-  "email": "user@example.com",
-  "nickname": "John Doe",
-  "avatarUrl": "https://...",
-  "preferredLanguage": "zh-CN",
-  "createdAt": "2024-01-01T00:00:00.000Z",
-  "updatedAt": "2024-01-01T00:00:00.000Z"
-}
+### 3. 获取当前登录用户（Cookie）
+
+```bash
+GET /api/auth/me
+Cookie: app_session=<HttpOnly cookie>   # 浏览器自动附带
 ```
+
+### 4. 退出登录
+
+```bash
+POST /api/auth/logout
+```
+
+> 兼容接口：`GET /api/auth/profile` 仍支持 `Authorization: Bearer <token>` 访问，用于现有后端守卫。
 
 ## 前端使用示例
 
-### React + Google Sign-In
+### 浏览器登录流程
 
 ```typescript
-import { GoogleLogin } from '@react-oauth/google';
+// 1. 点击按钮跳转到后端
+window.location.href = '/api/auth/google';
 
-function LoginButton() {
-  const handleSuccess = async (credentialResponse: any) => {
-    const response = await fetch('/api/auth/google', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: credentialResponse.credential }),
-    });
-    
-    const { success, token, user } = await response.json();
-    if (success) {
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(user));
-    }
-  };
-
-  return <GoogleLogin onSuccess={handleSuccess} />;
-}
+// 2. 登录成功并回到前端后，调用 /me 获取用户信息
+const profileResponse = await fetch('/api/auth/me', { credentials: 'include' });
+const user = await profileResponse.json();
 ```
 
-### 带认证的 API 请求
+### 带认证的 API 请求（Cookie）
 
 ```typescript
-const token = localStorage.getItem('token');
-
-const response = await fetch('/api/v1/journeys', {
-  headers: {
-    'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json',
-  },
+await fetch('/api/v1/journeys', {
+  credentials: 'include',
+  headers: { 'Content-Type': 'application/json' },
 });
 ```
 
-### Axios 拦截器
+### Axios 拦截器（Cookie）
 
 ```typescript
 import axios from 'axios';
 
-const apiClient = axios.create({ baseURL: '/api' });
-
-apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
+const apiClient = axios.create({
+  baseURL: '/api',
+  withCredentials: true,
 });
 
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
       window.location.href = '/login';
     }
     return Promise.reject(error);

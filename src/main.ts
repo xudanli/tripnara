@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -9,7 +10,15 @@ async function bootstrap() {
     bufferLogs: true,
   });
 
-  app.enableCors();
+  const configService = app.get(ConfigService);
+  const frontendOrigin = configService.get<string>('FRONTEND_ORIGIN');
+  const appSessionSecret = configService.get<string>('APP_SESSION_SECRET');
+
+  app.enableCors({
+    origin: frontendOrigin,
+    credentials: true,
+  });
+  app.use(cookieParser(appSessionSecret));
   app.setGlobalPrefix('api');
   app.useGlobalPipes(
     new ValidationPipe({
@@ -18,8 +27,6 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
-
-  const configService = app.get(ConfigService);
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('TripMind API')

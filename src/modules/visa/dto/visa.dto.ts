@@ -138,6 +138,14 @@ export class CreateVisaPolicyDto {
   @IsString()
   description?: string;
 
+  @ApiPropertyOptional({
+    description: '语言代码（如 zh-CN/en-US），用于区分不同语言的签证描述',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  language?: string;
+
   @ApiPropertyOptional({ description: '停留期限（天数）' })
   @IsOptional()
   @IsInt()
@@ -229,6 +237,12 @@ export class UpdateVisaPolicyDto {
   @IsString()
   description?: string;
 
+  @ApiPropertyOptional({ description: '语言代码（如 zh-CN/en-US）' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  language?: string;
+
   @ApiPropertyOptional({ description: '停留期限（天数）' })
   @IsOptional()
   @IsInt()
@@ -308,5 +322,10 @@ export class VisaPolicyQueryDto {
   @Type(() => Boolean)
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({ description: '语言代码过滤，如 zh-CN/en-US' })
+  @IsOptional()
+  @IsString()
+  language?: string;
 }
 

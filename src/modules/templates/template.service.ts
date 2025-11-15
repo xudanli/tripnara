@@ -32,10 +32,26 @@ export class TemplateService {
   ) {}
 
   async listTemplates(query: TemplateQueryDto) {
-    const { page = 1, limit = 20, status, mode, keyword, modePrimary, modeTags } = query;
+    const {
+      page = 1,
+      limit = 20,
+      status,
+      mode,
+      keyword,
+      modePrimary,
+      modeTags,
+      language,
+    } = query;
 
     // 调试日志
-    console.log('[TemplateService] Query params:', { mode, status, modePrimary, modeTags, keyword });
+    console.log('[TemplateService] Query params:', {
+      mode,
+      status,
+      modePrimary,
+      modeTags,
+      keyword,
+      language,
+    });
 
     const qb = this.templateRepository.createQueryBuilder('template');
 
@@ -79,6 +95,10 @@ export class TemplateService {
       );
     }
 
+    if (language) {
+      qb.andWhere('template.language = :language', { language });
+    }
+
     qb.orderBy('template.updatedAt', 'DESC');
     qb.skip((page - 1) * limit).take(limit);
 
@@ -118,6 +138,7 @@ export class TemplateService {
   async createTemplate(dto: CreateTemplateDto) {
     const template = this.templateRepository.create({
       ...dto,
+      language: dto.language || 'zh-CN',
       days:
         dto.days?.map((day, index) =>
           this.dayRepository.create({

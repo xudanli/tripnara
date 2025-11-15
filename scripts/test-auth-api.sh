@@ -15,48 +15,27 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# 1. 测试 Google OAuth 登录接口（无 token）
-echo -e "${YELLOW}1. 测试 Google OAuth 登录接口（无 token）${NC}"
-echo "POST $BASE_URL/auth/google"
-echo "Request: {}"
-RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST "$BASE_URL/auth/google" \
-  -H "Content-Type: application/json" \
-  -d '{}')
+# 1. 测试 /auth/google 重定向
+echo -e "${YELLOW}1. 测试 Google OAuth 跳转${NC}"
+echo "GET $BASE_URL/auth/google"
+RESPONSE=$(curl -s -o /dev/null -w "HTTP_CODE:%{http_code}\nREDIRECT:%{redirect_url}\n" "$BASE_URL/auth/google")
+echo "$RESPONSE"
+echo ""
+
+# 2. 测试 /auth/me 未登录逻辑
+echo -e "${YELLOW}2. 测试 /auth/me（未携带 Cookie）${NC}"
+echo "GET $BASE_URL/auth/me"
+RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" "$BASE_URL/auth/me")
 HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE" | cut -d: -f2)
 BODY=$(echo "$RESPONSE" | sed '/HTTP_CODE/d')
 echo "Response (HTTP $HTTP_CODE):"
 echo "$BODY" | python3 -m json.tool 2>/dev/null || echo "$BODY"
 echo ""
 
-# 2. 测试 Google OAuth 登录接口（无效 token）
-echo -e "${YELLOW}2. 测试 Google OAuth 登录接口（无效 token）${NC}"
-echo "POST $BASE_URL/auth/google"
-echo "Request: {\"token\": \"invalid-token-12345\"}"
-RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST "$BASE_URL/auth/google" \
-  -H "Content-Type: application/json" \
-  -d '{"token":"invalid-token-12345"}')
-HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE" | cut -d: -f2)
-BODY=$(echo "$RESPONSE" | sed '/HTTP_CODE/d')
-echo "Response (HTTP $HTTP_CODE):"
-echo "$BODY" | python3 -m json.tool 2>/dev/null || echo "$BODY"
-echo ""
-
-# 3. 测试获取用户信息接口（无 token）
-echo -e "${YELLOW}3. 测试获取用户信息接口（无 token）${NC}"
+# 3. 测试 /auth/profile Bearer 兼容接口（无 token）
+echo -e "${YELLOW}3. 测试 /auth/profile（无 Authorization）${NC}"
 echo "GET $BASE_URL/auth/profile"
 RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" "$BASE_URL/auth/profile")
-HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE" | cut -d: -f2)
-BODY=$(echo "$RESPONSE" | sed '/HTTP_CODE/d')
-echo "Response (HTTP $HTTP_CODE):"
-echo "$BODY" | python3 -m json.tool 2>/dev/null || echo "$BODY"
-echo ""
-
-# 4. 测试获取用户信息接口（无效 token）
-echo -e "${YELLOW}4. 测试获取用户信息接口（无效 token）${NC}"
-echo "GET $BASE_URL/auth/profile"
-echo "Authorization: Bearer invalid-token"
-RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" "$BASE_URL/auth/profile" \
-  -H "Authorization: Bearer invalid-token")
 HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE" | cut -d: -f2)
 BODY=$(echo "$RESPONSE" | sed '/HTTP_CODE/d')
 echo "Response (HTTP $HTTP_CODE):"
@@ -78,15 +57,13 @@ echo "=========================================="
 echo "        测试总结"
 echo "=========================================="
 echo ""
-echo "✅ 接口路由测试完成"
+echo "✅ 接口路由测试完成（基础未登录流程）"
 echo ""
 echo "📝 注意事项："
-echo "1. Google OAuth 登录需要真实的 Google ID Token"
-echo "2. 获取用户信息需要有效的 JWT Token"
-echo "3. 要测试完整流程，需要："
-echo "   - 配置 GOOGLE_CLIENT_ID 环境变量"
-echo "   - 配置 JWT_SECRET 环境变量"
-echo "   - 使用真实的 Google ID Token 进行测试"
+echo "1. 完整登录需要在浏览器访问 /api/auth/google 并完成 Google 授权"
+echo "2. 登录成功后浏览器会保存 HttpOnly 的 app_session Cookie"
+echo "3. 所有前端请求需携带 credentials，例如 fetch(..., { credentials: 'include' })"
+echo "4. Bearer Token 接口仅用于脚本或旧版客户端，可从 app_session 中提取"
 echo ""
 echo "🔗 查看详细文档: docs/api/auth-api.md"
 echo ""

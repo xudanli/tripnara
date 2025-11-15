@@ -153,6 +153,15 @@ export class CreateTemplateDto {
   @MaxLength(255)
   modeTags?: string;
 
+  @ApiPropertyOptional({
+    description: '语言代码（如 zh-CN/en-US），便于前端根据用户语言筛选模板',
+    default: 'zh-CN',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  language?: string;
+
   @ApiPropertyOptional({ description: '安全提示默认值 JSON' })
   @IsOptional()
   safetyNoticeDefault?: Record<string, unknown>;
@@ -205,6 +214,11 @@ export class TemplateQueryDto {
   @ApiPropertyOptional({ description: '模式标签过滤（逗号分隔或数组）' })
   @IsOptional()
   modeTags?: string | string[];
+
+  @ApiPropertyOptional({ description: '语言代码过滤，如 zh-CN/en-US' })
+  @IsOptional()
+  @IsString()
+  language?: string;
 
   @ApiPropertyOptional({ description: '关键字搜索（名称/摘要）' })
   @IsOptional()
