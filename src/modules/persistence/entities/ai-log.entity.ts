@@ -6,8 +6,6 @@ import {
     PrimaryGeneratedColumn,
     UpdateDateColumn,
   } from 'typeorm';
-  // 关键修复：仅类型导入，避免运行时 import
-  import type { JourneyGenerationStage } from '../../journey/dto/journey-generation.dto';
   
   export type JobStatus = 'running' | 'completed' | 'failed';
   
@@ -17,8 +15,8 @@ import {
     id!: string;
   
     @Index()
-    @Column({ type: 'uuid' })
-    journeyId!: string;
+  @Column({ type: 'uuid', nullable: true })
+  resourceId?: string; // 通用资源ID，不再特定于journey
   
     @Column({ type: 'varchar', length: 32 })
     status!: JobStatus;
@@ -41,11 +39,11 @@ import {
     id!: string;
   
     @Index()
-    @Column({ type: 'uuid' })
-    journeyId!: string;
+  @Column({ type: 'uuid', nullable: true })
+  resourceId?: string; // 通用资源ID，不再特定于journey
   
     @Column({ type: 'varchar', length: 64 })
-    module!: JourneyGenerationStage;
+  module!: string; // 模块名称，不再使用JourneyGenerationStage
   
     @Column({ type: 'varchar', length: 16 })
     status!: LogStatus;

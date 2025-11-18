@@ -33,7 +33,7 @@ describe('TaskController', () => {
 
   it('returns queue statuses', () => {
     const statuses = [
-      { name: TaskType.JourneyGeneration, waiting: 1, active: 0, failed: 0 },
+      { name: TaskType.CatalogSync, waiting: 1, active: 0, failed: 0 },
     ];
     mockTaskQueueService.getQueueStatuses.mockReturnValue(statuses);
 

@@ -2,7 +2,6 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export enum TaskType {
-  JourneyGeneration = 'journey_generation',
   CatalogSync = 'catalog_sync',
   GuidesCacheRefresh = 'guides_cache_refresh',
 }

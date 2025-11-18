@@ -1,483 +1,687 @@
 {
-  "id": "egypt-nile-cruise-8d",
-  "mode": "classic",
-  "mode_primary": "culture",
-  "mode_tags": ["pyramid", "nile_cruise", "museum", "temple", "red_sea", "desert", "pharaoh"],
-  "title": "埃及经典之旅｜开罗+阿斯旺+卢克索+红海8日游",
-  "coverImage": "https://source.unsplash.com/1600x900/?pyramid,egypt,nile",
-  "location": "埃及・开罗・阿斯旺・卢克索・红海",
+  "id": "tahiti-borabora-fourseasons-8d",
+  "mode": "inspiration",
+  "modePrimary": "顶级臻选",
+  "modeTags": "海岛奢享, 水上屋, 蜜月, 四季",
+  "title": "大溪地海上天堂八天六夜｜波拉波拉四季 Four Seasons",
+  "coverImage": "https://source.unsplash.com/1600x900/?bora,bora,four,seasons,overwater,bungalow",
+  "location": "大溪地 · 波拉波拉岛",
   "duration": 8,
-  "summary": "8天埃及经典之旅，包含吉萨金字塔群、狮身人面像、埃及博物馆、尼罗河游轮、卡纳克神庙、红海度假，全程5钻酒店+5星游轮住宿。",
-  "description": "从开罗开始，探索古埃及文明精华，搭乘尼罗河游轮游览阿斯旺至卢克索段，体验红海度假，包含举牌接机、专业导游、门票和特色餐饮。",
-  "coreInsight": "从金字塔的远古奇迹到尼罗河的文明长廊，从法老神庙的神秘庄严到红海的碧蓝澄澈，这是一次穿越五千年文明的时间之旅。",
-  "safetyNotice": "埃及气候炎热干燥，需注意防晒补水。参观神庙和金字塔需步行较长时间，建议穿着舒适鞋子。保管好个人财物。",
+  "summary": "南太平洋顶级奢华体验，入住波拉波拉四季度假村水上套房，在曾被评选为'全球最佳岛屿'的天堂中享受极致度假体验。",
+  "description": "8天6夜大溪地奢华行程，入住波拉波拉岛四季度假村4晚，体验沉浸式文化之旅、直升机观光、夕阳巡航等精彩活动，尽享世界级度假服务。",
+  "coreInsight": "波拉波拉四季度假村位于马蒂拉角，刚完成全面升级，提供私人泳池水上套房和专属泻湖保护区，重新定义奢华海岛度假标准。",
+  "safetyNotices": {
+    "en": "Follow professional guidance for water activities, use sunscreen. Keep safe distance from marine life while snorkeling to protect coral reefs.",
+    "zh-cn": "水上活动请听从专业指导，注意防晒。浮潜时请与海洋生物保持安全距离，保护珊瑚礁生态。"
+  },
   "journeyBackground": [
-  "吉萨金字塔群是古代世界七大奇迹中仅存的建筑物，建于埃及第四王朝，距今约4500年",
-  "尼罗河是世界第一长河，孕育了古埃及文明，尼罗河游轮是体验埃及文化的经典方式",
-  "红海以其丰富的海洋生物和珊瑚礁而闻名，是世界著名的潜水胜地"
+    {
+      "text": "波拉波拉岛被美国新闻评选为'全球最佳岛屿'，四季度假村位于风景最优美的马蒂拉角，享有绝佳的地理位置。",
+      "order": 1
+    },
+    {
+      "text": "四季度假村以其卓越的服务和设施闻名，新升级的水上套房和海滨别墅提供无与伦比的度假体验。",
+      "order": 2
+    }
   ],
   "personaProfile": {
-  "type": "文化探索与休闲度假者",
-  "motivation": "探索古埃及文明的神秘遗迹，体验尼罗河游轮的浪漫之旅，享受红海的休闲度假时光",
-  "dominantEmotion": "文明震撼与休闲放松的双重体验",
-  "travelRhythm": "文化探索与度假休闲的完美结合",
-  "socialPreference": "小型精品团，适合文化爱好者和家庭游客",
-  "cognitiveNeed": "了解古埃及历史、法老文化、尼罗河文明、红海生态",
-  "foodPreference": "体验埃及传统美食、尼罗河游轮自助餐、红海海鲜"
+    "type": "奢华度假追求者",
+    "motivation": "在世界顶级度假村体验极致的奢华服务，在私人泳池中欣赏山海全景，享受明星般的度假生活",
+    "travelRhythm": "悠闲奢华的度假节奏，充分享受四季酒店的顶级设施与服务",
+    "cognitiveNeed": "了解波利尼西亚文化、海洋生态与顶级度假服务标准",
+    "foodPreference": "品味地中海料理与波利尼西亚传统美食，体验独木舟送餐服务",
+    "dominantEmotion": "极致奢华与完美体验",
+    "socialPreference": "情侣或家庭私密旅行"
   },
   "journeyDesign": {
-  "coreInsight": "金字塔文明探索 + 尼罗河游轮体验 + 法老神庙巡礼 + 红海度假休闲",
-  "psychologicalFlow": [
-  "开罗文明启程",
-  "金字塔震撼体验",
-  "尼罗河游轮生活",
-  "神庙文化探索",
-  "卢克索历史巡礼",
-  "红海休闲时光",
-  "完美旅程收官"
-  ],
-  "symbolicElements": ["金字塔", "狮身人面像", "尼罗河", "法老", "红海"],
-  "recommendedRhythm": "抵达适应→文明震撼→河流生活→神庙探索→历史巡礼→海洋休闲→返程回顾",
-  "socialMode": "专业导游带领的文化深度体验"
+    "slug": "tahiti-borabora-fourseasons-8d",
+    "socialMode": "私密奢华体验与个性化服务",
+    "coreInsight": "四季顶级服务 + 波利尼西亚文化深度体验 + 绝美自然环境",
+    "mentalFlowStages": {
+      "summon": {
+        "theme": "启程南太平洋",
+        "activities": [
+          "杭州出发经东京转机"
+        ],
+        "emotionalGoal": "怀着对四季奢华体验的期待启程",
+        "symbolicElement": "国际航班"
+      },
+      "awakening": {
+        "theme": "四季极致奢华",
+        "activities": [
+          "水上套房入住",
+          "私人泳池享受",
+          "独木舟早餐体验"
+        ],
+        "emotionalGoal": "沉浸在世界顶级度假村的极致服务中"
+      },
+      "reflection": {
+        "theme": "大溪地初印象",
+        "activities": [
+          "本岛希尔顿入住",
+          "适应岛屿节奏"
+        ],
+        "emotionalGoal": "感受南太平洋的独特氛围，为奢华体验做准备"
+      },
+      "transformation": {
+        "theme": "奢华记忆永存",
+        "activities": [
+          "茉莉亚岛夕阳巡航",
+          "返程回国"
+        ],
+        "emotionalGoal": "将四季酒店的奢华体验转化为终生珍贵回忆"
+      },
+      "internalization": {
+        "theme": "波拉波拉深度探索",
+        "activities": [
+          "文化体验",
+          "直升机观光",
+          "鲨鱼魟鱼浮潜"
+        ],
+        "emotionalGoal": "全方位体验波拉波拉的自然奇观与文化魅力"
+      }
+    },
+    "symbolicElements": [
+      "水上套房",
+      "私人泳池",
+      "直升机",
+      "独木舟早餐",
+      "黑珍珠"
+    ],
+    "psychologicalFlow": [
+      "抵达大溪地",
+      "四季奢华体验",
+      "深度探索",
+      "浪漫收官"
+    ],
+    "recommendedRhythm": "奢华放松与深度体验完美结合，充分享受四季特色服务"
   },
   "mentalFlowStages": {
-  "summon": {
-  "theme": "抵达文明古国",
-  "activities": ["开罗接机", "酒店入住", "休息调整"],
-  "emotionalGoal": "在埃及首都开启文明探索之旅",
-  "symbolicElement": "开罗机场"
-  },
-  "reflection": {
-  "theme": "金字塔文明震撼",
-  "activities": ["吉萨金字塔群", "狮身人面像", "埃及博物馆", "汗哈利利集市"],
-  "emotionalGoal": "在世界奇迹面前感受古埃及文明的辉煌"
-  },
-  "awakening": {
-  "theme": "尼罗河游轮生活",
-  "activities": ["飞往阿斯旺", "阿斯旺水坝", "尼罗河游轮入住"],
-  "emotionalGoal": "在尼罗河上体验埃及的母亲河文化"
-  },
-  "internalization": {
-  "theme": "神庙文化探索",
-  "activities": ["科翁坡神庙", "埃德福神庙", "伊斯利水闸"],
-  "emotionalGoal": "在古老神庙中感受法老时代的神秘庄严"
-  },
-  "transformation": {
-  "theme": "红海度假升华",
-  "activities": ["卡纳克神庙", "红海度假", "自由活动"],
-  "emotionalGoal": "在碧海蓝天中完成从文明探索到休闲度假的完美转变"
-  }
+    "summon": {
+      "theme": "启程南太平洋",
+      "activities": [
+        "杭州出发经东京转机"
+      ],
+      "emotionalGoal": "怀着对四季奢华体验的期待启程",
+      "symbolicElement": "国际航班"
+    },
+    "awakening": {
+      "theme": "四季极致奢华",
+      "activities": [
+        "水上套房入住",
+        "私人泳池享受",
+        "独木舟早餐体验"
+      ],
+      "emotionalGoal": "沉浸在世界顶级度假村的极致服务中"
+    },
+    "reflection": {
+      "theme": "大溪地初印象",
+      "activities": [
+        "本岛希尔顿入住",
+        "适应岛屿节奏"
+      ],
+      "emotionalGoal": "感受南太平洋的独特氛围，为奢华体验做准备"
+    },
+    "transformation": {
+      "theme": "奢华记忆永存",
+      "activities": [
+        "茉莉亚岛夕阳巡航",
+        "返程回国"
+      ],
+      "emotionalGoal": "将四季酒店的奢华体验转化为终生珍贵回忆"
+    },
+    "internalization": {
+      "theme": "波拉波拉深度探索",
+      "activities": [
+        "文化体验",
+        "直升机观光",
+        "鲨鱼魟鱼浮潜"
+      ],
+      "emotionalGoal": "全方位体验波拉波拉的自然奇观与文化魅力"
+    }
   },
   "tasks": [
-  {
-  "id": "task_auto_egypt_visa",
-  "title": "办理埃及签证",
-  "autoGenerated": true,
-  "autoKey": "documents_egypt_visa",
-  "category": "documents",
-  "destination": "埃及"
-  },
-  {
-  "id": "task_auto_sun_protection",
-  "title": "准备防晒用品和舒适鞋子",
-  "autoGenerated": true,
-  "autoKey": "gear_sun_protection",
-  "category": "gear"
-  },
-  {
-  "id": "task_auto_camera_equipment",
-  "title": "准备摄影装备",
-  "autoGenerated": true,
-  "autoKey": "gear_photography_basic",
-  "category": "gear"
-  },
-  {
-  "id": "task_auto_swimwear_beach",
-  "title": "准备泳衣和海滩用品",
-  "autoGenerated": true,
-  "autoKey": "gear_swimwear_beach",
-  "category": "gear"
-  }
+    {
+      "id": "task_auto_tahiti_visa",
+      "links": [
+        {
+          "url": "https://tahititourisme.com/",
+          "name": "大溪地旅游信息"
+        }
+      ],
+      "title": "办理法属波利尼西亚签证与入境文件",
+      "autoKey": "documents_tahiti_visa",
+      "category": "documents",
+      "destination": "大溪地",
+      "autoGenerated": true
+    },
+    {
+      "id": "task_auto_luxury_resort_gear",
+      "title": "准备度假服装与水上活动装备",
+      "autoKey": "gear_four_seasons",
+      "category": "gear",
+      "autoGenerated": true
+    },
+    {
+      "id": "task_auto_helicopter_booking",
+      "title": "提前预订直升机观光体验",
+      "autoKey": "planning_helicopter",
+      "category": "planning",
+      "autoGenerated": true
+    },
+    {
+      "id": "task_auto_canoe_breakfast",
+      "title": "预约独木舟送餐特色体验",
+      "autoKey": "dining_canoe",
+      "category": "planning",
+      "autoGenerated": true
+    }
   ],
   "days": [
-  {
-  "day": 1,
-  "title": "抵达开罗 · 文明古都",
-  "summary": "开罗机场举牌接机，协助办理签证入关，送至酒店休息调整。",
-  "timeSlots": [
-  {
-  "title": "开罗机场接机",
-  "type": "arrival",
-  "startTime": "抵达时间",
-  "durationHours": 1.5,
-  "location": "开罗国际机场",
-  "activityHighlights": "举牌接机，签证协助，入关手续，酒店送达",
-  "transport": {
-  "mode": "private_transfer"
-  }
-  },
-  {
-  "title": "酒店休息调整",
-  "type": "rest",
-  "startTime": "下午",
-  "durationHours": 4,
-  "location": "开罗五钻酒店",
-  "activityHighlights": "酒店设施享受，疲劳恢复，时差调整"
-  }
+    {
+      "dayNumber": 1,
+      "title": "杭州 → 大溪地本岛",
+      "summary": "经东京转机飞往大溪地，入住本岛希尔顿度假村。",
+      "detailsJson": null,
+      "timeSlots": [
+        {
+          "sequence": 1,
+          "durationHours": 24,
+          "durationMinutes": 1440,
+          "type": "transport",
+          "title": "国际航班",
+          "activityHighlights": {
+            "text": "经成田机场转机飞往法阿国际机场"
+          },
+          "locationJson": {
+            "name": "杭州 → 东京 → 大溪地（法阿国际机场）",
+            "country": "法属波利尼西亚",
+            "island": "大溪地（Tahiti）",
+            "airport": "Tahiti Faa'a International Airport (PPT)",
+            "coordinates": {
+              "lat": -17.554,
+              "lng": -149.6068
+            }
+          },
+          "detailsJson": {
+            "location": "杭州 → 东京 → 大溪地（PPT）",
+            "transport": {
+              "mode": "flight"
+            },
+            "durationHours": 24
+          }
+        },
+        {
+          "sequence": 2,
+          "durationHours": 1,
+          "durationMinutes": 60,
+          "type": "accommodation",
+          "title": "入住希尔顿度假村",
+          "activityHighlights": {
+            "text": "办理入住手续，欣赏花园景观，适应南太平洋气候"
+          },
+          "scenicIntro": "度假村融合现代设计与波利尼西亚传统元素",
+          "locationJson": {
+            "name": "大溪地本岛希尔顿度假村（Hilton Hotel Tahiti）",
+            "country": "法属波利尼西亚",
+            "island": "大溪地（Tahiti）",
+            "address": "Auae Faaa, Papeete 98713, French Polynesia",
+            "coordinates": {
+              "lat": -17.5454,
+              "lng": -149.5884
+            }
+          },
+          "detailsJson": {
+            "location": "大溪地本岛希尔顿度假村",
+            "durationHours": 1
+          }
+        }
+      ]
+    },
+    {
+      "dayNumber": 2,
+      "title": "前往波拉波拉 · 入住四季",
+      "summary": "飞往波拉波拉岛，入住顶级四季度假村水上套房。",
+      "detailsJson": null,
+      "timeSlots": [
+        {
+          "sequence": 1,
+          "durationHours": 1,
+          "durationMinutes": 60,
+          "type": "transport",
+          "title": "内陆飞机前往波拉波拉",
+          "activityHighlights": {
+            "text": "空中俯瞰七彩泻湖和心形环礁Tupai"
+          },
+          "locationJson": {
+            "name": "大溪地（PPT）→ 波拉波拉（BOB）",
+            "country": "法属波利尼西亚",
+            "islandFrom": "大溪地（Tahiti）",
+            "islandTo": "波拉波拉（Bora Bora）",
+            "coordinatesTo": {
+              "lat": -16.4997,
+              "lng": -151.7705
+            },
+            "viewPoint": {
+              "name": "Tupai 心形环礁",
+              "coordinates": {
+                "lat": -16.2657,
+                "lng": -151.8164
+              }
+            }
+          },
+          "detailsJson": {
+            "location": "大溪地 → 波拉波拉",
+            "transport": {
+              "mode": "flight"
+            },
+            "durationHours": 1
+          }
+        },
+        {
+          "sequence": 2,
+          "durationHours": 0.5,
+          "durationMinutes": 30,
+          "type": "transport",
+          "title": "快艇接驳至四季",
+          "activityHighlights": {
+            "text": "豪华快艇接驳，欣赏奥特马努山壮丽景色"
+          },
+          "locationJson": {
+            "name": "波拉波拉机场 → 四季度假村",
+            "country": "法属波利尼西亚",
+            "island": "波拉波拉（Bora Bora）",
+            "airport": "Bora Bora Airport (Motu Mute)",
+            "coordinatesFrom": {
+              "lat": -16.444,
+              "lng": -151.751
+            },
+            "coordinatesTo": {
+              "lat": -16.5004,
+              "lng": -151.7415
+            }
+          },
+          "detailsJson": {
+            "location": "波拉波拉机场 → 四季度假村",
+            "transport": {
+              "mode": "boat"
+            },
+            "durationHours": 0.5
+          }
+        },
+        {
+          "sequence": 3,
+          "durationHours": 2,
+          "durationMinutes": 120,
+          "type": "accommodation",
+          "title": "入住四季度假村",
+          "activityHighlights": {
+            "text": "入住单卧室海滩水上海景套房，享受私人泳池和山海全景"
+          },
+          "scenicIntro": "度假村位于Motu Tehotu 小岛，享有波拉波拉最佳景观位置",
+          "locationJson": {
+            "name": "波拉波拉四季度假村（Four Seasons Resort Bora Bora）",
+            "country": "法属波利尼西亚",
+            "island": "波拉波拉（Bora Bora）",
+            "address": "Motu Tehotu BP 547, 98730 Bora Bora, French Polynesia",
+            "coordinates": {
+              "lat": -16.5004,
+              "lng": -151.7415
+            }
+          },
+          "detailsJson": {
+            "location": "波拉波拉四季度假村",
+            "durationHours": 2
+          }
+        }
+      ]
+    },
+    {
+      "dayNumber": 3,
+      "title": "波拉波拉文化体验",
+      "summary": "全日沉浸式文化体验，学习波利尼西亚传统技艺。",
+      "detailsJson": null,
+      "timeSlots": [
+        {
+          "sequence": 1,
+          "durationHours": 7,
+          "durationMinutes": 420,
+          "type": "culture",
+          "title": "沉浸式文化一日游",
+          "activityHighlights": {
+            "text": "三个浮潜点观赏热带鱼、学习传统独木舟、椰子叶编织、品尝传统生鱼椰汁料理"
+          },
+          "scenicIntro": "波拉波拉泻湖以丰富的海洋生物和珊瑚礁闻名世界",
+          "locationJson": {
+            "name": "波拉波拉泻湖",
+            "country": "法属波利尼西亚",
+            "island": "波拉波拉（Bora Bora）",
+            "coordinates": {
+              "lat": -16.49,
+              "lng": -151.7352
+            }
+          },
+          "detailsJson": {
+            "location": "波拉波拉泻湖",
+            "durationHours": 7
+          }
+        }
+      ]
+    },
+    {
+      "dayNumber": 4,
+      "title": "海陆空全方位探索",
+      "summary": "自由选择四驱车探险、直升机观光或水上活动。",
+      "detailsJson": null,
+      "timeSlots": [
+        {
+          "sequence": 1,
+          "durationHours": 8,
+          "durationMinutes": 480,
+          "type": "adventure",
+          "title": "四驱车+浮潜一日游（可选）",
+          "activityHighlights": {
+            "text": "四驱车探索山间小道，参观二战遗迹，血腥玛丽餐厅午餐，下午泻湖浮潜"
+          },
+          "locationJson": {
+            "name": "波拉波拉全岛",
+            "country": "法属波利尼西亚",
+            "island": "波拉波拉（Bora Bora）",
+            "coordinates": {
+              "lat": -16.4997,
+              "lng": -151.7705
+            },
+            "landmark": "Mount Otemanu"
+          },
+          "detailsJson": {
+            "location": "波拉波拉全岛",
+            "transport": {
+              "mode": "4x4"
+            },
+            "durationHours": 8
+          }
+        },
+        {
+          "sequence": 2,
+          "durationHours": 2,
+          "durationMinutes": 120,
+          "type": "sightseeing",
+          "title": "直升机全景体验（可选）",
+          "activityHighlights": {
+            "text": "20/30/70分钟直升机观光，俯瞰心形环礁和奥特马努山"
+          },
+          "locationJson": {
+            "name": "波拉波拉空中观景航线",
+            "country": "法属波利尼西亚",
+            "island": "波拉波拉（Bora Bora）",
+            "coordinates": {
+              "lat": -16.4997,
+              "lng": -151.7705
+            },
+            "viewPoints": [
+              {
+                "name": "Mount Otemanu",
+                "approxCoordinates": {
+                  "lat": -16.501,
+                  "lng": -151.74
+                }
+              },
+              {
+                "name": "Tupai 心形环礁",
+                "approxCoordinates": {
+                  "lat": -16.2657,
+                  "lng": -151.8164
+                }
+              }
+            ]
+          },
+          "detailsJson": {
+            "location": "波拉波拉空中",
+            "transport": {
+              "mode": "helicopter"
+            },
+            "durationHours": 2
+          }
+        }
+      ]
+    },
+    {
+      "dayNumber": 5,
+      "title": "四季特色体验日",
+      "summary": "体验四季独家活动，享受度假村顶级设施。",
+      "detailsJson": null,
+      "timeSlots": [
+        {
+          "sequence": 1,
+          "durationHours": 4,
+          "durationMinutes": 240,
+          "type": "nature",
+          "title": "日间魟鱼与鲨鱼浮潜",
+          "activityHighlights": {
+            "text": "与黑尖鲨和刺尾鱼共游，小岛午餐欣赏奥特马努山景"
+          },
+          "locationJson": {
+            "name": "波拉波拉泻湖鲨鱼与魟鱼区",
+            "country": "法属波利尼西亚",
+            "island": "波拉波拉（Bora Bora）",
+            "coordinates": {
+              "lat": -16.49,
+              "lng": -151.7352
+            }
+          },
+          "detailsJson": {
+            "localTip": "浮潜时请保持安静，避免惊扰海洋生物",
+            "location": "波拉波拉泻湖",
+            "durationHours": 4
+          }
+        },
+        {
+          "sequence": 2,
+          "durationHours": 2,
+          "durationMinutes": 120,
+          "type": "leisure",
+          "title": "Te Mahana SPA体验",
+          "activityHighlights": {
+            "text": "使用大溪地黑珍珠粉、解毒藻等天然原料的特色护理"
+          },
+          "scenicIntro": "水疗中心位于泻湖边缘，享有湛蓝海景",
+          "locationJson": {
+            "name": "四季度假村水疗中心（Te Mahana Spa）",
+            "country": "法属波利尼西亚",
+            "island": "波拉波拉（Bora Bora）",
+            "resort": "Four Seasons Resort Bora Bora",
+            "coordinates": {
+              "lat": -16.5004,
+              "lng": -151.7415
+            }
+          },
+          "detailsJson": {
+            "location": "四季度假村水疗中心",
+            "durationHours": 2
+          }
+        },
+        {
+          "sequence": 3,
+          "durationHours": 3,
+          "durationMinutes": 180,
+          "type": "dining",
+          "title": "独木舟私人晚餐（可选）",
+          "activityHighlights": {
+            "text": "乘独木舟前往私人岛屿，香槟迎接，日落双人定制晚餐"
+          },
+          "locationJson": {
+            "name": "私人白沙摩图（私人小岛）",
+            "country": "法属波利尼西亚",
+            "island": "波拉波拉环礁外摩图",
+            "approxFromResort": "距四季约数百米至数公里的白沙小岛",
+            "approxCoordinates": {
+              "lat": -16.495,
+              "lng": -151.73
+            }
+          },
+          "detailsJson": {
+            "location": "私人白沙摩图",
+            "durationHours": 3
+          }
+        }
+      ]
+    },
+    {
+      "dayNumber": 6,
+      "title": "返回本岛 · 茉莉亚岛夕阳巡航",
+      "summary": "返回大溪地本岛，傍晚体验茉莉亚岛夕阳巡航。",
+      "detailsJson": null,
+      "timeSlots": [
+        {
+          "sequence": 1,
+          "durationHours": 2,
+          "durationMinutes": 120,
+          "type": "transport",
+          "title": "返回大溪地本岛",
+          "activityHighlights": {
+            "text": "内陆飞机返回本岛，入住希尔顿度假村"
+          },
+          "locationJson": {
+            "name": "波拉波拉 → 大溪地（PPT）",
+            "country": "法属波利尼西亚",
+            "islandFrom": "波拉波拉（Bora Bora）",
+            "islandTo": "大溪地（Tahiti）",
+            "coordinatesTo": {
+              "lat": -17.554,
+              "lng": -149.6068
+            }
+          },
+          "detailsJson": {
+            "location": "波拉波拉 → 大溪地",
+            "transport": {
+              "mode": "flight"
+            },
+            "durationHours": 2
+          }
+        },
+        {
+          "sequence": 2,
+          "durationHours": 1.5,
+          "durationMinutes": 90,
+          "type": "cruise",
+          "title": "茉莉亚岛夕阳巡航",
+          "activityHighlights": {
+            "text": "欣赏茉莉亚岛壮丽日落，享用迎宾鸡尾酒"
+          },
+          "scenicIntro": "从海上观赏茉莉亚岛心形轮廓的绝佳机会",
+          "locationJson": {
+            "name": "大溪地本岛海域 · 茉莉亚岛方向",
+            "country": "法属波利尼西亚",
+            "island": "茉莉亚岛（Moorea）",
+            "approxDeparturePort": "Papeete 或附近码头",
+            "coordinates": {
+              "lat": -17.5333,
+              "lng": -149.8333
+            }
+          },
+          "detailsJson": {
+            "location": "大溪地本岛海域",
+            "durationHours": 1.5
+          }
+        }
+      ]
+    },
+    {
+      "dayNumber": 7,
+      "title": "返程飞行",
+      "summary": "前往机场，搭乘国际航班经东京返回。",
+      "detailsJson": null,
+      "timeSlots": [
+        {
+          "sequence": 1,
+          "durationHours": 1,
+          "durationMinutes": 60,
+          "type": "transport",
+          "title": "机场送机",
+          "activityHighlights": {
+            "text": "专车接送至机场办理登机手续"
+          },
+          "locationJson": {
+            "name": "度假村 → 法阿国际机场（PPT）",
+            "country": "法属波利尼西亚",
+            "island": "大溪地（Tahiti）",
+            "airport": "Tahiti Faa'a International Airport",
+            "coordinates": {
+              "lat": -17.554,
+              "lng": -149.6068
+            }
+          },
+          "detailsJson": {
+            "location": "度假村 → 法阿机场",
+            "transport": {
+              "mode": "private_transfer"
+            },
+            "durationHours": 1
+          }
+        },
+        {
+          "sequence": 2,
+          "durationHours": 24,
+          "durationMinutes": 1440,
+          "type": "transport",
+          "title": "国际航班",
+          "activityHighlights": {
+            "text": "经东京转机返回杭州"
+          },
+          "locationJson": {
+            "name": "大溪地 → 东京 → 杭州",
+            "departureAirport": "Tahiti Faa'a International Airport (PPT)",
+            "arrivalAirport": "Hangzhou Xiaoshan International Airport (HGH)",
+            "coordinatesDeparture": {
+              "lat": -17.554,
+              "lng": -149.6068
+            },
+            "coordinatesArrival": {
+              "lat": 30.2243,
+              "lng": 120.434
+            }
+          },
+          "detailsJson": {
+            "location": "大溪地 → 东京 → 杭州",
+            "transport": {
+              "mode": "flight"
+            },
+            "durationHours": 24
+          }
+        }
+      ]
+    },
+    {
+      "dayNumber": 8,
+      "title": "抵达杭州",
+      "summary": "抵达杭州，结束完美的大溪地四季之旅。",
+      "detailsJson": null,
+      "timeSlots": [
+        {
+          "sequence": 1,
+          "durationHours": 1,
+          "durationMinutes": 60,
+          "type": "departure",
+          "title": "抵达杭州",
+          "activityHighlights": {
+            "text": "领取行李，结束奢华的波拉波拉四季度假之旅"
+          },
+          "locationJson": {
+            "name": "杭州萧山国际机场（HGH）",
+            "country": "中国",
+            "city": "杭州",
+            "airport": "Hangzhou Xiaoshan International Airport",
+            "coordinates": {
+              "lat": 30.2243,
+              "lng": 120.434
+            }
+          },
+          "detailsJson": {
+            "location": "杭州机场",
+            "durationHourtu pa
+          }
+        }
+      ]
+    }
   ]
-  },
-  {
-  "day": 2,
-  "title": "开罗 · 金字塔奇迹",
-  "summary": "吉萨金字塔群深度游览，狮身人面像，埃及博物馆，汗哈利利集市。",
-  "timeSlots": [
-  {
-  "title": "吉萨金字塔群游览",
-  "type": "culture",
-  "startTime": "上午",
-  "durationHours": 2,
-  "location": "吉萨高原",
-  "activityHighlights": "胡夫金字塔、卡夫拉金字塔、孟卡拉金字塔参观，古代奇迹探索",
-  "scenicIntro": "古代世界七大奇迹中仅存的建筑物"
-  },
-  {
-  "title": "狮身人面像参观",
-  "type": "culture",
-  "startTime": "上午",
-  "durationHours": 0.5,
-  "location": "吉萨高原",
-  "activityHighlights": "狮身人面像近距离观赏，古埃及文明象征了解"
-  },
-  {
-  "title": "埃及博物馆参观",
-  "type": "culture",
-  "startTime": "下午",
-  "durationHours": 2,
-  "location": "开罗解放广场",
-  "activityHighlights": "30万件文物观赏，法老时期文化遗产学习",
-  "scenicIntro": "世界上规模庞大的古埃及文物博物馆"
-  },
-  {
-  "title": "汗哈利利集市游览",
-  "type": "shopping",
-  "startTime": "下午",
-  "durationHours": 1.5,
-  "location": "开罗老城区",
-  "activityHighlights": "阿拉伯商品淘宝，当地特色体验，费沙维咖啡馆"
-  }
-  ]
-  },
-  {
-  "day": 3,
-  "title": "开罗 → 阿斯旺 · 尼罗河启航",
-  "summary": "飞往阿斯旺，登尼罗河游轮，参观阿斯旺水坝，推荐努比亚村自费项目。",
-  "timeSlots": [
-  {
-  "title": "飞往阿斯旺",
-  "type": "transport",
-  "startTime": "上午",
-  "durationHours": 2.5,
-  "location": "开罗→阿斯旺",
-  "activityHighlights": "国内航班，埃及内陆风光欣赏",
-  "transport": {
-  "mode": "flight"
-  }
-  },
-  {
-  "title": "尼罗河游轮入住",
-  "type": "accommodation",
-  "startTime": "上午",
-  "durationHours": 1,
-  "location": "阿斯旺游轮码头",
-  "activityHighlights": "游轮手续办理，房间安排，设施熟悉"
-  },
-  {
-  "title": "阿斯旺水坝参观",
-  "type": "culture",
-  "startTime": "下午",
-  "durationHours": 0.5,
-  "location": "阿斯旺",
-  "activityHighlights": "大坝工程参观，纳赛尔湖观赏，水利工程了解",
-  "scenicIntro": "尼罗河上的重要水利工程"
-  },
-  {
-  "title": "自选活动时间",
-  "type": "optional",
-  "startTime": "下午",
-  "durationHours": 3,
-  "location": "阿斯旺",
-  "activityHighlights": "努比亚村参观，尼罗河观光渡轮，当地文化体验"
-  }
-  ]
-  },
-  {
-  "day": 4,
-  "title": "阿斯旺 → 埃德福 · 神庙探秘",
-  "summary": "推荐阿布辛贝神庙自费项目，参观科翁坡神庙，尼罗河航行体验。",
-  "timeSlots": [
-  {
-  "title": "自选阿布辛贝之旅",
-  "type": "optional",
-  "startTime": "凌晨",
-  "durationHours": 8,
-  "location": "阿布辛贝",
-  "activityHighlights": "拉美西斯二世神庙参观，努比亚遗址探索，世界遗产体验",
-  "scenicIntro": "联合国教科文组织世界遗产"
-  },
-  {
-  "title": "科翁坡神庙参观",
-  "type": "culture",
-  "startTime": "下午",
-  "durationHours": 1,
-  "location": "科翁坡",
-  "activityHighlights": "双神庙结构探索，鳄鱼神与鹰神崇拜了解，浮雕观赏",
-  "scenicIntro": "供奉鳄鱼之神和鹰神的独特双神庙"
-  },
-  {
-  "title": "尼罗河航行",
-  "type": "cruise",
-  "startTime": "傍晚",
-  "durationHours": 2,
-  "location": "尼罗河",
-  "activityHighlights": "河流风光欣赏，日落美景，游轮生活体验"
-  }
-  ]
-  },
-  {
-  "day": 5,
-  "title": "埃德福 → 卢克索 · 神庙巡礼",
-  "summary": "埃德福神庙马车游览，伊斯利水闸特色体验，前往卢克索。",
-  "timeSlots": [
-  {
-  "title": "埃德福神庙游览",
-  "type": "culture",
-  "startTime": "上午",
-  "durationHours": 1.5,
-  "location": "埃德福",
-  "activityHighlights": "马车前往，荷鲁斯神庙参观，神鹰雕像观赏",
-  "scenicIntro": "保存完好的古埃及神庙之一"
-  },
-  {
-  "title": "伊斯利水闸体验",
-  "type": "culture",
-  "startTime": "下午",
-  "durationHours": 1,
-  "location": "伊斯利水闸",
-  "activityHighlights": "水闸通过观察，小船商贩互动，独特买卖方式体验"
-  },
-  {
-  "title": "前往卢克索",
-  "type": "transport",
-  "startTime": "下午",
-  "durationHours": 2,
-  "location": "埃德福→卢克索",
-  "activityHighlights": "尼罗河航行，沿岸风光欣赏",
-  "transport": {
-  "mode": "cruise"
-  }
-  }
-  ]
-  },
-  {
-  "day": 6,
-  "title": "卢克索 → 红海 · 度假时光",
-  "summary": "卡纳克神庙参观，卢克索神庙外观，前往红海度假胜地。",
-  "timeSlots": [
-  {
-  "title": "卡纳克神庙游览",
-  "type": "culture",
-  "startTime": "上午",
-  "durationHours": 1.5,
-  "location": "卢克索",
-  "activityHighlights": "巨大石柱群观赏，拉美西斯二世雕像参观，神庙布局欣赏",
-  "scenicIntro": "世界上规模庞大的神庙群"
-  },
-  {
-  "title": "卢克索神庙外观",
-  "type": "culture",
-  "startTime": "上午",
-  "durationHours": 0.5,
-  "location": "卢克索市中心",
-  "activityHighlights": "神庙外观欣赏，建筑特色了解，城市景观体验"
-  },
-  {
-  "title": "前往红海",
-  "type": "transport",
-  "startTime": "下午",
-  "durationHours": 4,
-  "location": "卢克索→赫尔格达",
-  "activityHighlights": "沙漠公路旅行，风景变化体验，度假心情转换",
-  "transport": {
-  "mode": "vehicle"
-  }
-  },
-  {
-  "title": "红海度假酒店入住",
-  "type": "accommodation",
-  "startTime": "傍晚",
-  "durationHours": 2,
-  "location": "赫尔格达",
-  "activityHighlights": "海边度假村体验，设施享受，休闲氛围感受"
-  }
-  ]
-  },
-  {
-  "day": 7,
-  "title": "红海 · 自由休闲",
-  "summary": "红海全天自由活动，推荐出海、玻璃船、潜水艇等自费项目。",
-  "timeSlots": [
-  {
-  "title": "自由活动时间",
-  "type": "leisure",
-  "startTime": "全天",
-  "durationHours": 8,
-  "location": "红海赫尔格达",
-  "activityHighlights": "海滩休闲，酒店设施享受，自由安排时光"
-  },
-  {
-  "title": "自选海上活动",
-  "type": "optional",
-  "startTime": "上午",
-  "durationHours": 4,
-  "location": "红海",
-  "activityHighlights": "出海浮潜，玻璃船观光，潜水艇体验，海洋生物观赏"
-  },
-  {
-  "title": "自选沙漠活动",
-  "type": "optional",
-  "startTime": "下午",
-  "durationHours": 4,
-  "location": "东部沙漠",
-  "activityHighlights": "贝都因人部落探访，吉普车沙漠冲沙，骆驼骑行体验"
-  }
-  ]
-  },
-  {
-  "day": 8,
-  "title": "红海 → 开罗 · 行程结束",
-  "summary": "返回开罗，机场送机，行程圆满结束。",
-  "timeSlots": [
-  {
-  "title": "返回开罗",
-  "type": "transport",
-  "startTime": "上午",
-  "durationHours": 6.5,
-  "location": "赫尔格达→开罗",
-  "activityHighlights": "沙漠公路返程，行程回顾，埃及风光最后欣赏",
-  "transport": {
-  "mode": "vehicle"
-  }
-  },
-  {
-  "title": "开罗机场送机",
-  "type": "departure",
-  "startTime": "下午",
-  "durationHours": 1,
-  "location": "开罗国际机场",
-  "activityHighlights": "机场送达，登机手续协助，行程结束"
-  }
-  ]
-  }
-  ],
-  "optionalActivities": [
-  {
-  "id": "opt_nile_dinner_cruise",
-  "title": "尼罗河游船晚餐",
-  "price": 70,
-  "currency": "USD",
-  "duration": 1.5,
-  "description": "傍晚乘坐游船观赏尼罗河夜景，享用西式自助晚餐，欣赏肚皮舞表演及苏菲舞",
-  "includes": ["车费", "船票", "西式自助餐", "游船服务生小费"]
-  },
-  {
-  "id": "opt_citadel_mosque",
-  "title": "萨拉丁城堡+阿里清真寺",
-  "price": 50,
-  "currency": "USD",
-  "duration": 2,
-  "description": "参观埃及权力中心萨拉丁城堡，欣赏穆罕默德·阿里清真寺，俯瞰开罗全景",
-  "includes": ["车费", "导游讲解费", "门票", "服务费"]
-  },
-  {
-  "id": "opt_nubian_village",
-  "title": "努比亚村落参观",
-  "price": 60,
-  "currency": "USD",
-  "duration": 2,
-  "description": "横渡尼罗河探访色彩斑斓的努比亚村，了解这个古老民族的文化传统",
-  "includes": ["车费", "船票", "家访费用", "门票费", "服务费"]
-  },
-  {
-  "id": "opt_abu_simbel",
-  "title": "阿布辛贝神庙一日游",
-  "price": 130,
-  "currency": "USD",
-  "duration": 8,
-  "description": "凌晨出发参观雄伟的阿布辛贝神庙，探索拉美西斯二世的伟大建筑",
-  "includes": ["远程车费", "导游讲解费", "门票费", "服务费"]
-  },
-  {
-  "id": "opt_philae_temple",
-  "title": "菲莱神庙参观",
-  "price": 60,
-  "currency": "USD",
-  "duration": 2,
-  "description": "乘船前往菲莱岛参观伊西丝神庙，欣赏这个水上神庙的独特魅力",
-  "includes": ["车费", "导游讲解费", "门票费", "船票", "服务费"]
-  },
-  {
-  "id": "opt_valley_queen",
-  "title": "帝王谷+女王神殿",
-  "price": 80,
-  "currency": "USD",
-  "duration": 3,
-  "description": "探访尼罗河西岸的帝王谷法老墓穴，参观哈特谢普苏特女王神殿",
-  "includes": ["车费", "导游讲解费", "门票", "服务费"]
-  },
-  {
-  "id": "opt_luxor_balloon",
-  "title": "卢克索热气球",
-  "price": 125,
-  "currency": "USD",
-  "duration": 2,
-  "description": "清晨乘坐热气球俯瞰卢克索全景，欣赏神庙群和尼罗河的壮丽景色",
-  "includes": ["车费", "景点门票费", "服务费"]
-  },
-  {
-  "id": "opt_red_sea_cruise",
-  "title": "红海出海游览",
-  "price": 75,
-  "currency": "USD",
-  "duration": 4,
-  "description": "乘船出海游览红海，浮潜观赏珊瑚礁，体验深海垂钓的乐趣",
-  "includes": ["车费", "船票", "游船午餐", "服务费"]
-  },
-  {
-  "id": "opt_glass_bottom",
-  "title": "红海玻璃船",
-  "price": 70,
-  "currency": "USD",
-  "duration": 2,
-  "description": "乘坐玻璃底船观赏红海底部的珊瑚礁和五彩斑斓的海洋生物",
-  "includes": ["车费", "船票", "服务费"]
-  },
-  {
-  "id": "opt_submarine",
-  "title": "红海潜水艇",
-  "price": 90,
-  "currency": "USD",
-  "duration": 2,
-  "description": "乘坐潜水艇深入红海海底，近距离观赏珊瑚礁和海洋生物",
-  "includes": ["车费", "船票", "服务费"]
-  },
-  {
-  "id": "opt_bedouin_tour",
-  "title": "贝都因人部落探访",
-  "price": 75,
-  "currency": "USD",
-  "duration": 4,
-  "description": "乘吉普车深入沙漠探访贝都因人部落，体验骑骆驼，了解游牧民族文化",
-  "includes": ["越野车费用", "教练", "服务费"]
-  }
-  ]
-  }
+}

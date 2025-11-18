@@ -14,6 +14,8 @@ const envSchema = z.object({
   OPENAI_BASE_URL: z.string().url().optional(),
   LLM_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
   LLM_MAX_RETRIES: z.coerce.number().int().min(0).optional(),
+  EXTERNAL_API_MAX_RETRIES: z.coerce.number().int().min(0).optional(),
+  EXTERNAL_API_RETRY_DELAY_MS: z.coerce.number().int().positive().optional(),
   MAPBOX_ACCESS_TOKEN: z.string().min(1).optional(),
   MAPBOX_BASE_URL: z.string().url().optional(),
   EVENTBRITE_API_TOKEN: z.string().min(1).optional(),
@@ -21,7 +23,7 @@ const envSchema = z.object({
     .string()
     .url()
     .optional()
-    .default('https://www.eventbriteapi.com'),
+    .default('https://www.eventbriteapi.com/v3'),
   EVENTBRITE_CLIENT_ID: z.string().min(1).optional(),
   EVENTBRITE_CLIENT_SECRET: z.string().min(1).optional(),
   EVENTBRITE_AUTH_URL: z

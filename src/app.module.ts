@@ -4,8 +4,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { GatewayModule } from './modules/gateway/gateway.module';
-import { JourneyModule } from './modules/journey/journey.module';
-import { JourneyGenerationModule } from './modules/journey/journey-generation.module';
 import { LlmModule } from './modules/llm/llm.module';
 import { DestinationModule } from './modules/destination/destination.module';
 import { GuidesModule } from './modules/guides/guides.module';
@@ -21,6 +19,9 @@ import { AuthModule } from './modules/auth/auth.module';
 import { PreferencesModule } from './modules/preferences/preferences.module';
 import { ExternalModule } from './modules/external/external.module';
 import { EventbriteModule } from './modules/eventbrite/eventbrite.module';
+import { ItineraryModule } from './modules/itinerary/itinerary.module';
+import { LocationModule } from './modules/location/location.module';
+import { TravelModule } from './modules/travel/travel.module';
 
 const resolveEnvFilePaths = (): string[] => {
   const env = process.env.NODE_ENV?.toLowerCase();
@@ -85,8 +86,6 @@ const resolveEnvFilePaths = (): string[] => {
       },
     }),
     GatewayModule,
-    JourneyModule,
-    JourneyGenerationModule,
     LlmModule,
     DestinationModule,
     TemplateModule,
@@ -100,6 +99,9 @@ const resolveEnvFilePaths = (): string[] => {
     PreferencesModule,
     ExternalModule,
     EventbriteModule,
+    ItineraryModule,
+    LocationModule,
+    TravelModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,9 +1,4 @@
 import {
-  JourneyEntity,
-  JourneyDayEntity,
-  JourneyTimeSlotEntity,
-} from '../modules/persistence/entities/journey.entity';
-import {
   JourneyTemplateEntity,
   TemplateDayEntity,
   TemplateTimeSlotEntity,
@@ -21,10 +16,6 @@ import {
   AiSafetyNoticeCacheEntity,
 } from '../modules/persistence/entities/ai-log.entity';
 import {
-  JourneyEditEntity,
-  JourneyShareEntity,
-  JourneyFeedbackEntity,
-  JourneyCollectionEntity,
   NotificationEntity,
 } from '../modules/persistence/entities/user-interaction.entity';
 import {
@@ -43,11 +34,13 @@ import {
   VisaPolicyHistoryEntity,
 } from '../modules/persistence/entities/visa.entity';
 import { EventbriteConnectionEntity } from '../modules/persistence/entities/eventbrite-connection.entity';
+import {
+  ItineraryEntity,
+  ItineraryDayEntity,
+  ItineraryActivityEntity,
+} from '../modules/persistence/entities/itinerary.entity';
 
 export const TYPEORM_ENTITIES = [
-  JourneyEntity,
-  JourneyDayEntity,
-  JourneyTimeSlotEntity,
   JourneyTemplateEntity,
   TemplateDayEntity,
   TemplateTimeSlotEntity,
@@ -60,10 +53,6 @@ export const TYPEORM_ENTITIES = [
   AiRequestLogEntity,
   AiGenerationJobEntity,
   AiSafetyNoticeCacheEntity,
-  JourneyEditEntity,
-  JourneyShareEntity,
-  JourneyFeedbackEntity,
-  JourneyCollectionEntity,
   NotificationEntity,
   DestinationEntity,
   CountryEntity,
@@ -76,4 +65,7 @@ export const TYPEORM_ENTITIES = [
   VisaUnionEntity,
   VisaUnionCountryEntity,
   VisaPolicyHistoryEntity,
+  ItineraryEntity,
+  ItineraryDayEntity,
+  ItineraryActivityEntity,
 ];

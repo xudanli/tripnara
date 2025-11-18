@@ -28,11 +28,11 @@ describe('TaskQueueService', () => {
   });
 
   it('simulates processing and decreases waiting jobs', async () => {
-    await service.scheduleTask({ task: TaskType.JourneyGeneration });
+    await service.scheduleTask({ task: TaskType.CatalogSync });
     await service.simulateProcessing();
     const statuses = service.getQueueStatuses();
     const queue = statuses.find(
-      (status) => status.name === TaskType.JourneyGeneration,
+      (status) => status.name === TaskType.CatalogSync,
     );
 
     expect(queue?.waiting).toBe(0);

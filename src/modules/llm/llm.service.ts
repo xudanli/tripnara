@@ -47,7 +47,8 @@ export class LlmService {
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
   ) {
-    this.timeoutMs = this.configService.get<number>('LLM_TIMEOUT_MS', 30000);
+    // 默认超时：5分钟（300秒），适用于行程生成等长时间任务
+    this.timeoutMs = this.configService.get<number>('LLM_TIMEOUT_MS', 300000);
     this.maxRetries = this.configService.get<number>('LLM_MAX_RETRIES', 3);
   }
 

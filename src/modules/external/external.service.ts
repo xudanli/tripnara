@@ -4,7 +4,7 @@ import {
   Injectable,
   Logger,
 } from '@nestjs/common';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { ConfigService } from '@nestjs/config';
 import { TravelGuideResponseDto, TravelGuideSearchQueryDto } from './dto/travel-guides.dto';
 
@@ -18,6 +18,8 @@ export class ExternalService {
   private readonly logger = new Logger(ExternalService.name);
   private readonly cache = new Map<string, CacheEntry<any>>();
   private readonly cacheTtlMs = 5 * 60 * 1000;
+  private readonly maxRetries: number;
+  private readonly retryDelayMs: number;
 
   private readonly eventbriteToken: string;
   private readonly eventbriteBaseUrl: string;
@@ -38,6 +40,8 @@ export class ExternalService {
     this.travelAdvisorBaseUrl = this.configService.getOrThrow<string>(
       'TRAVEL_ADVISOR_BASE_URL',
     );
+    this.maxRetries = this.configService.get<number>('EXTERNAL_API_MAX_RETRIES', 3);
+    this.retryDelayMs = this.configService.get<number>('EXTERNAL_API_RETRY_DELAY_MS', 1000);
   }
 
   async searchEvents(location: string) {
@@ -56,11 +60,15 @@ export class ExternalService {
     }
 
     try {
-      const searchUrl = new URL(
-        '/v3/events/search/',
-        this.eventbriteBaseUrl,
-      ).toString();
-      const { data } = await axios.get(searchUrl, {
+      // Ensure base URL includes /v3 if not already present
+      let baseUrl = this.eventbriteBaseUrl;
+      if (!baseUrl.endsWith('/v3') && !baseUrl.endsWith('/v3/')) {
+        baseUrl = baseUrl.endsWith('/') ? `${baseUrl}v3` : `${baseUrl}/v3`;
+      }
+      
+      const searchUrl = new URL('/events/search/', baseUrl).toString();
+      const data = await this.executeWithRetry(
+        () => axios.get(searchUrl, {
         params: {
           'location.address': location,
           expand: 'venue',
@@ -68,16 +76,26 @@ export class ExternalService {
         headers: {
           Authorization: `Bearer ${this.eventbriteToken}`,
         },
-      });
-      this.setCache(cacheKey, data);
-      return data;
+        }),
+        'Eventbrite',
+      );
+      
+      this.setCache(cacheKey, data.data);
+      return data.data;
     } catch (error) {
+      const status = (error as AxiosError)?.response?.status;
+      const errorMessage = status === 404 
+        ? 'EVENTBRITE_ENDPOINT_NOT_FOUND'
+        : status === 401 || status === 403
+        ? 'EVENTBRITE_AUTH_FAILED'
+        : 'EVENTBRITE_SERVICE_UNAVAILABLE';
+      
       this.logger.error(
-        `Eventbrite API error`,
+        `Eventbrite API error (status: ${status})`,
         (error as any)?.response?.data ?? error,
       );
       throw new HttpException(
-        { message: 'EVENTBRITE_SERVICE_UNAVAILABLE' },
+        { message: errorMessage },
         HttpStatus.BAD_GATEWAY,
       );
     }
@@ -101,22 +119,33 @@ export class ExternalService {
         '/locations/search',
         this.travelAdvisorBaseUrl,
       ).toString();
-      const { data } = await axios.get(searchUrl, {
+      const data = await this.executeWithRetry(
+        () => axios.get(searchUrl, {
         params: { query },
         headers: {
           'X-RapidAPI-Key': this.travelAdvisorApiKey,
           'X-RapidAPI-Host': this.travelAdvisorApiHost,
         },
-      });
-      this.setCache(cacheKey, data);
-      return data;
+        }),
+        'Travel Advisor',
+      );
+      
+      this.setCache(cacheKey, data.data);
+      return data.data;
     } catch (error) {
+      const status = (error as AxiosError)?.response?.status;
+      const errorMessage = status === 429
+        ? 'TRAVEL_ADVISOR_RATE_LIMIT_EXCEEDED'
+        : status === 401 || status === 403
+        ? 'TRAVEL_ADVISOR_AUTH_FAILED'
+        : 'TRAVEL_ADVISOR_SERVICE_UNAVAILABLE';
+      
       this.logger.error(
-        `Travel Advisor API error`,
+        `Travel Advisor API error (status: ${status})`,
         (error as any)?.response?.data ?? error,
       );
       throw new HttpException(
-        { message: 'TRAVEL_ADVISOR_SERVICE_UNAVAILABLE' },
+        { message: errorMessage },
         HttpStatus.BAD_GATEWAY,
       );
     }
@@ -141,7 +170,8 @@ export class ExternalService {
         '/locations/search',
         this.travelAdvisorBaseUrl,
       ).toString();
-      const { data } = await axios.get(searchUrl, {
+      const response = await this.executeWithRetry(
+        () => axios.get(searchUrl, {
         params: {
           query: dto.destination,
           limit,
@@ -151,10 +181,12 @@ export class ExternalService {
           'X-RapidAPI-Key': this.travelAdvisorApiKey,
           'X-RapidAPI-Host': this.travelAdvisorApiHost,
         },
-      });
+        }),
+        'Travel Advisor (Guides)',
+      );
 
       const entries =
-        Array.isArray((data as any)?.data) ? (data as any).data : [];
+        Array.isArray((response.data as any)?.data) ? (response.data as any).data : [];
       const guides = entries.slice(0, limit).map(
         (item: any, index: number) => ({
           id:
@@ -212,6 +244,55 @@ export class ExternalService {
       value,
       expiresAt: Date.now() + this.cacheTtlMs,
     });
+  }
+
+  /**
+   * Execute an API request with retry logic for rate limits and server errors
+   */
+  private async executeWithRetry<T>(
+    requestFn: () => Promise<T>,
+    serviceName: string,
+    attempt = 1,
+  ): Promise<T> {
+    try {
+      return await requestFn();
+    } catch (error) {
+      if (this.shouldRetry(error) && attempt < this.maxRetries) {
+        const delayMs = attempt * this.retryDelayMs;
+        const status = (error as AxiosError)?.response?.status;
+        this.logger.warn(
+          `${serviceName} API request failed (attempt ${attempt}/${this.maxRetries}, status: ${status}). Retrying in ${delayMs}ms...`,
+        );
+        await this.delay(delayMs);
+        return this.executeWithRetry(requestFn, serviceName, attempt + 1);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Determine if an error should trigger a retry
+   */
+  private shouldRetry(error: unknown): boolean {
+    if (!axios.isAxiosError(error)) {
+      return false;
+    }
+
+    // Retry on network errors (no response)
+    if (!error.response) {
+      return true;
+    }
+
+    const status = error.response.status;
+    // Retry on rate limits (429) and server errors (5xx)
+    return status === 429 || status >= 500;
+  }
+
+  /**
+   * Delay execution for a specified number of milliseconds
+   */
+  private async delay(ms: number): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
 

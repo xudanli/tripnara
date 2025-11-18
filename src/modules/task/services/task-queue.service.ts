@@ -11,7 +11,6 @@ interface QueueState {
 export class TaskQueueService {
   private readonly logger = new Logger(TaskQueueService.name);
   private readonly queues: Record<TaskType, QueueState> = {
-    [TaskType.JourneyGeneration]: { waiting: 0, active: 0, failed: 0 },
     [TaskType.CatalogSync]: { waiting: 0, active: 0, failed: 0 },
     [TaskType.GuidesCacheRefresh]: { waiting: 0, active: 0, failed: 0 },
   };
