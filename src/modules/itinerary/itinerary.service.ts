@@ -407,8 +407,8 @@ ${dateInstructions}
           type: act.type,
           duration: act.duration,
           location: act.location,
-          notes: act.notes,
-          cost: act.cost,
+          notes: act.notes || '',
+          cost: act.cost ?? undefined,
         })),
       })),
     });
