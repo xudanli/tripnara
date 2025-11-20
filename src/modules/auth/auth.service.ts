@@ -39,6 +39,8 @@ export class AuthService {
   private readonly sessionCookieName = 'app_session';
   private readonly oauthStateTtlMs = 5 * 60 * 1000;
   private readonly sessionTtlMs = 7 * 24 * 60 * 60 * 1000;
+  private readonly googleTokenExchangeTimeout = 30000; // 30秒超时
+  private readonly googleTokenExchangeMaxRetries = 3; // 最多重试3次
 
   constructor(
     @InjectRepository(UserEntity)
@@ -319,10 +321,14 @@ export class AuthService {
     return user;
   }
 
-  private async exchangeCodeForToken(code: string, codeVerifier: string) {
+  private async exchangeCodeForToken(
+    code: string,
+    codeVerifier: string,
+    attempt = 1,
+  ) {
     try {
       this.logger.log(
-        `[AuthService] token endpoint = ${this.googleTokenEndpoint}`,
+        `[AuthService] token endpoint = ${this.googleTokenEndpoint} (attempt ${attempt}/${this.googleTokenExchangeMaxRetries})`,
       );
       const payload = new URLSearchParams({
         code,
@@ -339,6 +345,7 @@ export class AuthService {
         },
         httpsAgent,
         proxy: httpsAgent ? false : undefined,
+        timeout: this.googleTokenExchangeTimeout,
       };
       const { data } = await axios.post(
         this.googleTokenEndpoint,
@@ -357,20 +364,62 @@ export class AuthService {
       const status = (error as any)?.response?.status;
       const responseData = (error as any)?.response?.data;
       const requestUrl = (error as any)?.config?.url;
+      const errorMessage = (error as any)?.message || '';
+      const isTimeout =
+        errorMessage.includes('ETIMEDOUT') ||
+        errorMessage.includes('timeout') ||
+        (error as any)?.code === 'ETIMEDOUT';
+
+      // 如果是超时错误且还有重试机会，则重试
+      if (isTimeout && attempt < this.googleTokenExchangeMaxRetries) {
+        const delayMs = attempt * 1000; // 递增延迟：1秒、2秒
+        this.logger.warn(
+          `Google token exchange timeout (attempt ${attempt}/${this.googleTokenExchangeMaxRetries}). Retrying in ${delayMs}ms...`,
+        );
+        await this.delay(delayMs);
+        return this.exchangeCodeForToken(code, codeVerifier, attempt + 1);
+      }
+
+      // 如果是网络错误（非超时）且还有重试机会，也重试
+      if (
+        !status &&
+        !isTimeout &&
+        attempt < this.googleTokenExchangeMaxRetries &&
+        (errorMessage.includes('ECONNRESET') ||
+          errorMessage.includes('ENOTFOUND') ||
+          errorMessage.includes('ECONNREFUSED'))
+      ) {
+        const delayMs = attempt * 1000;
+        this.logger.warn(
+          `Google token exchange network error (attempt ${attempt}/${this.googleTokenExchangeMaxRetries}). Retrying in ${delayMs}ms...`,
+        );
+        await this.delay(delayMs);
+        return this.exchangeCodeForToken(code, codeVerifier, attempt + 1);
+      }
+
+      // 记录错误并抛出异常
       this.logger.error(
         `Google token exchange failed${
           status ? ` (status ${status})` : ''
-        }: ${JSON.stringify(responseData)}`,
+        }${isTimeout ? ' (timeout)' : ''}: ${JSON.stringify(responseData) || errorMessage}`,
       );
       console.error('[AuthService] axios error url =', requestUrl);
       console.error(
         '[AuthService] Google token exchange failed',
         status,
         responseData,
-        (error as any)?.message,
+        errorMessage,
       );
-      throw new UnauthorizedException('无法从 Google 获取 token');
+
+      const errorMsg = isTimeout
+        ? 'Google 认证服务响应超时，请检查网络连接后重试'
+        : '无法从 Google 获取 token';
+      throw new UnauthorizedException(errorMsg);
     }
+  }
+
+  private async delay(ms: number): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private async verifyGoogleIdToken(idToken: string) {
