@@ -200,12 +200,14 @@ export class AuthService {
    * 退出登录
    */
   async logout(res: Response) {
+    this.logger.log('User logout requested');
     res.clearCookie(this.sessionCookieName, {
       httpOnly: true,
       secure: this.isSecureCookie(),
       sameSite: 'lax',
       path: '/',
     });
+    this.logger.log('Session cookie cleared');
     return { success: true };
   }
 

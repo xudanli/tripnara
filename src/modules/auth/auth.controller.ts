@@ -57,6 +57,7 @@ export class AuthController {
   @Post('logout')
   @ApiOperation({ summary: '退出登录并清理会话' })
   async logout(@Res() res: Response) {
-    return this.authService.logout(res);
+    const result = await this.authService.logout(res);
+    return res.json(result);
   }
 }
