@@ -65,9 +65,26 @@ export class LlmService {
 
   async chatCompletionJson<T = unknown>(
     options: LlmChatCompletionOptions,
+    maxRetries = 3,
   ): Promise<T> {
-    const text = await this.chatCompletion({ ...options, json: true });
-    return this.parseJson<T>(text);
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const text = await this.chatCompletion({ ...options, json: true });
+        const preprocessed = this.preprocessJsonResponse(text);
+        return this.parseJson<T>(preprocessed);
+      } catch (error) {
+        if (attempt === maxRetries) {
+          throw error;
+        }
+        // 等待后重试
+        const delayMs = 1000 * attempt;
+        this.logger.warn(
+          `JSON parsing failed (attempt ${attempt}/${maxRetries}). Retrying in ${delayMs}ms...`,
+        );
+        await this.delay(delayMs);
+      }
+    }
+    throw new Error('Failed to parse JSON after retries');
   }
 
   private async executeRequest(
@@ -143,9 +160,9 @@ export class LlmService {
       temperature: options.temperature ?? 0.7,
     };
 
-    if (options.maxOutputTokens) {
-      payload.max_tokens = options.maxOutputTokens;
-    }
+    // 限制响应长度，默认最大 4000 tokens
+    const maxTokens = options.maxOutputTokens ?? 4000;
+    payload.max_tokens = maxTokens;
 
     if (options.json && providerConfig.supportsJsonMode) {
       payload.response_format = { type: 'json_object' };
@@ -182,10 +199,31 @@ export class LlmService {
 
   private parseJson<T>(payload: string): T {
     try {
+      // 尝试直接解析
       return JSON.parse(payload) as T;
     } catch (error: unknown) {
-      const repaired = this.repairJson(payload);
+      // 如果是字符串未终止错误，尝试修复
+      if (
+        error instanceof SyntaxError &&
+        error.message.includes('Unterminated string')
+      ) {
+        try {
+          // 添加缺失的引号和括号
+          const repairedJson = this.repairJson(payload);
+          return JSON.parse(repairedJson) as T;
+        } catch (repairError: unknown) {
+          this.logger.error('Failed to repair JSON with unterminated string', {
+            original: payload,
+            error: this.formatUnknownError(error),
+            repairError: this.formatUnknownError(repairError),
+          });
+          throw new Error('Unable to parse JSON response from LLM');
+        }
+      }
+
+      // 其他错误，尝试通用修复
       try {
+        const repaired = this.repairJson(payload);
         return JSON.parse(repaired) as T;
       } catch (innerError: unknown) {
         this.logger.error('Failed to parse JSON response from LLM', {
@@ -198,18 +236,44 @@ export class LlmService {
     }
   }
 
-  private repairJson(payload: string): string {
-    // Basic best-effort repair: trim whitespace and attempt to close JSON braces.
-    const trimmed = payload.trim();
+  private repairJson(jsonString: string): string {
+    // 简单的 JSON 修复逻辑
+    let repaired = jsonString.trim();
 
-    const openingBraces = (trimmed.match(/\{/g) ?? []).length;
-    const closingBraces = (trimmed.match(/\}/g) ?? []).length;
+    // 确保以 } 或 ] 结尾
+    if (!repaired.endsWith('}') && !repaired.endsWith(']')) {
+      // 查找最后一个完整对象
+      const lastCompleteBrace = repaired.lastIndexOf('}');
+      const lastCompleteBracket = repaired.lastIndexOf(']');
+      const lastComplete = Math.max(lastCompleteBrace, lastCompleteBracket);
 
-    if (openingBraces > closingBraces) {
-      return `${trimmed}${'}'.repeat(openingBraces - closingBraces)}`;
+      if (lastComplete !== -1) {
+        repaired = repaired.substring(0, lastComplete + 1);
+      }
     }
 
-    return trimmed;
+    // 添加可能的缺失括号
+    const openBraces = (repaired.match(/\{/g) || []).length;
+    const closeBraces = (repaired.match(/\}/g) || []).length;
+
+    if (openBraces > closeBraces) {
+      repaired += '}'.repeat(openBraces - closeBraces);
+    }
+
+    // 处理数组括号
+    const openBrackets = (repaired.match(/\[/g) || []).length;
+    const closeBrackets = (repaired.match(/\]/g) || []).length;
+
+    if (openBrackets > closeBrackets) {
+      repaired += ']'.repeat(openBrackets - closeBrackets);
+    }
+
+    return repaired;
+  }
+
+  private preprocessJsonResponse(response: string): string {
+    // 移除可能的控制字符
+    return response.replace(/[\x00-\x1F\x7F]/g, '').trim();
   }
 
   private formatUnknownError(error: unknown): Record<string, unknown> {
