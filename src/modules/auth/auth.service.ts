@@ -39,7 +39,7 @@ export class AuthService {
   private readonly sessionCookieName = 'app_session';
   private readonly oauthStateTtlMs = 5 * 60 * 1000;
   private readonly sessionTtlMs = 7 * 24 * 60 * 60 * 1000;
-  private readonly googleTokenExchangeTimeout = 30000; // 30秒超时
+  private readonly googleTokenExchangeTimeout = 60000; // 60秒超时（增加超时时间以应对网络延迟）
   private readonly googleTokenExchangeMaxRetries = 3; // 最多重试3次
 
   constructor(
@@ -326,6 +326,7 @@ export class AuthService {
     codeVerifier: string,
     attempt = 1,
   ) {
+    const httpsAgent = this.createProxyAgentIfNeeded();
     try {
       this.logger.log(
         `[AuthService] token endpoint = ${this.googleTokenEndpoint} (attempt ${attempt}/${this.googleTokenExchangeMaxRetries})`,
@@ -338,7 +339,6 @@ export class AuthService {
         redirect_uri: this.googleRedirectUri,
         grant_type: 'authorization_code',
       });
-      const httpsAgent = this.createProxyAgentIfNeeded();
       const axiosConfig: AxiosRequestConfig = {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -347,6 +347,9 @@ export class AuthService {
         proxy: httpsAgent ? false : undefined,
         timeout: this.googleTokenExchangeTimeout,
       };
+      this.logger.log(
+        `[AuthService] Request config: timeout=${this.googleTokenExchangeTimeout}ms, proxy=${httpsAgent ? 'enabled' : 'disabled'}`,
+      );
       const { data } = await axios.post(
         this.googleTokenEndpoint,
         payload.toString(),
@@ -398,10 +401,11 @@ export class AuthService {
       }
 
       // 记录错误并抛出异常
+      const proxyInfo = httpsAgent ? ' (使用代理)' : ' (直连)';
       this.logger.error(
         `Google token exchange failed${
           status ? ` (status ${status})` : ''
-        }${isTimeout ? ' (timeout)' : ''}: ${JSON.stringify(responseData) || errorMessage}`,
+        }${isTimeout ? ' (timeout)' : ''}${proxyInfo}: ${JSON.stringify(responseData) || errorMessage}`,
       );
       console.error('[AuthService] axios error url =', requestUrl);
       console.error(
@@ -409,11 +413,17 @@ export class AuthService {
         status,
         responseData,
         errorMessage,
+        proxyInfo,
       );
 
-      const errorMsg = isTimeout
-        ? 'Google 认证服务响应超时，请检查网络连接后重试'
-        : '无法从 Google 获取 token';
+      let errorMsg: string;
+      if (isTimeout) {
+        errorMsg = `Google 认证服务响应超时（${this.googleTokenExchangeTimeout / 1000}秒）。可能原因：1) 网络连接问题 2) 防火墙阻止 3) 需要配置代理。请检查网络连接或联系管理员。`;
+      } else if (!status) {
+        errorMsg = `无法连接到 Google 认证服务。可能原因：1) 网络连接问题 2) DNS 解析失败 3) 需要配置代理。错误: ${errorMessage}`;
+      } else {
+        errorMsg = `无法从 Google 获取 token (状态码: ${status})`;
+      }
       throw new UnauthorizedException(errorMsg);
     }
   }
