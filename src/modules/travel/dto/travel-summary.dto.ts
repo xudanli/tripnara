@@ -5,31 +5,39 @@ import {
   IsArray,
   ValidateNested,
   IsOptional,
+  IsNumber,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class ActivityDto {
   @ApiProperty({ description: '活动时间', example: '09:00' })
+  @IsString()
   time!: string;
 
   @ApiProperty({ description: '活动标题', example: '铁力士峰云端漫步' })
+  @IsString()
   title!: string;
 
   @ApiProperty({
     description: '活动类型',
     enum: ['attraction', 'meal', 'hotel', 'shopping', 'transport', 'ocean'],
   })
+  @IsString()
   type!: string;
 
-  @ApiProperty({ description: '活动描述', example: '详细的游览建议和体验描述' })
+  @ApiPropertyOptional({ description: '活动描述', example: '详细的游览建议和体验描述' })
+  @IsOptional()
+  @IsString()
   notes?: string;
 }
 
 export class DayDto {
   @ApiProperty({ description: '第几天', example: 1 })
+  @IsNumber()
   day!: number;
 
   @ApiProperty({ description: '日期', example: '2024-06-01' })
+  @IsString()
   date!: string;
 
   @ApiProperty({ description: '活动列表', type: [ActivityDto] })
@@ -47,9 +55,13 @@ export class ItineraryDto {
   days!: DayDto[];
 
   @ApiPropertyOptional({ description: '总费用', example: 8000 })
+  @IsOptional()
+  @IsNumber()
   totalCost?: number;
 
   @ApiPropertyOptional({ description: '行程摘要', example: '行程摘要' })
+  @IsOptional()
+  @IsString()
   summary?: string;
 }
 
