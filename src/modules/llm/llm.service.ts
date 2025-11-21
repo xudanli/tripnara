@@ -99,9 +99,23 @@ export class LlmService {
     const payload = this.buildPayload(options, providerConfig);
 
     try {
+      // Ensure baseUrl uses HTTPS to prevent redirect loops
+      let baseUrl = providerConfig.baseUrl;
+      if (!baseUrl.startsWith('https://') && !baseUrl.startsWith('http://')) {
+        // If no protocol specified, default to HTTPS
+        baseUrl = `https://${baseUrl}`;
+      } else if (baseUrl.startsWith('http://')) {
+        // Force HTTPS for security and to avoid redirect loops
+        baseUrl = baseUrl.replace(/^http:\/\//, 'https://');
+        this.logger.warn(
+          `Base URL was using HTTP, converted to HTTPS: ${baseUrl}`,
+        );
+      }
+      const url = `${baseUrl}/chat/completions`;
+
       const response = await firstValueFrom(
         this.httpService.post<ChatCompletionResponse>(
-          `${providerConfig.baseUrl}/chat/completions`,
+          url,
           payload,
           {
             headers: {
@@ -109,12 +123,28 @@ export class LlmService {
               'Content-Type': 'application/json',
             },
             timeout: this.timeoutMs,
+            maxRedirects: 5, // Allow some redirects but prevent infinite loops
           },
         ),
       );
 
       return response.data;
     } catch (error: unknown) {
+      // Handle redirect loop errors specifically
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        error.code === 'ERR_FR_TOO_MANY_REDIRECTS'
+      ) {
+        this.logger.error(
+          `Redirect loop detected. This usually means the API URL is incorrect or there's a proxy issue. Base URL: ${providerConfig.baseUrl}`,
+        );
+        throw new Error(
+          `API request failed due to redirect loop. Please check the API base URL configuration.`,
+        );
+      }
+
       if (this.shouldRetry(error) && attempt < this.maxRetries) {
         const delayMs = attempt * 500;
         this.logger.warn(
