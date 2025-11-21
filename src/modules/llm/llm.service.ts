@@ -237,43 +237,292 @@ export class LlmService {
   }
 
   private repairJson(jsonString: string): string {
-    // 简单的 JSON 修复逻辑
     let repaired = jsonString.trim();
 
-    // 确保以 } 或 ] 结尾
-    if (!repaired.endsWith('}') && !repaired.endsWith(']')) {
-      // 查找最后一个完整对象
-      const lastCompleteBrace = repaired.lastIndexOf('}');
-      const lastCompleteBracket = repaired.lastIndexOf(']');
-      const lastComplete = Math.max(lastCompleteBrace, lastCompleteBracket);
+    // 移除尾随逗号（在对象和数组的最后一个元素之后）
+    repaired = repaired.replace(/,(\s*[}\]])/g, '$1');
 
-      if (lastComplete !== -1) {
-        repaired = repaired.substring(0, lastComplete + 1);
+    // 尝试修复未闭合的字符串
+    repaired = this.repairUnclosedStrings(repaired);
+
+    // 修复缺失的括号和方括号（在修复字符串之后）
+    repaired = this.balanceBrackets(repaired);
+
+    // 修复数组中的缺失逗号
+    repaired = this.repairMissingCommas(repaired);
+
+    // 最后尝试：如果仍然无效，尝试找到最后一个有效位置并截断
+    try {
+      JSON.parse(repaired);
+      return repaired;
+    } catch {
+      // 如果修复后仍然无效，尝试截断到最后一个有效位置
+      const lastValidPosition = this.findLastValidJsonPosition(repaired);
+      if (lastValidPosition > 0 && lastValidPosition < repaired.length) {
+        const truncated = repaired.substring(0, lastValidPosition);
+        const balanced = this.balanceBrackets(truncated);
+        try {
+          JSON.parse(balanced);
+          return balanced;
+        } catch {
+          // 如果截断后仍然无效，返回原始修复结果
+          return repaired;
+        }
+      }
+      return repaired;
+    }
+  }
+
+  private repairUnclosedStrings(json: string): string {
+    let result = '';
+    let inString = false;
+    let escapeNext = false;
+
+    for (let i = 0; i < json.length; i++) {
+      const char = json[i];
+
+      if (escapeNext) {
+        result += char;
+        escapeNext = false;
+        continue;
+      }
+
+      if (char === '\\') {
+        result += char;
+        escapeNext = true;
+        continue;
+      }
+
+      if (char === '"') {
+        inString = !inString;
+        result += char;
+        continue;
+      }
+
+      result += char;
+    }
+
+    // 如果字符串未闭合，直接闭合它
+    if (inString) {
+      result += '"';
+    }
+
+    return result;
+  }
+
+  private findLastValidJsonPosition(json: string): number {
+    let depth = 0;
+    let inString = false;
+    let escapeNext = false;
+    let lastValidPos = 0;
+
+    for (let i = 0; i < json.length; i++) {
+      const char = json[i];
+
+      if (escapeNext) {
+        escapeNext = false;
+        continue;
+      }
+
+      if (char === '\\') {
+        escapeNext = true;
+        continue;
+      }
+
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+
+      if (inString) {
+        continue;
+      }
+
+      if (char === '{' || char === '[') {
+        depth++;
+        lastValidPos = i + 1;
+      } else if (char === '}' || char === ']') {
+        if (depth > 0) {
+          depth--;
+          lastValidPos = i + 1;
+        } else {
+          // 不匹配的闭合括号，返回之前的位置
+          return lastValidPos;
+        }
+      } else if (depth === 0 && (char === ',' || char === ':')) {
+        // 在顶层遇到逗号或冒号，可能表示结构不完整
+        return lastValidPos;
+      } else {
+        lastValidPos = i + 1;
       }
     }
 
-    // 添加可能的缺失括号
-    const openBraces = (repaired.match(/\{/g) || []).length;
-    const closeBraces = (repaired.match(/\}/g) || []).length;
+    return lastValidPos;
+  }
 
-    if (openBraces > closeBraces) {
-      repaired += '}'.repeat(openBraces - closeBraces);
+  private balanceBrackets(json: string): string {
+    let result = json;
+
+    // 计算括号和方括号的平衡
+    const openBraces = (result.match(/\{/g) || []).length;
+    const closeBraces = (result.match(/\}/g) || []).length;
+    const openBrackets = (result.match(/\[/g) || []).length;
+    const closeBrackets = (result.match(/\]/g) || []).length;
+
+    // 我们需要按照正确的顺序关闭括号
+    // 通过跟踪嵌套结构来确定关闭顺序
+    let depth = 0;
+    let braceDepth = 0;
+    let bracketDepth = 0;
+    let inString = false;
+    let escapeNext = false;
+    const stack: Array<'{' | '['> = [];
+
+    for (let i = 0; i < result.length; i++) {
+      const char = result[i];
+
+      if (escapeNext) {
+        escapeNext = false;
+        continue;
+      }
+
+      if (char === '\\') {
+        escapeNext = true;
+        continue;
+      }
+
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+
+      if (inString) {
+        continue;
+      }
+
+      if (char === '{') {
+        stack.push('{');
+        braceDepth++;
+      } else if (char === '[') {
+        stack.push('[');
+        bracketDepth++;
+      } else if (char === '}') {
+        if (stack[stack.length - 1] === '{') {
+          stack.pop();
+          braceDepth--;
+        }
+      } else if (char === ']') {
+        if (stack[stack.length - 1] === '[') {
+          stack.pop();
+          bracketDepth--;
+        }
+      }
     }
 
-    // 处理数组括号
-    const openBrackets = (repaired.match(/\[/g) || []).length;
-    const closeBrackets = (repaired.match(/\]/g) || []).length;
+    // 按照栈的顺序关闭（LIFO）
+    const closingChars = stack
+      .reverse()
+      .map((char) => (char === '{' ? '}' : ']'))
+      .join('');
 
-    if (openBrackets > closeBrackets) {
-      repaired += ']'.repeat(openBrackets - closeBrackets);
+    return result + closingChars;
+  }
+
+  private repairMissingCommas(json: string): string {
+    // 修复明显的缺失逗号情况：在 } 或 ] 后面，如果下一个非空白字符是 { 或 [ 或 "，添加逗号
+    // 但要小心，只在数组/对象内部（不在顶层）添加
+    let result = json;
+    let depth = 0;
+    let inString = false;
+    let escapeNext = false;
+    let output = '';
+
+    for (let i = 0; i < result.length; i++) {
+      const char = result[i];
+
+      if (escapeNext) {
+        output += char;
+        escapeNext = false;
+        continue;
+      }
+
+      if (char === '\\') {
+        output += char;
+        escapeNext = true;
+        continue;
+      }
+
+      if (char === '"') {
+        inString = !inString;
+        output += char;
+        continue;
+      }
+
+      if (inString) {
+        output += char;
+        continue;
+      }
+
+      if (char === '{' || char === '[') {
+        depth++;
+        output += char;
+      } else if (char === '}' || char === ']') {
+        depth--;
+        output += char;
+
+        // 检查是否需要添加逗号
+        if (depth > 0) {
+          // 查找下一个非空白字符
+          let j = i + 1;
+          while (j < result.length && /\s/.test(result[j])) {
+            j++;
+          }
+
+          if (j < result.length) {
+            const nextChar = result[j];
+            // 如果下一个字符是值开始符，且当前没有逗号，添加逗号
+            if (
+              (nextChar === '{' ||
+                nextChar === '[' ||
+                nextChar === '"' ||
+                /[\d-]/.test(nextChar)) &&
+              !output.trimEnd().endsWith(',')
+            ) {
+              // 添加中间的空格和逗号
+              output += result.substring(i + 1, j) + ',';
+              i = j - 1;
+              continue;
+            }
+          }
+        }
+      } else {
+        output += char;
+      }
     }
 
-    return repaired;
+    return output;
   }
 
   private preprocessJsonResponse(response: string): string {
     // 移除可能的控制字符
-    return response.replace(/[\x00-\x1F\x7F]/g, '').trim();
+    let cleaned = response.replace(/[\x00-\x1F\x7F]/g, '').trim();
+
+    // 尝试从 markdown 代码块中提取 JSON
+    const jsonBlockMatch = cleaned.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
+    if (jsonBlockMatch) {
+      cleaned = jsonBlockMatch[1];
+    }
+
+    // 如果响应以 { 或 [ 开头，尝试找到匹配的结束位置
+    if (cleaned.startsWith('{') || cleaned.startsWith('[')) {
+      // 移除可能的前导文本
+      const startIndex = cleaned.search(/[{\[]/);
+      if (startIndex > 0) {
+        cleaned = cleaned.substring(startIndex);
+      }
+    }
+
+    return cleaned.trim();
   }
 
   private formatUnknownError(error: unknown): Record<string, unknown> {

@@ -69,7 +69,7 @@ describe('LlmService', () => {
     );
     configServiceMock = {
       get: getMock,
-    };
+    } as unknown as jest.Mocked<Pick<ConfigService, 'get'>>;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -157,6 +157,98 @@ describe('LlmService', () => {
     });
 
     expect(response.foo).toBe('bar');
+  });
+
+  it('repairs JSON with missing closing brackets', async () => {
+    // Mock multiple calls for retry logic
+    httpServiceMock.post.mockReturnValue(
+      of(createResponse('{"days":[{"day":1},{"day":2}')),
+    );
+
+    const response = await service.chatCompletionJson<{
+      days: Array<{ day: number }>;
+    }>(
+      {
+        provider: 'openai',
+        messages: [{ role: 'user', content: 'Return JSON' }],
+      },
+      1, // Only 1 retry attempt for faster tests
+    );
+
+    expect(response.days).toHaveLength(2);
+    expect(response.days[0].day).toBe(1);
+    expect(response.days[1].day).toBe(2);
+  });
+
+  it('repairs JSON with missing commas in arrays', async () => {
+    httpServiceMock.post.mockReturnValueOnce(
+      of(createResponse('{"items":[{"id":1}{"id":2}]}')),
+    );
+
+    const response = await service.chatCompletionJson<{
+      items: Array<{ id: number }>;
+    }>({
+      provider: 'openai',
+      messages: [{ role: 'user', content: 'Return JSON' }],
+    });
+
+    expect(response.items).toHaveLength(2);
+    expect(response.items[0].id).toBe(1);
+    expect(response.items[1].id).toBe(2);
+  });
+
+  it('extracts JSON from markdown code blocks', async () => {
+    httpServiceMock.post.mockReturnValueOnce(
+      of(
+        createResponse(
+          'Here is the JSON:\n```json\n{"foo":"bar"}\n```\nThat was the JSON.',
+        ),
+      ),
+    );
+
+    const response = await service.chatCompletionJson<{ foo: string }>({
+      provider: 'openai',
+      messages: [{ role: 'user', content: 'Return JSON' }],
+    });
+
+    expect(response.foo).toBe('bar');
+  });
+
+  it('removes trailing commas', async () => {
+    httpServiceMock.post.mockReturnValueOnce(
+      of(createResponse('{"foo":"bar","baz":"qux",}')),
+    );
+
+    const response = await service.chatCompletionJson<{
+      foo: string;
+      baz: string;
+    }>({
+      provider: 'openai',
+      messages: [{ role: 'user', content: 'Return JSON' }],
+    });
+
+    expect(response.foo).toBe('bar');
+    expect(response.baz).toBe('qux');
+  });
+
+  it('handles truncated JSON by finding last valid position', async () => {
+    // Simulate a truncated response that cuts off mid-object
+    const truncatedJson = '{"days":[{"day":1,"activities":[{"type":"hotel"';
+    httpServiceMock.post.mockReturnValue(of(createResponse(truncatedJson)));
+
+    const response = await service.chatCompletionJson<{
+      days: Array<{ day: number; activities?: Array<{ type: string }> }>;
+    }>(
+      {
+        provider: 'openai',
+        messages: [{ role: 'user', content: 'Return JSON' }],
+      },
+      1, // Only 1 retry attempt for faster tests
+    );
+
+    // Should at least parse the valid part
+    expect(response.days).toBeDefined();
+    expect(Array.isArray(response.days)).toBe(true);
   });
 
   it('retries on retryable errors', async () => {
