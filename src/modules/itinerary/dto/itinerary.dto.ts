@@ -45,9 +45,11 @@ export class ItineraryPreferencesDto {
 
 export class ItineraryActivityDto {
   @ApiProperty({ description: '活动时间', example: '09:00' })
+  @IsString()
   time!: string;
 
   @ApiProperty({ description: '活动标题', example: '铁力士峰云端漫步' })
+  @IsString()
   title!: string;
 
   @ApiProperty({
@@ -55,29 +57,36 @@ export class ItineraryActivityDto {
     enum: ['attraction', 'meal', 'hotel', 'shopping', 'transport'],
     example: 'attraction',
   })
+  @IsString()
   type!: 'attraction' | 'meal' | 'hotel' | 'shopping' | 'transport';
 
   @ApiProperty({ description: '持续时间（分钟）', example: 120 })
+  @IsNumber()
   duration!: number;
 
   @ApiProperty({
     description: '位置坐标',
     example: { lat: 46.7704, lng: 8.4050 },
   })
+  @IsObject()
   location!: { lat: number; lng: number };
 
   @ApiProperty({ description: '活动描述和建议', example: '详细的游览建议和体验描述' })
+  @IsString()
   notes!: string;
 
   @ApiProperty({ description: '预估费用', example: 400 })
+  @IsNumber()
   cost!: number;
 }
 
 export class ItineraryDayDto {
   @ApiProperty({ description: '第几天', example: 1 })
+  @IsNumber()
   day!: number;
 
   @ApiProperty({ description: '日期', example: '2024-06-01' })
+  @IsString()
   date!: string;
 
   @ApiProperty({
@@ -134,12 +143,17 @@ export class GenerateItineraryRequestDto {
 
 export class ItineraryDataDto {
   @ApiProperty({ description: '行程天数详情', type: [ItineraryDayDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ItineraryDayDto)
   days!: ItineraryDayDto[];
 
   @ApiProperty({ description: '总费用', example: 8000 })
+  @IsNumber()
   totalCost!: number;
 
   @ApiProperty({ description: '行程摘要', example: '行程摘要' })
+  @IsString()
   summary!: string;
 }
 
