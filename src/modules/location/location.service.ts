@@ -29,6 +29,9 @@ interface AiLocationResponse {
   visitDuration: string;
   bestTimeToVisit: string;
   accessibility?: string;
+  dressingTips?: string;
+  culturalTips?: string;
+  bookingInfo?: string;
 }
 
 interface TypeDefaults {
@@ -441,6 +444,9 @@ export class LocationService {
 5. 详细的门票价格和优惠政策
 6. 实用的游览建议和注意事项
 7. 周边推荐和联系方式
+8. **穿搭建议**：根据活动类型、目的地气候和当地文化，提供具体的穿着建议（如是否需要正装、适合的鞋类、是否需要携带雨具等）
+9. **当地文化提示和特殊注意事项**：包括当地习俗、禁忌、礼仪要求、小费习惯、拍照限制、宗教场所注意事项等
+10. **预订信息**：是否需要提前预订，如何预订（官网、电话、APP等），建议提前多久预订，是否有优惠政策等
 
 请以JSON格式返回：
 
@@ -459,7 +465,10 @@ export class LocationService {
   "rating": 评分(1-5),
   "visitDuration": "建议游览时长（分钟）",
   "bestTimeToVisit": "最佳游览时间",
-  "accessibility": "无障碍设施信息"
+  "accessibility": "无障碍设施信息",
+  "dressingTips": "穿搭建议：根据活动类型、气候和当地文化提供具体穿着建议",
+  "culturalTips": "当地文化提示和特殊注意事项：习俗、禁忌、礼仪、小费、拍照限制等",
+  "bookingInfo": "预订信息：是否需要提前预订，如何预订（官网、电话、APP等），建议提前多久预订，是否有优惠政策等"
 }
 
 请确保：
@@ -499,6 +508,9 @@ export class LocationService {
       visitDuration: aiResponse.visitDuration || '1-2小时',
       bestTimeToVisit: aiResponse.bestTimeToVisit || '全天',
       accessibility: aiResponse.accessibility,
+      dressingTips: aiResponse.dressingTips,
+      culturalTips: aiResponse.culturalTips,
+      bookingInfo: aiResponse.bookingInfo,
     };
   }
 

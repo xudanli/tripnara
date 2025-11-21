@@ -135,6 +135,24 @@ export class LocationInfoDto {
     example: '请确认无障碍设施',
   })
   accessibility?: string;
+
+  @ApiPropertyOptional({
+    description: '穿搭建议',
+    example: '建议穿着舒适的步行鞋和轻便外套，山区天气变化快，建议携带雨具',
+  })
+  dressingTips?: string;
+
+  @ApiPropertyOptional({
+    description: '当地文化提示和特殊注意事项',
+    example: '进入宗教场所需脱帽，保持安静；当地习惯给小费，建议准备零钱；注意当地禁忌和习俗',
+  })
+  culturalTips?: string;
+
+  @ApiPropertyOptional({
+    description: '是否需要提前预订',
+    example: '建议提前预订，可通过官网或电话预约，旺季需提前1-2周预订',
+  })
+  bookingInfo?: string;
 }
 
 export class GenerateLocationResponseDto {
