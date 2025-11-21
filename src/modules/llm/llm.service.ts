@@ -3,6 +3,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { isAxiosError } from 'axios';
 import { firstValueFrom } from 'rxjs';
+import { HttpsProxyAgent } from 'https-proxy-agent';
+import type { Agent as HttpsAgent } from 'https';
 
 export type LlmProvider = 'openai' | 'deepseek';
 
@@ -113,19 +115,29 @@ export class LlmService {
       }
       const url = `${baseUrl}/chat/completions`;
 
-      const response = await firstValueFrom(
-        this.httpService.post<ChatCompletionResponse>(
-          url,
-          payload,
-          {
+      // Handle proxy configuration to prevent redirect loops
+      const httpsAgent = this.createProxyAgentIfNeeded();
+      const requestConfig: Record<string, unknown> = {
             headers: {
               Authorization: `Bearer ${providerConfig.apiKey}`,
               'Content-Type': 'application/json',
             },
             timeout: this.timeoutMs,
-            maxRedirects: 5, // Allow some redirects but prevent infinite loops
-          },
-        ),
+        maxRedirects: 5, // Allow some redirects but prevent infinite loops
+      };
+
+      if (httpsAgent) {
+        // If proxy is configured, use it explicitly with proper agent
+        requestConfig.httpsAgent = httpsAgent;
+        requestConfig.proxy = false; // Prevent axios from using default proxy
+        this.logger.debug(`Using proxy for LLM API request to ${url}`);
+      } else {
+        // Explicitly disable proxy to prevent automatic proxy usage
+        requestConfig.proxy = false;
+      }
+
+      const response = await firstValueFrom(
+        this.httpService.post<ChatCompletionResponse>(url, payload, requestConfig),
       );
 
       return response.data;
@@ -569,5 +581,20 @@ export class LlmService {
     }
 
     return { value: error };
+  }
+
+  private createProxyAgentIfNeeded(): HttpsAgent | undefined {
+    const proxyUrl =
+      this.configService.get<string>('HTTPS_PROXY') ??
+      this.configService.get<string>('HTTP_PROXY') ??
+      process.env.HTTPS_PROXY ??
+      process.env.https_proxy ??
+      process.env.HTTP_PROXY ??
+      process.env.http_proxy;
+    if (!proxyUrl) {
+      return undefined;
+    }
+    this.logger.log(`[LlmService] using proxy ${proxyUrl}`);
+    return new HttpsProxyAgent(proxyUrl);
   }
 }
