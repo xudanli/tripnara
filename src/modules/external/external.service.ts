@@ -104,14 +104,13 @@ export class ExternalService {
 
   async searchLocations(query: string) {
     if (!this.travelAdvisorApiKey || this.travelAdvisorApiKey.trim() === '') {
-      this.logger.warn('Travel Advisor API Key is not configured');
-      throw new HttpException(
-        {
-          message: 'TRAVEL_ADVISOR_KEY_MISSING',
-          error: 'Travel Advisor API Key is not configured. Please set TRAVEL_ADVISOR_API_KEY in environment variables.',
-        },
-        HttpStatus.BAD_REQUEST,
+      this.logger.warn(
+        `Travel Advisor API Key is not configured, returning empty result for query: ${query}`,
       );
+      // 优雅降级：返回空结果而不是抛出错误
+      return {
+        data: [],
+      };
     }
     const cacheKey = `travel-advisor:${query.toLowerCase()}`;
     const cached = this.getFromCache(cacheKey);
@@ -161,14 +160,18 @@ export class ExternalService {
     lang: string = 'zh-CN',
   ): Promise<AttractionDetailsDto> {
     if (!this.travelAdvisorApiKey || this.travelAdvisorApiKey.trim() === '') {
-      this.logger.warn('Travel Advisor API Key is not configured');
-      throw new HttpException(
-        {
-          message: 'TRAVEL_ADVISOR_KEY_MISSING',
-          error: 'Travel Advisor API Key is not configured. Please set TRAVEL_ADVISOR_API_KEY in environment variables.',
-        },
-        HttpStatus.BAD_REQUEST,
+      this.logger.warn(
+        `Travel Advisor API Key is not configured, returning empty details for attraction: ${attractionId}`,
       );
+      // 优雅降级：返回最小化的默认数据而不是抛出错误
+      return {
+        id: attractionId,
+        name: '',
+        rating: {
+          rating: 0,
+          reviewCount: 0,
+        },
+      };
     }
 
     const cacheKey = `travel-advisor:attraction:${attractionId}:${lang}`;

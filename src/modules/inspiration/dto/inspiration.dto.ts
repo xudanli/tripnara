@@ -280,8 +280,8 @@ export class RecommendDestinationsResponseDto {
   data!: RecommendDestinationsDataDto;
 }
 
-// 生成完整行程相关 DTO
-export class GenerateItineraryRequestDto {
+// 生成完整行程相关 DTO（灵感模式）
+export class GenerateInspirationItineraryRequestDto {
   @ApiProperty({
     description: '用户自然语言输入',
     example: '我想去冰岛看极光，5天行程',

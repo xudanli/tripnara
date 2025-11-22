@@ -15,7 +15,7 @@ import {
   DetectIntentResponseDto,
   RecommendDestinationsRequestDto,
   RecommendDestinationsResponseDto,
-  GenerateItineraryRequestDto,
+  GenerateInspirationItineraryRequestDto,
   GenerateItineraryResponseDto,
   ExtractDaysRequestDto,
   ExtractDaysResponseDto,
@@ -65,7 +65,7 @@ export class InspirationController {
   })
   @ApiOkResponse({ type: GenerateItineraryResponseDto })
   async generateItinerary(
-    @Body() dto: GenerateItineraryRequestDto,
+    @Body() dto: GenerateInspirationItineraryRequestDto,
   ): Promise<GenerateItineraryResponseDto> {
     return this.inspirationService.generateItinerary(dto);
   }

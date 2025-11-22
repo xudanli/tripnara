@@ -7,7 +7,7 @@ import {
   RecommendDestinationsRequestDto,
   RecommendDestinationsResponseDto,
   RecommendDestinationsDataDto,
-  GenerateItineraryRequestDto,
+  GenerateInspirationItineraryRequestDto,
   GenerateItineraryResponseDto,
   GenerateItineraryDataDto,
   ExtractDaysRequestDto,
@@ -214,7 +214,7 @@ export class InspirationService {
   }
 
   async generateItinerary(
-    dto: GenerateItineraryRequestDto,
+    dto: GenerateInspirationItineraryRequestDto,
   ): Promise<GenerateItineraryResponseDto> {
     try {
       const language = dto.language || 'zh-CN';
