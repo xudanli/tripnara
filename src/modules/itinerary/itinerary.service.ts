@@ -322,13 +322,32 @@ ${dateInstructions}
       throw new Error('AI响应缺少days字段或格式不正确');
     }
 
-    if (typeof aiResponse.totalCost !== 'number') {
-      throw new Error('AI响应totalCost字段格式不正确');
+    // 验证并转换 totalCost：支持数字、字符串或默认值
+    let totalCost: number;
+    if (typeof aiResponse.totalCost === 'number') {
+      totalCost = aiResponse.totalCost;
+    } else if (typeof aiResponse.totalCost === 'string') {
+      const parsed = parseFloat(aiResponse.totalCost);
+      if (!isNaN(parsed)) {
+        totalCost = parsed;
+      } else {
+        this.logger.warn(
+          `AI响应totalCost字段无法转换为数字: ${aiResponse.totalCost}，使用默认值0`,
+        );
+        totalCost = 0;
+      }
+    } else {
+      this.logger.warn(
+        `AI响应totalCost字段缺失或格式不正确，使用默认值0`,
+      );
+      totalCost = 0;
     }
 
-    if (typeof aiResponse.summary !== 'string') {
-      throw new Error('AI响应summary字段格式不正确');
-    }
+    // 验证 summary：允许缺失时使用默认值
+    const summary =
+      typeof aiResponse.summary === 'string' && aiResponse.summary.trim()
+        ? aiResponse.summary
+        : '';
 
     // 验证并转换每一天的数据
     const validatedDays = aiResponse.days.map((day, index) => {
@@ -379,8 +398,8 @@ ${dateInstructions}
 
     return {
       days: validatedDays,
-      totalCost: aiResponse.totalCost,
-      summary: aiResponse.summary,
+      totalCost,
+      summary,
     };
   }
 
