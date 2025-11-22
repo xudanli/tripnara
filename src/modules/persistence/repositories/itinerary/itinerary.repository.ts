@@ -159,6 +159,37 @@ export class ItineraryRepository {
     return queryBuilder.getManyAndCount();
   }
 
+  async findAll(
+    options?: {
+      status?: 'draft' | 'published' | 'archived';
+      limit?: number;
+      offset?: number;
+    },
+  ): Promise<[ItineraryEntity[], number]> {
+    const queryBuilder = this.itineraryRepository
+      .createQueryBuilder('itinerary')
+      .leftJoinAndSelect('itinerary.days', 'days')
+      .leftJoinAndSelect('days.activities', 'activities')
+      .orderBy('itinerary.createdAt', 'DESC')
+      .addOrderBy('days.day', 'ASC');
+
+    if (options?.status) {
+      queryBuilder.andWhere('itinerary.status = :status', {
+        status: options.status,
+      });
+    }
+
+    if (options?.limit) {
+      queryBuilder.limit(options.limit);
+    }
+
+    if (options?.offset) {
+      queryBuilder.offset(options.offset);
+    }
+
+    return queryBuilder.getManyAndCount();
+  }
+
   async updateItinerary(
     id: string,
     input: UpdateItineraryInput,

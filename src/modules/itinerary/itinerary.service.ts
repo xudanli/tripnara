@@ -423,7 +423,7 @@ ${dateInstructions}
   // CRUD 方法
   async createItinerary(
     dto: CreateItineraryRequestDto,
-    userId: string,
+    userId?: string,
   ): Promise<CreateItineraryResponseDto> {
     try {
       // 验证必要字段
@@ -467,7 +467,7 @@ ${dateInstructions}
             location: act.location || { lat: 0, lng: 0 },
           notes: act.notes || '',
             cost: act.cost ?? 0,
-          })),
+        })),
       })),
     });
 
@@ -549,12 +549,14 @@ ${dateInstructions}
   async updateItinerary(
     id: string,
     dto: UpdateItineraryRequestDto,
-    userId: string,
+    userId?: string,
   ): Promise<UpdateItineraryResponseDto> {
-    // 检查所有权
-    const isOwner = await this.itineraryRepository.checkOwnership(id, userId);
-    if (!isOwner) {
-      throw new ForbiddenException('无权修改此行程');
+    // 检查所有权（如果提供了 userId）
+    if (userId) {
+      const isOwner = await this.itineraryRepository.checkOwnership(id, userId);
+      if (!isOwner) {
+        throw new ForbiddenException('无权修改此行程');
+      }
     }
 
     const updateData: any = {};
@@ -584,12 +586,14 @@ ${dateInstructions}
 
   async deleteItinerary(
     id: string,
-    userId: string,
+    userId?: string,
   ): Promise<DeleteItineraryResponseDto> {
-    // 检查所有权
-    const isOwner = await this.itineraryRepository.checkOwnership(id, userId);
-    if (!isOwner) {
-      throw new ForbiddenException('无权删除此行程');
+    // 检查所有权（如果提供了 userId）
+    if (userId) {
+      const isOwner = await this.itineraryRepository.checkOwnership(id, userId);
+      if (!isOwner) {
+        throw new ForbiddenException('无权删除此行程');
+      }
     }
 
     const deleted = await this.itineraryRepository.deleteItinerary(id);
@@ -816,7 +820,7 @@ ${dateInstructions}
    */
   async createItineraryFromFrontendData(
     dto: CreateItineraryFromFrontendDataDto,
-    userId: string,
+    userId?: string,
   ): Promise<CreateItineraryResponseDto> {
     const createRequest = this.convertFrontendDataToCreateRequest(dto);
     return this.createItinerary(createRequest, userId);
@@ -828,7 +832,6 @@ ${dateInstructions}
    */
   async createItineraryTemplate(
     dto: CreateItineraryTemplateDto,
-    userId: string,
   ): Promise<CreateItineraryTemplateResponseDto> {
     try {
       // 构建 itineraryData 对象
@@ -856,7 +859,7 @@ ${dateInstructions}
       // 创建行程
       const createResponse = await this.createItineraryFromFrontendData(
         frontendDataDto,
-        userId,
+        undefined, // 行程模版不需要 userId
       );
 
       // 构建响应数据
@@ -904,8 +907,8 @@ ${dateInstructions}
           language: dto.language || 'zh-CN',
           itineraryData: responseItineraryData,
           tasks: dto.tasks,
-          createdBy: userId,
-          updatedBy: userId,
+          createdBy: undefined,
+          updatedBy: undefined,
           createdAt: itinerary.createdAt,
           updatedAt: itinerary.updatedAt,
         },
@@ -1046,7 +1049,6 @@ ${dateInstructions}
    * 获取行程模版列表（支持多种筛选条件）
    */
   async getItineraryTemplateList(
-    userId: string,
     query: ItineraryTemplateQueryDto,
   ): Promise<ItineraryTemplateListResponseDto> {
     const page = query.page || 1;
@@ -1060,8 +1062,7 @@ ${dateInstructions}
         ? (query.status as 'draft' | 'published' | 'archived')
         : undefined;
 
-    const [allItineraries, totalCount] = await this.itineraryRepository.findByUserId(
-      userId,
+    const [allItineraries, totalCount] = await this.itineraryRepository.findAll(
       {
         status: statusFilter,
         limit: 10000, // 临时方案：获取足够多的数据
@@ -1161,18 +1162,12 @@ ${dateInstructions}
    */
   async getItineraryTemplateById(
     id: string,
-    userId: string,
     language?: string,
   ): Promise<ItineraryTemplateDetailResponseDto> {
     const itinerary = await this.itineraryRepository.findById(id);
 
     if (!itinerary) {
       throw new NotFoundException(`行程模版不存在: ${id}`);
-    }
-
-    // 检查所有权
-    if (itinerary.userId !== userId) {
-      throw new ForbiddenException('无权访问此行程模版');
     }
 
     // 从 preferences 中提取 language，如果没有则使用传入的或默认值
@@ -1188,14 +1183,7 @@ ${dateInstructions}
   async updateItineraryTemplate(
     id: string,
     dto: UpdateItineraryTemplateDto,
-    userId: string,
   ): Promise<UpdateItineraryTemplateResponseDto> {
-    // 检查所有权
-    const isOwner = await this.itineraryRepository.checkOwnership(id, userId);
-    if (!isOwner) {
-      throw new ForbiddenException('无权修改此行程模版');
-    }
-
     // 获取现有行程
     const existing = await this.itineraryRepository.findById(id);
     if (!existing) {
@@ -1239,7 +1227,7 @@ ${dateInstructions}
         status: dto.status || existing.status,
       };
 
-      await this.updateItinerary(id, updateDto, userId);
+      await this.updateItinerary(id, updateDto, undefined);
     } else {
       // 只更新简单字段
       const updateDto: UpdateItineraryRequestDto = {};
@@ -1252,12 +1240,12 @@ ${dateInstructions}
       }
 
       if (Object.keys(updateDto).length > 0) {
-        await this.updateItinerary(id, updateDto, userId);
+        await this.updateItinerary(id, updateDto, undefined);
       }
     }
 
     // 获取更新后的数据
-    const updated = await this.getItineraryTemplateById(id, userId, dto.language);
+    const updated = await this.getItineraryTemplateById(id, dto.language);
 
     return {
       success: true,
@@ -1271,9 +1259,8 @@ ${dateInstructions}
    */
   async deleteItineraryTemplate(
     id: string,
-    userId: string,
   ): Promise<DeleteItineraryTemplateResponseDto> {
-    await this.deleteItinerary(id, userId);
+    await this.deleteItinerary(id, undefined);
     return {
       success: true,
       message: '删除成功',
@@ -1285,23 +1272,16 @@ ${dateInstructions}
    */
   async publishItineraryTemplate(
     id: string,
-    userId: string,
   ): Promise<PublishItineraryTemplateResponseDto> {
-    // 检查所有权
-    const isOwner = await this.itineraryRepository.checkOwnership(id, userId);
-    if (!isOwner) {
-      throw new ForbiddenException('无权发布此行程模版');
-    }
-
     // 更新状态为 published
     const updateDto: UpdateItineraryRequestDto = {
       status: 'published',
     };
 
-    await this.updateItinerary(id, updateDto, userId);
+    await this.updateItinerary(id, updateDto, undefined);
 
     // 获取更新后的数据
-    const updated = await this.getItineraryTemplateById(id, userId);
+    const updated = await this.getItineraryTemplateById(id);
 
     return {
       success: true,
@@ -1315,10 +1295,9 @@ ${dateInstructions}
    */
   async cloneItineraryTemplate(
     id: string,
-    userId: string,
   ): Promise<CloneItineraryTemplateResponseDto> {
     // 获取原行程
-    const original = await this.getItineraryTemplateById(id, userId);
+    const original = await this.getItineraryTemplateById(id);
 
     // 构建新的创建请求
     const createDto: CreateItineraryTemplateDto = {
@@ -1340,7 +1319,7 @@ ${dateInstructions}
     };
 
     // 创建新行程
-    const created = await this.createItineraryTemplate(createDto, userId);
+    const created = await this.createItineraryTemplate(createDto);
 
     return {
       success: true,
