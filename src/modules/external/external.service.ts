@@ -7,6 +7,7 @@ import {
 import axios, { AxiosError } from 'axios';
 import { ConfigService } from '@nestjs/config';
 import { TravelGuideResponseDto, TravelGuideSearchQueryDto } from './dto/travel-guides.dto';
+import { AttractionDetailsDto } from './dto/external.dto';
 
 interface CacheEntry<T> {
   value: T;
@@ -149,6 +150,137 @@ export class ExternalService {
         HttpStatus.BAD_GATEWAY,
       );
     }
+  }
+
+  async getAttractionDetails(
+    attractionId: string,
+    lang: string = 'zh-CN',
+  ): Promise<AttractionDetailsDto> {
+    if (!this.travelAdvisorApiKey) {
+      throw new HttpException(
+        { message: 'TRAVEL_ADVISOR_KEY_MISSING' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const cacheKey = `travel-advisor:attraction:${attractionId}:${lang}`;
+    const cached = this.getFromCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    try {
+      const detailsUrl = new URL(
+        '/attractions/get-details',
+        this.travelAdvisorBaseUrl,
+      ).toString();
+      const response = await this.executeWithRetry(
+        () =>
+          axios.get(detailsUrl, {
+            params: {
+              location_id: attractionId,
+              lang,
+              currency: 'CNY',
+            },
+            headers: {
+              'X-RapidAPI-Key': this.travelAdvisorApiKey,
+              'X-RapidAPI-Host': this.travelAdvisorApiHost,
+            },
+          }),
+        'Travel Advisor (Attraction Details)',
+      );
+
+      const data = response.data;
+      const result = this.transformAttractionDetails(data, attractionId);
+
+      this.setCache(cacheKey, result);
+      return result;
+    } catch (error) {
+      const status = (error as AxiosError)?.response?.status;
+      const errorMessage =
+        status === 429
+          ? 'TRAVEL_ADVISOR_RATE_LIMIT_EXCEEDED'
+          : status === 401 || status === 403
+          ? 'TRAVEL_ADVISOR_AUTH_FAILED'
+          : status === 404
+          ? 'ATTRACTION_NOT_FOUND'
+          : 'TRAVEL_ADVISOR_SERVICE_UNAVAILABLE';
+
+      this.logger.error(
+        `Travel Advisor attraction details API error (status: ${status})`,
+        (error as any)?.response?.data ?? error,
+      );
+      throw new HttpException(
+        { message: errorMessage },
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+  }
+
+  private transformAttractionDetails(data: any, attractionId: string): AttractionDetailsDto {
+    const result: any = data?.data?.[0] || data || {};
+    const location = result.location_id
+      ? result
+      : result.result_object || {};
+
+    // 提取评分信息
+    const rating = result.rating || location.rating || null;
+    const numReviews = result.num_reviews || location.num_reviews || 0;
+
+    // 提取门票价格信息
+    const booking = result.booking || {};
+    let ticketInfo: any = undefined;
+    if (booking.price_range || booking.ticket_price || booking.vendor_url) {
+      ticketInfo = {
+        requiresTicket: true,
+      };
+      if (booking.price_range) {
+        ticketInfo.priceRange = {
+          min: booking.price_range.min,
+          max: booking.price_range.max,
+          currency: booking.price_range.currency || 'CNY',
+          description: booking.price_range.description,
+        };
+      } else if (booking.ticket_price) {
+        ticketInfo.priceRange = {
+          description: booking.ticket_price,
+        };
+      }
+      if (booking.vendor_url) {
+        ticketInfo.purchaseUrl = booking.vendor_url;
+      }
+      if (booking.provider) {
+        ticketInfo.purchaseMethod = booking.provider;
+      }
+    }
+
+    // 构建返回对象
+    const transformed: AttractionDetailsDto = {
+      id: location.location_id?.toString() || attractionId,
+      name: result.name || location.name || '未知景点',
+      address: location.address || result.address || undefined,
+      coordinates:
+        location.latitude && location.longitude
+          ? {
+              lat: parseFloat(location.latitude),
+              lng: parseFloat(location.longitude),
+            }
+          : undefined,
+      rating: {
+        rating: rating ? parseFloat(rating) : 0,
+        reviewCount: parseInt(numReviews?.toString() || '0', 10),
+        ratingDistribution: result.rating_histogram || undefined,
+      },
+      ticketInfo,
+      openingHours: result.hours || location.hours || undefined,
+      phone: result.phone || location.phone || undefined,
+      website: result.website || location.website || undefined,
+      description: result.description || location.description || undefined,
+      category: result.category?.name || location.category?.name || undefined,
+      tripadvisorUrl: result.web_url || location.web_url || undefined,
+    };
+
+    return transformed;
   }
 
   async searchTravelGuides(

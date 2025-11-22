@@ -5,6 +5,8 @@ import {
   EventsResponseDto,
   GeocodeLookupDto,
   GeocodeResponseDto,
+  ReverseGeocodeQueryDto,
+  ReverseGeocodeResponseDto,
   HighAltitudeQueryDto,
   HighAltitudeResponseDto,
   TransportRequestDto,
@@ -32,6 +34,19 @@ export class DestinationController {
   @ApiOkResponse({ type: GeocodeResponseDto })
   geocode(@Body() dto: GeocodeLookupDto): Promise<GeocodeResponseDto> {
     return this.geocodeService.lookup(dto);
+  }
+
+  @Get('reverse-geocode')
+  @ApiOperation({
+    summary: '反向地理编码：根据经纬度获取国家/省州/城市标签',
+    description:
+      '优先用于反向地理编码（经纬度 → 国家/省州/城市标签），支撑灵感详情页的地点展示',
+  })
+  @ApiOkResponse({ type: ReverseGeocodeResponseDto })
+  reverseGeocode(
+    @Query() query: ReverseGeocodeQueryDto,
+  ): Promise<ReverseGeocodeResponseDto> {
+    return this.geocodeService.reverseGeocode(query);
   }
 
   @Post('transport')

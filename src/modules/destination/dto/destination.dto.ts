@@ -222,6 +222,107 @@ export class EventsResponseDto {
   events!: FestivalEventDto[];
 }
 
+export class ReverseGeocodeQueryDto {
+  @ApiProperty({
+    description: '经度（longitude）',
+    example: 8.4050,
+    minimum: -180,
+    maximum: 180,
+  })
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  lng!: number;
+
+  @ApiProperty({
+    description: '纬度（latitude）',
+    example: 46.7704,
+    minimum: -90,
+    maximum: 90,
+  })
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  lat!: number;
+
+  @ApiPropertyOptional({
+    description: '首选语言代码',
+    example: 'zh-CN',
+    default: 'zh-CN',
+  })
+  @IsOptional()
+  @IsString()
+  language?: string;
+
+  @ApiPropertyOptional({
+    description: '返回结果的数量限制',
+    example: 1,
+    default: 1,
+  })
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  @Max(5)
+  limit?: number;
+}
+
+export class ReverseGeocodeFeatureDto {
+  @ApiProperty({ description: '地点名称', example: 'Engelberg, Switzerland' })
+  @IsString()
+  name!: string;
+
+  @ApiProperty({ description: '完整地址', example: 'Engelberg, Obwalden, Switzerland' })
+  @IsString()
+  fullAddress!: string;
+
+  @ApiPropertyOptional({ description: '国家', example: 'Switzerland' })
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @ApiPropertyOptional({ description: '国家代码', example: 'CH' })
+  @IsOptional()
+  @IsString()
+  countryCode?: string;
+
+  @ApiPropertyOptional({ description: '省/州', example: 'Obwalden' })
+  @IsOptional()
+  @IsString()
+  region?: string;
+
+  @ApiPropertyOptional({ description: '省/州代码', example: 'OW' })
+  @IsOptional()
+  @IsString()
+  regionCode?: string;
+
+  @ApiPropertyOptional({ description: '城市', example: 'Engelberg' })
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @ApiPropertyOptional({ description: '地区类型', example: 'place' })
+  @IsOptional()
+  @IsString()
+  placeType?: string;
+
+  @ApiProperty({ description: '纬度', example: 46.7704 })
+  @IsNumber()
+  latitude!: number;
+
+  @ApiProperty({ description: '经度', example: 8.4050 })
+  @IsNumber()
+  longitude!: number;
+}
+
+export class ReverseGeocodeResponseDto {
+  @ApiProperty({
+    description: '反向地理编码结果',
+    type: ReverseGeocodeFeatureDto,
+  })
+  @Type(() => ReverseGeocodeFeatureDto)
+  data!: ReverseGeocodeFeatureDto;
+}
+
 export class HighAltitudeQueryDto {
   @ApiProperty({ description: 'Name of the destination to check.' })
   @IsString()
