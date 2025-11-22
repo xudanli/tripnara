@@ -103,9 +103,13 @@ export class ExternalService {
   }
 
   async searchLocations(query: string) {
-    if (!this.travelAdvisorApiKey) {
+    if (!this.travelAdvisorApiKey || this.travelAdvisorApiKey.trim() === '') {
+      this.logger.warn('Travel Advisor API Key is not configured');
       throw new HttpException(
-        { message: 'TRAVEL_ADVISOR_KEY_MISSING' },
+        {
+          message: 'TRAVEL_ADVISOR_KEY_MISSING',
+          error: 'Travel Advisor API Key is not configured. Please set TRAVEL_ADVISOR_API_KEY in environment variables.',
+        },
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -156,9 +160,13 @@ export class ExternalService {
     attractionId: string,
     lang: string = 'zh-CN',
   ): Promise<AttractionDetailsDto> {
-    if (!this.travelAdvisorApiKey) {
+    if (!this.travelAdvisorApiKey || this.travelAdvisorApiKey.trim() === '') {
+      this.logger.warn('Travel Advisor API Key is not configured');
       throw new HttpException(
-        { message: 'TRAVEL_ADVISOR_KEY_MISSING' },
+        {
+          message: 'TRAVEL_ADVISOR_KEY_MISSING',
+          error: 'Travel Advisor API Key is not configured. Please set TRAVEL_ADVISOR_API_KEY in environment variables.',
+        },
         HttpStatus.BAD_REQUEST,
       );
     }
