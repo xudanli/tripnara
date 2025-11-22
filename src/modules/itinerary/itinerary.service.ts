@@ -408,34 +408,74 @@ ${dateInstructions}
     dto: CreateItineraryRequestDto,
     userId: string,
   ): Promise<CreateItineraryResponseDto> {
-    const itinerary = await this.itineraryRepository.createItinerary({
-      userId,
-      destination: dto.destination,
-      startDate: new Date(dto.startDate),
-      daysCount: dto.days,
-      summary: dto.data.summary,
-      totalCost: dto.data.totalCost,
-      preferences: dto.preferences as Record<string, unknown>,
-      status: dto.status || 'draft',
-      daysData: dto.data.days.map((day) => ({
-        day: day.day,
-        date: new Date(day.date),
-        activities: day.activities.map((act) => ({
-          time: act.time,
-          title: act.title,
-          type: act.type,
-          duration: act.duration,
-          location: act.location,
-          notes: act.notes || '',
-          cost: act.cost ?? undefined,
-        })),
-      })),
-    });
+    try {
+      // 验证必要字段
+      if (!dto.data || !Array.isArray(dto.data.days)) {
+        throw new BadRequestException('行程数据格式不正确：缺少 days 数组');
+      }
 
-    return {
-      success: true,
-      data: this.entityToDetailDto(itinerary),
-    };
+      if (!dto.data.days.length) {
+        throw new BadRequestException('行程数据不能为空：至少需要一天的行程');
+      }
+
+      // 安全地解析日期
+      const parseDate = (dateString: string): Date => {
+        if (!dateString) {
+          throw new BadRequestException(`日期字段不能为空`);
+        }
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) {
+          throw new BadRequestException(`日期格式不正确: ${dateString}`);
+        }
+        return date;
+      };
+
+      const itinerary = await this.itineraryRepository.createItinerary({
+        userId,
+        destination: dto.destination,
+        startDate: parseDate(dto.startDate),
+        daysCount: dto.days,
+        summary: dto.data.summary || '',
+        totalCost: dto.data.totalCost ?? 0,
+        preferences: dto.preferences as Record<string, unknown>,
+        status: dto.status || 'draft',
+        daysData: dto.data.days.map((day) => ({
+          day: day.day,
+          date: parseDate(day.date),
+          activities: (day.activities || []).map((act) => ({
+            time: act.time || '09:00',
+            title: act.title || '',
+            type: act.type || 'attraction',
+            duration: act.duration || 60,
+            location: act.location || { lat: 0, lng: 0 },
+            notes: act.notes || '',
+            cost: act.cost ?? 0,
+          })),
+        })),
+      });
+
+      return {
+        success: true,
+        data: this.entityToDetailDto(itinerary),
+      };
+    } catch (error) {
+      this.logger.error(
+        `Failed to create itinerary for user ${userId}`,
+        error instanceof Error ? error.stack : error,
+      );
+      
+      // 如果是已知的 BadRequestException，直接抛出
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      
+      // 其他错误转换为更友好的错误信息
+      const errorMessage =
+        error instanceof Error ? error.message : '创建行程失败';
+      throw new BadRequestException(
+        `创建行程时发生错误: ${errorMessage}`,
+      );
+    }
   }
 
   async getItineraryList(
