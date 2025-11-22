@@ -21,6 +21,23 @@ import {
   ItineraryDetailResponseDto,
   ItineraryListItemDto,
   ItineraryDetailDto,
+  CreateItineraryFromFrontendDataDto,
+  ItineraryTimeSlotDto,
+  ItineraryActivityDto,
+  ItineraryDayDto,
+  CreateItineraryTemplateDto,
+  CreateItineraryTemplateResponseDto,
+  ItineraryDataWithTimeSlotsDto,
+  TaskDto,
+  ItineraryTemplateQueryDto,
+  ItineraryTemplateListResponseDto,
+  ItineraryTemplateListItemDto,
+  ItineraryTemplateDetailResponseDto,
+  UpdateItineraryTemplateDto,
+  UpdateItineraryTemplateResponseDto,
+  DeleteItineraryTemplateResponseDto,
+  PublishItineraryTemplateResponseDto,
+  CloneItineraryTemplateResponseDto,
 } from './dto/itinerary.dto';
 import {
   ItineraryEntity,
@@ -430,17 +447,17 @@ ${dateInstructions}
         return date;
       };
 
-      const itinerary = await this.itineraryRepository.createItinerary({
-        userId,
-        destination: dto.destination,
+    const itinerary = await this.itineraryRepository.createItinerary({
+      userId,
+      destination: dto.destination,
         startDate: parseDate(dto.startDate),
-        daysCount: dto.days,
+      daysCount: dto.days,
         summary: dto.data.summary || '',
         totalCost: dto.data.totalCost ?? 0,
-        preferences: dto.preferences as Record<string, unknown>,
-        status: dto.status || 'draft',
-        daysData: dto.data.days.map((day) => ({
-          day: day.day,
+      preferences: dto.preferences as Record<string, unknown>,
+      status: dto.status || 'draft',
+      daysData: dto.data.days.map((day) => ({
+        day: day.day,
           date: parseDate(day.date),
           activities: (day.activities || []).map((act) => ({
             time: act.time || '09:00',
@@ -448,16 +465,16 @@ ${dateInstructions}
             type: act.type || 'attraction',
             duration: act.duration || 60,
             location: act.location || { lat: 0, lng: 0 },
-            notes: act.notes || '',
+          notes: act.notes || '',
             cost: act.cost ?? 0,
           })),
-        })),
-      });
+      })),
+    });
 
-      return {
-        success: true,
-        data: this.entityToDetailDto(itinerary),
-      };
+    return {
+      success: true,
+      data: this.entityToDetailDto(itinerary),
+    };
     } catch (error) {
       this.logger.error(
         `Failed to create itinerary for user ${userId}`,
@@ -698,6 +715,637 @@ ${dateInstructions}
         entity.updatedAt instanceof Date
           ? entity.updatedAt.toISOString()
           : new Date(entity.updatedAt).toISOString(),
+    };
+  }
+
+  /**
+   * 将前端提供的完整行程数据格式转换为 CreateItineraryRequestDto
+   */
+  convertFrontendDataToCreateRequest(
+    dto: CreateItineraryFromFrontendDataDto,
+  ): CreateItineraryRequestDto {
+    const { itineraryData, tasks, startDate } = dto;
+
+    // 转换 timeSlots 为 activities
+    const convertTimeSlotToActivity = (
+      timeSlot: ItineraryTimeSlotDto,
+    ): ItineraryActivityDto => {
+      return {
+        time: timeSlot.time,
+        title: timeSlot.title || timeSlot.activity || '',
+        type: timeSlot.type || 'attraction',
+        duration: timeSlot.duration || 60,
+        location: timeSlot.coordinates || { lat: 0, lng: 0 },
+        notes: timeSlot.notes || '',
+        cost: timeSlot.cost || 0,
+      };
+    };
+
+    // 转换 days（包含 timeSlots）为 days（包含 activities）
+    const convertDays = (): ItineraryDayDto[] => {
+      return itineraryData.days.map((day) => ({
+        day: day.day,
+        date: day.date,
+        activities: day.timeSlots.map(convertTimeSlotToActivity),
+      }));
+    };
+
+    // 确定开始日期：优先使用传入的 startDate，否则使用第一天的日期
+    const finalStartDate = startDate || itineraryData.days[0]?.date;
+
+    if (!finalStartDate) {
+      throw new BadRequestException('缺少开始日期：请提供 startDate 或确保 days 数组的第一天包含 date 字段');
+    }
+
+    // 构建 preferences
+    const preferences: {
+      interests?: string[];
+      budget?: 'low' | 'medium' | 'high';
+      travelStyle?: 'relaxed' | 'moderate' | 'intensive';
+    } = {};
+
+    if (itineraryData.preferences && Array.isArray(itineraryData.preferences)) {
+      preferences.interests = itineraryData.preferences;
+    }
+
+    if (itineraryData.budget) {
+      const budgetMap: Record<string, 'low' | 'medium' | 'high'> = {
+        low: 'low',
+        medium: 'medium',
+        high: 'high',
+        economy: 'low',
+        comfort: 'medium',
+        luxury: 'high',
+      };
+      preferences.budget = budgetMap[itineraryData.budget.toLowerCase()] || 'medium';
+    }
+
+    if (itineraryData.travelStyle) {
+      const styleMap: Record<string, 'relaxed' | 'moderate' | 'intensive'> = {
+        relaxed: 'relaxed',
+        moderate: 'moderate',
+        intensive: 'intensive',
+      };
+      preferences.travelStyle = styleMap[itineraryData.travelStyle.toLowerCase()] || 'moderate';
+    }
+
+    // 构建 CreateItineraryRequestDto
+    const createRequest: CreateItineraryRequestDto = {
+      destination: itineraryData.destination,
+      startDate: finalStartDate,
+      days: itineraryData.duration,
+      data: {
+        days: convertDays(),
+        totalCost: itineraryData.totalCost || 0,
+        summary: itineraryData.summary || '',
+      },
+      preferences: Object.keys(preferences).length > 0 ? preferences : undefined,
+      status: 'draft',
+    };
+
+    // 注意：tasks 暂时不处理，如果需要可以保存到任务系统或作为元数据存储
+    if (tasks && tasks.length > 0) {
+      this.logger.log(`Received ${tasks.length} tasks, but tasks are not yet integrated into itinerary creation`);
+    }
+
+    return createRequest;
+  }
+
+  /**
+   * 从前端提供的完整行程数据格式创建行程
+   */
+  async createItineraryFromFrontendData(
+    dto: CreateItineraryFromFrontendDataDto,
+    userId: string,
+  ): Promise<CreateItineraryResponseDto> {
+    const createRequest = this.convertFrontendDataToCreateRequest(dto);
+    return this.createItinerary(createRequest, userId);
+  }
+
+  /**
+   * 创建行程模版（用于 /api/v1/itineraries 接口）
+   * 接受顶层格式的数据，包含 title、language 等字段
+   */
+  async createItineraryTemplate(
+    dto: CreateItineraryTemplateDto,
+    userId: string,
+  ): Promise<CreateItineraryTemplateResponseDto> {
+    try {
+      // 构建 itineraryData 对象
+      const itineraryData: ItineraryDataWithTimeSlotsDto = {
+        title: dto.title,
+        destination: dto.destination || '',
+        duration: dto.duration || (dto.days?.length || 0),
+        budget: dto.budget,
+        preferences: dto.preferences,
+        travelStyle: dto.travelStyle,
+        itinerary: [],
+        recommendations: dto.recommendations,
+        days: dto.days || [],
+        totalCost: dto.totalCost || 0,
+        summary: dto.summary || '',
+      };
+
+      // 转换为 CreateItineraryFromFrontendDataDto 格式
+      const frontendDataDto: CreateItineraryFromFrontendDataDto = {
+        itineraryData,
+        tasks: dto.tasks,
+        startDate: dto.days?.[0]?.date,
+      };
+
+      // 创建行程
+      const createResponse = await this.createItineraryFromFrontendData(
+        frontendDataDto,
+        userId,
+      );
+
+      // 构建响应数据
+      const itinerary = createResponse.data;
+
+      // 将 activities 转换回 timeSlots 格式
+      const convertActivitiesToTimeSlots = (
+        activities: ItineraryActivityDto[],
+      ): ItineraryTimeSlotDto[] => {
+        return activities.map((act) => ({
+          time: act.time,
+          title: act.title,
+          activity: act.title,
+          type: act.type,
+          coordinates: act.location,
+          notes: act.notes || '',
+          duration: act.duration,
+          cost: act.cost || 0,
+        }));
+      };
+
+      const responseItineraryData: ItineraryDataWithTimeSlotsDto = {
+        title: dto.title,
+        destination: itinerary.destination,
+        duration: itinerary.daysCount,
+        budget: dto.budget,
+        preferences: dto.preferences,
+        travelStyle: dto.travelStyle,
+        itinerary: [],
+        recommendations: dto.recommendations,
+        days: itinerary.days.map((day) => ({
+          day: day.day,
+          date: day.date,
+          timeSlots: convertActivitiesToTimeSlots(day.activities),
+        })),
+        totalCost: itinerary.totalCost,
+        summary: itinerary.summary,
+      };
+
+      return {
+        success: true,
+        data: {
+          id: itinerary.id,
+          status: itinerary.status,
+          language: dto.language || 'zh-CN',
+          itineraryData: responseItineraryData,
+          tasks: dto.tasks,
+          createdBy: userId,
+          updatedBy: userId,
+          createdAt: itinerary.createdAt,
+          updatedAt: itinerary.updatedAt,
+        },
+        message: '创建成功',
+      };
+    } catch (error) {
+      this.logger.error('Failed to create itinerary template', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 将 activities 转换为 timeSlots 格式
+   */
+  private convertActivitiesToTimeSlots(
+    activities: ItineraryActivityDto[],
+  ): ItineraryTimeSlotDto[] {
+    return activities.map((act) => ({
+      time: act.time,
+      title: act.title,
+      activity: act.title,
+      type: act.type,
+      coordinates: act.location,
+      notes: act.notes || '',
+      duration: act.duration,
+      cost: act.cost || 0,
+    }));
+  }
+
+  /**
+   * 将行程实体转换为模版详情格式
+   */
+  private entityToTemplateDetailDto(
+    entity: ItineraryEntity,
+    language: string = 'zh-CN',
+    tasks?: TaskDto[],
+  ): ItineraryTemplateDetailResponseDto {
+    const formatDate = (date: Date | string): string => {
+      if (date instanceof Date) {
+        return date.toISOString().split('T')[0];
+      }
+      if (typeof date === 'string') {
+        try {
+          const parsedDate = new Date(date);
+          if (!isNaN(parsedDate.getTime())) {
+            return parsedDate.toISOString().split('T')[0];
+          }
+        } catch {
+          return date;
+        }
+        return date;
+      }
+      return '';
+    };
+
+    const formatDayDate = (date: Date | string): string => {
+      if (date instanceof Date) {
+        return date.toISOString().split('T')[0];
+      }
+      if (typeof date === 'string') {
+        try {
+          const parsedDate = new Date(date);
+          if (!isNaN(parsedDate.getTime())) {
+            return parsedDate.toISOString().split('T')[0];
+          }
+        } catch {
+          return date;
+        }
+        return date;
+      }
+      return '';
+    };
+
+    const daysArray = Array.isArray(entity.days) ? entity.days : [];
+    const preferences = (entity.preferences as Record<string, unknown>) || {};
+
+    // 从 summary 或 preferences 中提取 title（如果没有存储 title，使用 destination）
+    const title = (preferences.title as string) || entity.destination || '';
+
+    const itineraryData: ItineraryDataWithTimeSlotsDto = {
+      title,
+      destination: entity.destination,
+      duration: entity.daysCount,
+      budget: (preferences.budget as string) || undefined,
+      preferences: (preferences.interests as string[]) || [],
+      travelStyle: (preferences.travelStyle as string) || undefined,
+      itinerary: [],
+      recommendations: (preferences.recommendations as {
+        accommodation?: string;
+        transportation?: string;
+        food?: string;
+        tips?: string;
+      }) || undefined,
+      days: daysArray.map((day) => ({
+        day: day.day,
+        date: formatDayDate(day.date as Date | string),
+        timeSlots: this.convertActivitiesToTimeSlots(
+          (day.activities || []).map((act) => ({
+            time: act.time,
+            title: act.title,
+            type: act.type as
+              | 'attraction'
+              | 'meal'
+              | 'hotel'
+              | 'shopping'
+              | 'transport',
+            duration: act.duration,
+            location: act.location,
+            notes: act.notes || '',
+            cost: act.cost || 0,
+          })),
+        ),
+      })),
+      totalCost: entity.totalCost ? Number(entity.totalCost) : 0,
+      summary: entity.summary || '',
+    };
+
+    return {
+      id: entity.id,
+      status: entity.status,
+      language,
+      itineraryData,
+      tasks,
+      createdBy: entity.userId,
+      updatedBy: entity.userId,
+      createdAt:
+        entity.createdAt instanceof Date
+          ? entity.createdAt.toISOString()
+          : new Date(entity.createdAt).toISOString(),
+      updatedAt:
+        entity.updatedAt instanceof Date
+          ? entity.updatedAt.toISOString()
+          : new Date(entity.updatedAt).toISOString(),
+    };
+  }
+
+  /**
+   * 获取行程模版列表（支持多种筛选条件）
+   */
+  async getItineraryTemplateList(
+    userId: string,
+    query: ItineraryTemplateQueryDto,
+  ): Promise<ItineraryTemplateListResponseDto> {
+    const page = query.page || 1;
+    const limit = query.limit || 10;
+    const offset = (page - 1) * limit;
+
+    // 使用 repository 的查询方法，但需要扩展支持更多筛选条件
+    // 先获取所有符合条件的行程，然后在内存中筛选（或扩展 repository 方法）
+    const statusFilter: 'draft' | 'published' | 'archived' | undefined =
+      query.status && query.status !== 'all'
+        ? (query.status as 'draft' | 'published' | 'archived')
+        : undefined;
+
+    const [allItineraries, totalCount] = await this.itineraryRepository.findByUserId(
+      userId,
+      {
+        status: statusFilter,
+        limit: 10000, // 临时方案：获取足够多的数据
+        offset: 0,
+      },
+    );
+
+    // 在内存中应用其他筛选条件
+    let filtered = allItineraries;
+
+    // 关键字搜索
+    if (query.keyword) {
+      const keyword = query.keyword.toLowerCase();
+      filtered = filtered.filter(
+        (it) =>
+          it.destination?.toLowerCase().includes(keyword) ||
+          it.summary?.toLowerCase().includes(keyword),
+      );
+    }
+
+    // 目的地筛选
+    if (query.destination) {
+      const dest = query.destination.toLowerCase();
+      filtered = filtered.filter((it) =>
+        it.destination?.toLowerCase().includes(dest),
+      );
+    }
+
+    // 预算筛选
+    if (query.budget && query.budget !== 'all') {
+      filtered = filtered.filter((it) => {
+        const prefs = (it.preferences as Record<string, unknown>) || {};
+        return prefs.budget === query.budget;
+      });
+    }
+
+    // 旅行风格筛选
+    if (query.travelStyle && query.travelStyle !== 'all') {
+      filtered = filtered.filter((it) => {
+        const prefs = (it.preferences as Record<string, unknown>) || {};
+        return prefs.travelStyle === query.travelStyle;
+      });
+    }
+
+    // 语言筛选（从 preferences 中）
+    if (query.language) {
+      filtered = filtered.filter((it) => {
+        const prefs = (it.preferences as Record<string, unknown>) || {};
+        return prefs.language === query.language;
+      });
+    }
+
+    // 计算总数
+    const total = filtered.length;
+
+    // 分页
+    const paginated = filtered.slice(offset, offset + limit);
+
+    // 转换为列表项格式
+    const listItems: ItineraryTemplateListItemDto[] = paginated.map((it) => {
+      const preferences = (it.preferences as Record<string, unknown>) || {};
+      const title = (preferences.title as string) || it.destination || '';
+
+      return {
+        id: it.id,
+        status: it.status,
+        language: query.language || 'zh-CN',
+        itineraryData: {
+          title,
+          destination: it.destination,
+          duration: it.daysCount,
+          budget: (preferences.budget as string) || undefined,
+          totalCost: it.totalCost ? Number(it.totalCost) : undefined,
+          summary: it.summary || undefined,
+        },
+        createdAt:
+          it.createdAt instanceof Date
+            ? it.createdAt.toISOString()
+            : new Date(it.createdAt).toISOString(),
+        updatedAt:
+          it.updatedAt instanceof Date
+            ? it.updatedAt.toISOString()
+            : new Date(it.updatedAt).toISOString(),
+      };
+    });
+
+    return {
+      data: listItems,
+      total,
+      page,
+      limit,
+    };
+  }
+
+  /**
+   * 根据ID获取行程模版详情
+   */
+  async getItineraryTemplateById(
+    id: string,
+    userId: string,
+    language?: string,
+  ): Promise<ItineraryTemplateDetailResponseDto> {
+    const itinerary = await this.itineraryRepository.findById(id);
+
+    if (!itinerary) {
+      throw new NotFoundException(`行程模版不存在: ${id}`);
+    }
+
+    // 检查所有权
+    if (itinerary.userId !== userId) {
+      throw new ForbiddenException('无权访问此行程模版');
+    }
+
+    // 从 preferences 中提取 language，如果没有则使用传入的或默认值
+    const preferences = (itinerary.preferences as Record<string, unknown>) || {};
+    const finalLanguage = (preferences.language as string) || language || 'zh-CN';
+
+    return this.entityToTemplateDetailDto(itinerary, finalLanguage);
+  }
+
+  /**
+   * 更新行程模版
+   */
+  async updateItineraryTemplate(
+    id: string,
+    dto: UpdateItineraryTemplateDto,
+    userId: string,
+  ): Promise<UpdateItineraryTemplateResponseDto> {
+    // 检查所有权
+    const isOwner = await this.itineraryRepository.checkOwnership(id, userId);
+    if (!isOwner) {
+      throw new ForbiddenException('无权修改此行程模版');
+    }
+
+    // 获取现有行程
+    const existing = await this.itineraryRepository.findById(id);
+    if (!existing) {
+      throw new NotFoundException(`行程模版不存在: ${id}`);
+    }
+
+    // 如果有更新字段，需要转换为 CreateItineraryRequestDto 格式
+    if (dto.days || dto.title || dto.destination || dto.duration) {
+      // 构建完整的 itineraryData
+      const itineraryData: ItineraryDataWithTimeSlotsDto = {
+        title: dto.title || (existing.preferences as Record<string, unknown>)?.title as string || existing.destination || '',
+        destination: dto.destination || existing.destination,
+        duration: dto.duration || existing.daysCount,
+        budget: dto.budget,
+        preferences: dto.preferences,
+        travelStyle: dto.travelStyle,
+        itinerary: [],
+        recommendations: dto.recommendations,
+        days: dto.days || [],
+        totalCost: dto.totalCost || existing.totalCost || 0,
+        summary: dto.summary || existing.summary || '',
+      };
+
+      // 转换为标准格式并更新
+      const frontendDataDto: CreateItineraryFromFrontendDataDto = {
+        itineraryData,
+        tasks: dto.tasks,
+        startDate: dto.days?.[0]?.date,
+      };
+
+      const createRequest = this.convertFrontendDataToCreateRequest(frontendDataDto);
+
+      // 更新行程
+      const updateDto: UpdateItineraryRequestDto = {
+        destination: createRequest.destination,
+        startDate: createRequest.startDate,
+        days: createRequest.days,
+        summary: createRequest.data.summary,
+        totalCost: createRequest.data.totalCost,
+        preferences: createRequest.preferences,
+        status: dto.status || existing.status,
+      };
+
+      await this.updateItinerary(id, updateDto, userId);
+    } else {
+      // 只更新简单字段
+      const updateDto: UpdateItineraryRequestDto = {};
+      if (dto.status) updateDto.status = dto.status;
+      if (dto.totalCost !== undefined) {
+        updateDto.totalCost = dto.totalCost;
+      }
+      if (dto.summary !== undefined) {
+        updateDto.summary = dto.summary;
+      }
+
+      if (Object.keys(updateDto).length > 0) {
+        await this.updateItinerary(id, updateDto, userId);
+      }
+    }
+
+    // 获取更新后的数据
+    const updated = await this.getItineraryTemplateById(id, userId, dto.language);
+
+    return {
+      success: true,
+      data: updated,
+      message: '更新成功',
+    };
+  }
+
+  /**
+   * 删除行程模版
+   */
+  async deleteItineraryTemplate(
+    id: string,
+    userId: string,
+  ): Promise<DeleteItineraryTemplateResponseDto> {
+    await this.deleteItinerary(id, userId);
+    return {
+      success: true,
+      message: '删除成功',
+    };
+  }
+
+  /**
+   * 发布行程模版
+   */
+  async publishItineraryTemplate(
+    id: string,
+    userId: string,
+  ): Promise<PublishItineraryTemplateResponseDto> {
+    // 检查所有权
+    const isOwner = await this.itineraryRepository.checkOwnership(id, userId);
+    if (!isOwner) {
+      throw new ForbiddenException('无权发布此行程模版');
+    }
+
+    // 更新状态为 published
+    const updateDto: UpdateItineraryRequestDto = {
+      status: 'published',
+    };
+
+    await this.updateItinerary(id, updateDto, userId);
+
+    // 获取更新后的数据
+    const updated = await this.getItineraryTemplateById(id, userId);
+
+    return {
+      success: true,
+      data: updated,
+      message: '发布成功',
+    };
+  }
+
+  /**
+   * 复制行程模版
+   */
+  async cloneItineraryTemplate(
+    id: string,
+    userId: string,
+  ): Promise<CloneItineraryTemplateResponseDto> {
+    // 获取原行程
+    const original = await this.getItineraryTemplateById(id, userId);
+
+    // 构建新的创建请求
+    const createDto: CreateItineraryTemplateDto = {
+      title: original.itineraryData.title.includes('（副本）')
+        ? original.itineraryData.title
+        : `${original.itineraryData.title}（副本）`,
+      destination: original.itineraryData.destination,
+      duration: original.itineraryData.duration,
+      budget: original.itineraryData.budget,
+      preferences: original.itineraryData.preferences,
+      travelStyle: original.itineraryData.travelStyle,
+      recommendations: original.itineraryData.recommendations,
+      days: original.itineraryData.days,
+      totalCost: original.itineraryData.totalCost,
+      summary: original.itineraryData.summary,
+      status: 'draft',
+      language: original.language,
+      tasks: original.tasks,
+    };
+
+    // 创建新行程
+    const created = await this.createItineraryTemplate(createDto, userId);
+
+    return {
+      success: true,
+      data: created.data,
+      message: '复制成功',
     };
   }
 }

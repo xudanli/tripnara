@@ -2,10 +2,9 @@ import { Module } from '@nestjs/common';
 import { InspirationController } from './inspiration.controller';
 import { InspirationService } from './inspiration.service';
 import { LlmModule } from '../llm/llm.module';
-import { TemplateModule } from '../templates/template.module';
 
 @Module({
-  imports: [LlmModule, TemplateModule],
+  imports: [LlmModule],
   controllers: [InspirationController],
   providers: [InspirationService],
   exports: [InspirationService],

@@ -25,6 +25,7 @@ import {
   DeleteItineraryResponseDto,
   ItineraryListResponseDto,
   ItineraryDetailResponseDto,
+  CreateItineraryFromFrontendDataDto,
 } from './dto/itinerary.dto';
 
 @ApiTags('Itinerary')
@@ -53,6 +54,21 @@ export class ItineraryController {
     @CurrentUser() user: { userId: string },
   ): Promise<CreateItineraryResponseDto> {
     return this.itineraryService.createItinerary(dto, user.userId);
+  }
+
+  @Post('from-frontend-data')
+  @ApiOperation({
+    summary: '从前端数据格式创建行程',
+    description:
+      '接受前端提供的完整行程数据格式（包含 itineraryData 和 tasks），自动转换为标准格式并创建行程',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async createItineraryFromFrontendData(
+    @Body() dto: CreateItineraryFromFrontendDataDto,
+    @CurrentUser() user: { userId: string },
+  ): Promise<CreateItineraryResponseDto> {
+    return this.itineraryService.createItineraryFromFrontendData(dto, user.userId);
   }
 
   @Get()

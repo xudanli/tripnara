@@ -13,7 +13,6 @@ import { TaskModule } from './modules/task/task.module';
 import { validateEnv } from './config/env.validation';
 import { TYPEORM_ENTITIES } from './config/typeorm.entities';
 import { MonitoringModule } from './modules/monitoring/monitoring.module';
-import { TemplateModule } from './modules/templates/template.module';
 import { VisaModule } from './modules/visa/visa.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { PreferencesModule } from './modules/preferences/preferences.module';
@@ -90,7 +89,6 @@ const resolveEnvFilePaths = (): string[] => {
     GatewayModule,
     LlmModule,
     DestinationModule,
-    TemplateModule,
     GuidesModule,
     CatalogModule,
     PersistenceModule,

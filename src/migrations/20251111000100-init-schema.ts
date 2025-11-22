@@ -81,62 +81,6 @@ export class InitSchema20251111000100 implements MigrationInterface {
       CONSTRAINT "FK_eventbrite_connections_user" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE
     )`);
 
-    await queryRunner.query(`CREATE TABLE IF NOT EXISTS "journey_templates" (
-      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      "status" varchar(20) NOT NULL DEFAULT 'draft',
-      "mode" varchar(20) NOT NULL DEFAULT 'inspiration',
-      "title" varchar(255) NOT NULL,
-      "cover_image" text,
-      "duration_days" int,
-      "summary" text,
-      "description" text,
-      "core_insight" text,
-      "safety_notice_default" jsonb,
-      "journey_background" jsonb,
-      "persona_profile" jsonb,
-      "journey_design" jsonb,
-      "tasks_default" jsonb,
-      "created_by" uuid,
-      "updated_by" uuid,
-      "created_at" timestamptz NOT NULL DEFAULT now(),
-      "updated_at" timestamptz NOT NULL DEFAULT now()
-    )`);
-
-    await queryRunner.query(`CREATE TABLE IF NOT EXISTS "template_days" (
-      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      "template_id" uuid NOT NULL,
-      "day_number" int NOT NULL,
-      "title" varchar(255),
-      "summary" text,
-      "details_json" jsonb,
-      "created_at" timestamptz NOT NULL DEFAULT now(),
-      "updated_at" timestamptz NOT NULL DEFAULT now(),
-      CONSTRAINT "FK_template_day_template" FOREIGN KEY ("template_id") REFERENCES "journey_templates"("id") ON DELETE CASCADE
-    )`);
-    await queryRunner.query(
-      `CREATE INDEX IF NOT EXISTS "IDX_template_day_sequence" ON "template_days" ("template_id", "day_number")`,
-    );
-
-    await queryRunner.query(`CREATE TABLE IF NOT EXISTS "template_time_slots" (
-      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      "day_id" uuid NOT NULL,
-      "sequence" int NOT NULL,
-      "start_time" time,
-      "duration_minutes" int,
-      "type" varchar(50),
-      "title" varchar(255),
-      "activity_highlights" jsonb,
-      "scenic_intro" text,
-      "location_json" jsonb,
-      "details_json" jsonb,
-      "created_at" timestamptz NOT NULL DEFAULT now(),
-      "updated_at" timestamptz NOT NULL DEFAULT now(),
-      CONSTRAINT "FK_template_slot_day" FOREIGN KEY ("day_id") REFERENCES "template_days"("id") ON DELETE CASCADE
-    )`);
-    await queryRunner.query(
-      `CREATE INDEX IF NOT EXISTS "IDX_template_slot_sequence" ON "template_time_slots" ("day_id", "sequence")`,
-    );
-
     await queryRunner.query(`CREATE TABLE IF NOT EXISTS "journeys" (
       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       "user_id" uuid,
@@ -161,8 +105,7 @@ export class InitSchema20251111000100 implements MigrationInterface {
       "sources" jsonb,
       "created_at" timestamptz NOT NULL DEFAULT now(),
       "updated_at" timestamptz NOT NULL DEFAULT now(),
-      CONSTRAINT "FK_journey_user" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE SET NULL,
-      CONSTRAINT "FK_journey_template" FOREIGN KEY ("template_id") REFERENCES "journey_templates"("id") ON DELETE SET NULL
+      CONSTRAINT "FK_journey_user" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE SET NULL
     )`);
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "IDX_journey_user_status" ON "journeys" ("user_id", "status")`,
@@ -398,9 +341,6 @@ export class InitSchema20251111000100 implements MigrationInterface {
     await queryRunner.query(`DROP TABLE IF EXISTS "journey_time_slots"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "journey_days"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "journeys"`);
-    await queryRunner.query(`DROP TABLE IF EXISTS "template_time_slots"`);
-    await queryRunner.query(`DROP TABLE IF EXISTS "template_days"`);
-    await queryRunner.query(`DROP TABLE IF EXISTS "journey_templates"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "eventbrite_connections"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "user_preferences"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "user_settings"`);
