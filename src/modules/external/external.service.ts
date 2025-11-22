@@ -164,7 +164,7 @@ export class ExternalService {
     }
 
     const cacheKey = `travel-advisor:attraction:${attractionId}:${lang}`;
-    const cached = this.getFromCache(cacheKey);
+    const cached = this.getFromCache<AttractionDetailsDto>(cacheKey);
     if (cached) {
       return cached;
     }

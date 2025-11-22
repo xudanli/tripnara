@@ -244,8 +244,15 @@ export class RecommendDestinationsDataDto {
 
   @ApiPropertyOptional({
     description: '目的地详情',
-    type: 'object',
-    additionalProperties: { type: LocationDetailDto },
+    type: Object,
+    example: {
+      '冰岛': {
+        country: 'Iceland',
+        description: '冰岛是追求宁静和自然美景的理想目的地',
+        highlights: ['极光', '温泉', '冰川'],
+        bestSeason: '全年，夏季最佳',
+      },
+    },
   })
   @IsOptional()
   @IsObject()
