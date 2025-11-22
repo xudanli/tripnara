@@ -531,20 +531,65 @@ ${dateInstructions}
   // 辅助方法：实体转 DTO
   private entityToDetailDto(entity: ItineraryEntity): ItineraryDetailDto {
     const daysArray = Array.isArray(entity.days) ? entity.days : [];
+    
+    // 处理 startDate：可能是 Date 对象或字符串
+    const formatDate = (date: Date | string): string => {
+      if (date instanceof Date) {
+        return date.toISOString().split('T')[0];
+      }
+      if (typeof date === 'string') {
+        // 如果是字符串，尝试解析或直接返回（假设格式正确）
+        try {
+          const parsedDate = new Date(date);
+          if (!isNaN(parsedDate.getTime())) {
+            return parsedDate.toISOString().split('T')[0];
+          }
+        } catch {
+          // 如果解析失败，返回原字符串（假设已经是 YYYY-MM-DD 格式）
+          return date;
+        }
+        return date;
+      }
+      return '';
+    };
+
+    // 处理 day.date：可能是 Date 对象或字符串
+    const formatDayDate = (date: Date | string): string => {
+      if (date instanceof Date) {
+        return date.toISOString().split('T')[0];
+      }
+      if (typeof date === 'string') {
+        try {
+          const parsedDate = new Date(date);
+          if (!isNaN(parsedDate.getTime())) {
+            return parsedDate.toISOString().split('T')[0];
+          }
+        } catch {
+          return date;
+        }
+        return date;
+      }
+      return '';
+    };
+
     return {
       id: entity.id,
       destination: entity.destination,
-      startDate: entity.startDate.toISOString().split('T')[0],
+      startDate: formatDate(entity.startDate as Date | string),
       daysCount: daysArray.length, // 天数数量
       summary: entity.summary || '',
       totalCost: entity.totalCost ? Number(entity.totalCost) : 0,
       preferences: entity.preferences as any,
       status: entity.status,
-      createdAt: entity.createdAt.toISOString(),
-      updatedAt: entity.updatedAt.toISOString(),
+      createdAt: entity.createdAt instanceof Date 
+        ? entity.createdAt.toISOString() 
+        : new Date(entity.createdAt).toISOString(),
+      updatedAt: entity.updatedAt instanceof Date 
+        ? entity.updatedAt.toISOString() 
+        : new Date(entity.updatedAt).toISOString(),
       days: daysArray.map((day) => ({
         day: day.day,
-        date: day.date.toISOString().split('T')[0],
+        date: formatDayDate(day.date as Date | string),
         activities: day.activities.map((act) => ({
           time: act.time,
           title: act.title,
@@ -559,16 +604,41 @@ ${dateInstructions}
   }
 
   private entityToListItemDto(entity: ItineraryEntity): ItineraryListItemDto {
+    // 处理 startDate：可能是 Date 对象或字符串
+    const formatDate = (date: Date | string): string => {
+      if (date instanceof Date) {
+        return date.toISOString().split('T')[0];
+      }
+      if (typeof date === 'string') {
+        try {
+          const parsedDate = new Date(date);
+          if (!isNaN(parsedDate.getTime())) {
+            return parsedDate.toISOString().split('T')[0];
+          }
+        } catch {
+          return date;
+        }
+        return date;
+      }
+      return '';
+    };
+
     return {
       id: entity.id,
       destination: entity.destination,
-      startDate: entity.startDate.toISOString().split('T')[0],
+      startDate: formatDate(entity.startDate as Date | string),
       days: entity.daysCount,
       summary: entity.summary,
       totalCost: entity.totalCost ? Number(entity.totalCost) : undefined,
       status: entity.status,
-      createdAt: entity.createdAt.toISOString(),
-      updatedAt: entity.updatedAt.toISOString(),
+      createdAt:
+        entity.createdAt instanceof Date
+          ? entity.createdAt.toISOString()
+          : new Date(entity.createdAt).toISOString(),
+      updatedAt:
+        entity.updatedAt instanceof Date
+          ? entity.updatedAt.toISOString()
+          : new Date(entity.updatedAt).toISOString(),
     };
   }
 }

@@ -10,7 +10,7 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags, ApiOkResponse } from '@nestjs/swagger';
 import {
   CreateTemplateDto,
   TemplateQueryDto,
@@ -21,6 +21,7 @@ import {
   UpdateTemplateSlotRequestDto,
 } from './dto/template.dto';
 import { TemplateService } from './template.service';
+import { CreateItineraryRequestDto } from '../itinerary/dto/itinerary.dto';
 
 @ApiTags('Templates')
 @Controller('v1/templates')
@@ -44,6 +45,27 @@ export class TemplateController {
   @ApiOperation({ summary: '创建模板' })
   create(@Body() dto: CreateTemplateDto) {
     return this.templateService.createTemplate(dto);
+  }
+
+  @Post('extract-from-itinerary')
+  @ApiOperation({
+    summary: '根据行程数据反推模板结构',
+    description:
+      '从行程接口的数据结构（CreateItineraryRequestDto）反推出模板结构（CreateTemplateDto），不保存到数据库，仅返回模板结构',
+  })
+  @ApiOkResponse({ type: CreateTemplateDto })
+  extractFromItinerary(@Body() dto: CreateItineraryRequestDto) {
+    return this.templateService.extractTemplateFromItinerary(dto);
+  }
+
+  @Post('create-from-itinerary')
+  @ApiOperation({
+    summary: '根据行程数据创建模板',
+    description:
+      '从行程接口的数据结构（CreateItineraryRequestDto）反推出模板结构并保存到数据库',
+  })
+  createFromItinerary(@Body() dto: CreateItineraryRequestDto) {
+    return this.templateService.createTemplateFromItinerary(dto);
   }
 
   @Patch(':templateId')

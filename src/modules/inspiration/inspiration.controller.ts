@@ -9,6 +9,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { InspirationService } from './inspiration.service';
+import { TemplateService } from '../templates/template.service';
 import {
   DetectIntentRequestDto,
   DetectIntentResponseDto,
@@ -18,7 +19,9 @@ import {
   GenerateItineraryResponseDto,
   ExtractDaysRequestDto,
   ExtractDaysResponseDto,
+  GenerateItineraryDataDto,
 } from './dto/inspiration.dto';
+import { CreateTemplateDto } from '../templates/dto/template.dto';
 
 @ApiTags('Inspiration')
 @ApiBearerAuth()
@@ -26,7 +29,10 @@ import {
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 @Controller('inspiration')
 export class InspirationController {
-  constructor(private readonly inspirationService: InspirationService) {}
+  constructor(
+    private readonly inspirationService: InspirationService,
+    private readonly templateService: TemplateService,
+  ) {}
 
   @Post('detect-intent')
   @ApiOperation({
@@ -74,6 +80,22 @@ export class InspirationController {
     @Body() dto: ExtractDaysRequestDto,
   ): Promise<ExtractDaysResponseDto> {
     return this.inspirationService.extractDays(dto);
+  }
+
+  @Post('extract-template')
+  @ApiOperation({
+    summary: '根据灵感模式行程数据反推模板结构',
+    description:
+      '从灵感模式生成的行程数据（GenerateItineraryDataDto）反推出模板结构（CreateTemplateDto），不保存到数据库，仅返回模板结构',
+  })
+  @ApiOkResponse({ type: CreateTemplateDto })
+  async extractTemplate(
+    @Body() dto: GenerateItineraryDataDto & { mode?: 'inspiration' | 'planner' | 'seeker' },
+  ): Promise<CreateTemplateDto> {
+    return this.templateService.extractTemplateFromInspirationItinerary(
+      dto,
+      dto.mode || 'inspiration',
+    );
   }
 }
 

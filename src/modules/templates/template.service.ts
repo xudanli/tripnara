@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -15,13 +16,22 @@ import {
   CreateTemplateDto,
   CreateTemplateSlotRequestDto,
   TemplateQueryDto,
+  TemplateDayDto,
+  TemplateTimeSlotDto,
   UpdateTemplateDayRequestDto,
   UpdateTemplateDto,
   UpdateTemplateSlotRequestDto,
 } from './dto/template.dto';
+import {
+  CreateItineraryRequestDto,
+  ItineraryDayDto,
+  ItineraryActivityDto,
+} from '../itinerary/dto/itinerary.dto';
 
 @Injectable()
 export class TemplateService {
+  private readonly logger = new Logger(TemplateService.name);
+
   constructor(
     @InjectRepository(JourneyTemplateEntity)
     private readonly templateRepository: Repository<JourneyTemplateEntity>,
@@ -414,5 +424,334 @@ export class TemplateService {
       throw new NotFoundException('模板日程不存在');
     }
     return day;
+  }
+
+  /**
+   * 根据行程数据反推并生成模板结构
+   * 将 CreateItineraryRequestDto 转换为 CreateTemplateDto
+   */
+  extractTemplateFromItinerary(
+    itineraryRequest: CreateItineraryRequestDto,
+  ): CreateTemplateDto {
+    try {
+      this.logger.log(
+        `Extracting template from itinerary: ${itineraryRequest.destination}`,
+      );
+
+      // 转换活动为模板时间段
+      const convertActivityToTimeSlot = (
+        activity: ItineraryActivityDto,
+        index: number,
+      ): TemplateTimeSlotDto => {
+        const timeSlot: TemplateTimeSlotDto = {
+          sequence: index + 1,
+          startTime: activity.time,
+          durationMinutes: activity.duration,
+          type: activity.type,
+          title: activity.title,
+          scenicIntro: activity.notes || undefined,
+          locationJson: {
+            lat: activity.location.lat,
+            lng: activity.location.lng,
+          },
+          detailsJson: {
+            cost: activity.cost,
+            notes: activity.notes,
+            // 保留原始数据以备需要
+            originalData: {
+              time: activity.time,
+              title: activity.title,
+              type: activity.type,
+              duration: activity.duration,
+              location: activity.location,
+              notes: activity.notes,
+              cost: activity.cost,
+            },
+          },
+        };
+
+        return timeSlot;
+      };
+
+      // 转换天数为模板天数
+      const convertDayToTemplateDay = (
+        day: ItineraryDayDto,
+        index: number,
+      ): TemplateDayDto => {
+        const templateDay: TemplateDayDto = {
+          dayNumber: day.day,
+          title: undefined, // 模板中天标题是可选的，可以从 detailsJson 获取
+          summary: undefined, // 模板中摘要是可选的
+          detailsJson: {
+            date: day.date,
+            // 保留原始日期信息
+            originalDay: day.day,
+            originalDate: day.date,
+          },
+          timeSlots: day.activities.map((activity, activityIndex) =>
+            convertActivityToTimeSlot(activity, activityIndex),
+          ),
+        };
+
+        return templateDay;
+      };
+
+      // 构建模板数据
+      const template: CreateTemplateDto = {
+        title: itineraryRequest.destination,
+        durationDays: itineraryRequest.days,
+        summary: itineraryRequest.data.summary || undefined,
+        description: `从行程自动生成的模板：${itineraryRequest.destination} ${itineraryRequest.days}天行程`,
+        language: 'zh-CN', // 默认中文
+        status: 'draft',
+        mode: 'inspiration', // 从 CreateItineraryRequestDto 反推的模板默认使用 inspiration 模式
+        days: itineraryRequest.data.days.map((day, index) =>
+          convertDayToTemplateDay(day, index),
+        ),
+        journeyDesign: {
+          destination: itineraryRequest.destination,
+          startDate: itineraryRequest.startDate,
+          totalCost: itineraryRequest.data.totalCost,
+          // 保留偏好信息
+          preferences: itineraryRequest.preferences
+            ? {
+                interests: itineraryRequest.preferences.interests,
+                budget: itineraryRequest.preferences.budget,
+                travelStyle: itineraryRequest.preferences.travelStyle,
+              }
+            : undefined,
+        },
+      };
+
+      this.logger.log(
+        `Template extracted successfully: ${template.days?.length} days, ${template.days?.reduce((sum, day) => sum + (day.timeSlots?.length || 0), 0)} time slots`,
+      );
+
+      return template;
+    } catch (error) {
+      this.logger.error('Failed to extract template from itinerary', error);
+      throw new BadRequestException(
+        '无法从行程数据生成模板结构：' +
+          (error instanceof Error ? error.message : String(error)),
+      );
+    }
+  }
+
+  /**
+   * 根据行程数据创建模板
+   */
+  async createTemplateFromItinerary(
+    itineraryRequest: CreateItineraryRequestDto,
+  ): Promise<JourneyTemplateEntity> {
+    const templateDto = this.extractTemplateFromItinerary(itineraryRequest);
+    return this.createTemplate(templateDto);
+  }
+
+  /**
+   * 根据灵感模式的行程数据反推并生成模板结构
+   * 将灵感模式的 GenerateItineraryDataDto 转换为 CreateTemplateDto
+   */
+  extractTemplateFromInspirationItinerary(
+    inspirationData: {
+      title: string;
+      destination?: string;
+      location?: string;
+      duration: string | number;
+      days?: Array<{
+        day: number;
+        date?: string;
+        theme?: string;
+        mood?: string;
+        summary?: string;
+        timeSlots: Array<{
+          time: string;
+          title?: string;
+          activity?: string;
+          coordinates?: { lat: number; lng: number };
+          type?: string;
+          duration?: number;
+          cost?: number;
+          details?: Record<string, unknown>;
+        }>;
+      }>;
+      highlights?: string[];
+    },
+    mode: 'inspiration' | 'planner' | 'seeker' = 'inspiration',
+  ): CreateTemplateDto {
+    try {
+      this.logger.log(
+        `Extracting template from inspiration itinerary: ${inspirationData.title}`,
+      );
+
+      // 解析天数
+      const durationStr = String(inspirationData.duration);
+      const durationMatch = durationStr.match(/(\d+)/);
+      const durationDays = durationMatch
+        ? parseInt(durationMatch[1], 10)
+        : inspirationData.days?.length || 5;
+
+      // 转换时间段为模板时间段
+      const convertTimeSlotToTemplateSlot = (
+        timeSlot: {
+          time: string;
+          title?: string;
+          activity?: string;
+          coordinates?: { lat: number; lng: number };
+          type?: string;
+          duration?: number;
+          cost?: number;
+          details?: Record<string, unknown>;
+        },
+        index: number,
+      ): TemplateTimeSlotDto => {
+        const slot: TemplateTimeSlotDto = {
+          sequence: index + 1,
+          startTime: timeSlot.time,
+          durationMinutes: timeSlot.duration || 120, // 默认2小时
+          type: timeSlot.type || 'attraction',
+          title: timeSlot.title || timeSlot.activity || undefined,
+          scenicIntro: timeSlot.details?.notes
+            ? String(timeSlot.details.notes)
+            : timeSlot.details?.description
+              ? String(timeSlot.details.description)
+              : undefined,
+          locationJson: timeSlot.coordinates
+            ? {
+                lat: timeSlot.coordinates.lat,
+                lng: timeSlot.coordinates.lng,
+              }
+            : undefined,
+          detailsJson: {
+            ...(timeSlot.details || {}),
+            cost: timeSlot.cost || 0,
+            activity: timeSlot.activity,
+            // 保留原始数据
+            originalTimeSlot: timeSlot,
+          },
+        };
+
+        return slot;
+      };
+
+      // 转换天数为模板天数
+      const convertDayToTemplateDay = (
+        day: {
+          day: number;
+          date?: string;
+          theme?: string;
+          mood?: string;
+          summary?: string;
+          timeSlots: Array<{
+            time: string;
+            title?: string;
+            activity?: string;
+            coordinates?: { lat: number; lng: number };
+            type?: string;
+            duration?: number;
+            cost?: number;
+            details?: Record<string, unknown>;
+          }>;
+        },
+        index: number,
+      ): TemplateDayDto => {
+        const templateDay: TemplateDayDto = {
+          dayNumber: day.day,
+          title: day.theme || undefined,
+          summary: day.summary || undefined,
+          detailsJson: {
+            date: day.date,
+            mood: day.mood,
+            theme: day.theme,
+            // 保留原始数据
+            originalDay: day.day,
+            originalDate: day.date,
+          },
+          timeSlots: day.timeSlots.map((timeSlot, slotIndex) =>
+            convertTimeSlotToTemplateSlot(timeSlot, slotIndex),
+          ),
+        };
+
+        return templateDay;
+      };
+
+      // 构建模板数据
+      const template: CreateTemplateDto = {
+        title: inspirationData.title,
+        durationDays: durationDays,
+        summary: inspirationData.days?.[0]?.summary || undefined,
+        description: `从灵感模式行程自动生成的模板：${inspirationData.title}`,
+        language: 'zh-CN',
+        status: 'draft',
+        mode: mode,
+        days:
+          inspirationData.days?.map((day, index) =>
+            convertDayToTemplateDay(day, index),
+          ) || [],
+        journeyDesign: {
+          destination: inspirationData.destination || inspirationData.location,
+          highlights: inspirationData.highlights,
+          // 保留原始数据
+          originalInspirationData: {
+            title: inspirationData.title,
+            destination: inspirationData.destination,
+            location: inspirationData.location,
+            duration: inspirationData.duration,
+            highlights: inspirationData.highlights,
+          },
+        },
+      };
+
+      this.logger.log(
+        `Inspiration template extracted successfully: ${template.days?.length} days, ${template.days?.reduce((sum, day) => sum + (day.timeSlots?.length || 0), 0)} time slots`,
+      );
+
+      return template;
+    } catch (error) {
+      this.logger.error(
+        'Failed to extract template from inspiration itinerary',
+        error,
+      );
+      throw new BadRequestException(
+        '无法从灵感模式行程数据生成模板结构：' +
+          (error instanceof Error ? error.message : String(error)),
+      );
+    }
+  }
+
+  /**
+   * 根据灵感模式的行程数据创建模板
+   */
+  async createTemplateFromInspirationItinerary(
+    inspirationData: {
+      title: string;
+      destination?: string;
+      location?: string;
+      duration: string | number;
+      days?: Array<{
+        day: number;
+        date?: string;
+        theme?: string;
+        mood?: string;
+        summary?: string;
+        timeSlots: Array<{
+          time: string;
+          title?: string;
+          activity?: string;
+          coordinates?: { lat: number; lng: number };
+          type?: string;
+          duration?: number;
+          cost?: number;
+          details?: Record<string, unknown>;
+        }>;
+      }>;
+      highlights?: string[];
+    },
+    mode: 'inspiration' | 'planner' | 'seeker' = 'inspiration',
+  ): Promise<JourneyTemplateEntity> {
+    const templateDto = this.extractTemplateFromInspirationItinerary(
+      inspirationData,
+      mode,
+    );
+    return this.createTemplate(templateDto);
   }
 }
