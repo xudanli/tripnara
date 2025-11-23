@@ -570,7 +570,16 @@ ${dateInstructions}
     if (dto.destination !== undefined) updateData.destination = dto.destination;
     if (dto.startDate !== undefined)
       updateData.startDate = new Date(dto.startDate);
-    if (dto.days !== undefined) updateData.daysCount = dto.days;
+    // 验证 days 字段：如果提供了但值无效，则忽略（不更新）
+    if (dto.days !== undefined) {
+      if (dto.days >= 1 && dto.days <= 30) {
+        updateData.daysCount = dto.days;
+      } else {
+        this.logger.warn(
+          `Invalid days value: ${dto.days}, ignoring update for itinerary ${id}`,
+        );
+      }
+    }
     if (dto.summary !== undefined) updateData.summary = dto.summary;
     if (dto.totalCost !== undefined) updateData.totalCost = dto.totalCost;
     if (dto.preferences !== undefined) updateData.preferences = dto.preferences;

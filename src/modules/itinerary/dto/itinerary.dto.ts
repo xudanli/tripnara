@@ -241,9 +241,10 @@ export class UpdateItineraryRequestDto {
 
   @ApiPropertyOptional({ description: '旅行天数', example: 5, minimum: 1, maximum: 30 })
   @IsOptional()
+  @ValidateIf((o) => o.days !== undefined && o.days !== null && typeof o.days === 'number')
   @IsNumber()
-  @Min(1)
-  @Max(30)
+  @Min(1, { message: 'days must not be less than 1' })
+  @Max(30, { message: 'days must not be greater than 30' })
   days?: number;
 
   @ApiPropertyOptional({ description: '行程摘要', example: '行程摘要' })
