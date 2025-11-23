@@ -993,11 +993,13 @@ ${dateInstructions}
       summary: entity.summary || '',
     };
 
-    return {
+    // 为了兼容前端期望 data.days，在顶层也添加 days 字段（指向 itineraryData.days）
+    const result: ItineraryTemplateDetailResponseDto = {
       id: entity.id,
       status: entity.status,
       language: entity.language,
       itineraryData,
+      days: itineraryData.days, // 在顶层也添加 days 字段，方便前端访问
       tasks,
       createdBy: undefined,
       updatedBy: undefined,
@@ -1010,6 +1012,8 @@ ${dateInstructions}
           ? entity.updatedAt.toISOString()
           : new Date(entity.updatedAt).toISOString(),
     };
+
+    return result;
   }
 
   /**

@@ -855,6 +855,9 @@ export class ItineraryTemplateDetailResponseDto {
   @ApiProperty({ description: '完整的行程数据', type: ItineraryDataWithTimeSlotsDto })
   itineraryData!: ItineraryDataWithTimeSlotsDto;
 
+  @ApiPropertyOptional({ description: '天数详情（兼容字段，指向 itineraryData.days）', type: [ItineraryDayWithTimeSlotsDto] })
+  days?: ItineraryDayWithTimeSlotsDto[];
+
   @ApiPropertyOptional({ description: '任务列表', type: [TaskDto] })
   tasks?: TaskDto[];
 
