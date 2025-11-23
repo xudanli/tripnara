@@ -127,10 +127,32 @@ export class JourneyTemplateRepository {
 
     // 重新查询以获取完整关联数据
     console.log(`[JourneyTemplateRepository] Querying template ${savedTemplate.id} with relations`);
-    const result = await this.findById(savedTemplate.id);
+    
+    // 使用 QueryBuilder 确保正确加载关联数据
+    const result = await this.templateRepository
+      .createQueryBuilder('template')
+      .leftJoinAndSelect('template.days', 'days')
+      .leftJoinAndSelect('days.timeSlots', 'timeSlots')
+      .where('template.id = :id', { id: savedTemplate.id })
+      .orderBy('days.dayNumber', 'ASC')
+      .addOrderBy('timeSlots.sequence', 'ASC')
+      .getOne();
+
     if (!result) {
       throw new Error('Failed to create journey template');
     }
+
+    // 手动排序（以防万一）
+    if (result.days) {
+      result.days.sort((a, b) => a.dayNumber - b.dayNumber);
+      result.days.forEach((day) => {
+        if (day.timeSlots) {
+          day.timeSlots.sort((a, b) => a.sequence - b.sequence);
+        }
+      });
+    }
+
+    console.log(`[JourneyTemplateRepository] Query result: days count=${result.days?.length || 0}`);
     return result;
   }
 
