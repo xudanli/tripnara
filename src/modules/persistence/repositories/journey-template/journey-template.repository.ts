@@ -74,7 +74,7 @@ export class JourneyTemplateRepository {
   async createTemplate(
     input: CreateJourneyTemplateInput,
   ): Promise<JourneyTemplateEntity> {
-    const template = this.templateRepository.create({
+    const newTemplate = this.templateRepository.create({
       title: input.title,
       coverImage: input.coverImage,
       destination: input.destination,
@@ -89,7 +89,7 @@ export class JourneyTemplateRepository {
       status: input.status || 'draft',
     });
 
-    const savedTemplate = await this.templateRepository.save(template);
+    const savedTemplate = await this.templateRepository.save(newTemplate);
 
     // 创建天数
     console.log(`[JourneyTemplateRepository] Creating ${input.daysData.length} days for template ${savedTemplate.id}`);
@@ -128,29 +128,35 @@ export class JourneyTemplateRepository {
     // 重新查询以获取完整关联数据
     console.log(`[JourneyTemplateRepository] Querying template ${savedTemplate.id} with relations`);
     
-    // 使用 QueryBuilder 确保正确加载关联数据
-    const result = await this.templateRepository
-      .createQueryBuilder('template')
-      .leftJoinAndSelect('template.days', 'days')
-      .leftJoinAndSelect('days.timeSlots', 'timeSlots')
-      .where('template.id = :id', { id: savedTemplate.id })
-      .orderBy('days.dayNumber', 'ASC')
-      .addOrderBy('timeSlots.sequence', 'ASC')
-      .getOne();
+    // 手动查询并组装数据，避免 TypeORM 关联加载问题
+    const result = await this.templateRepository.findOne({
+      where: { id: savedTemplate.id },
+    });
 
     if (!result) {
       throw new Error('Failed to create journey template');
     }
 
-    // 手动排序（以防万一）
-    if (result.days) {
-      result.days.sort((a, b) => a.dayNumber - b.dayNumber);
-      result.days.forEach((day) => {
-        if (day.timeSlots) {
-          day.timeSlots.sort((a, b) => a.sequence - b.sequence);
-        }
+    // 手动查询 days
+    const days = await this.dayRepository.find({
+      where: { templateId: savedTemplate.id },
+      order: { dayNumber: 'ASC' },
+    });
+
+    console.log(`[JourneyTemplateRepository] Found ${days.length} days for template ${savedTemplate.id}`);
+
+    // 为每个 day 查询 timeSlots
+    for (const day of days) {
+      const timeSlots = await this.timeSlotRepository.find({
+        where: { dayId: day.id },
+        order: { sequence: 'ASC' },
       });
+      day.timeSlots = timeSlots;
+      console.log(`[JourneyTemplateRepository] Day ${day.dayNumber} has ${timeSlots.length} timeSlots`);
     }
+
+    // 将 days 赋值给 result
+    result.days = days;
 
     console.log(`[JourneyTemplateRepository] Query result: days count=${result.days?.length || 0}`);
     return result;
