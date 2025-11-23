@@ -92,6 +92,7 @@ export class JourneyTemplateRepository {
     const savedTemplate = await this.templateRepository.save(template);
 
     // 创建天数
+    console.log(`[JourneyTemplateRepository] Creating ${input.daysData.length} days for template ${savedTemplate.id}`);
     for (const dayData of input.daysData) {
       const day = this.dayRepository.create({
         templateId: savedTemplate.id,
@@ -101,6 +102,7 @@ export class JourneyTemplateRepository {
         detailsJson: dayData.detailsJson,
       });
       const savedDay = await this.dayRepository.save(day);
+      console.log(`[JourneyTemplateRepository] Created day ${savedDay.dayNumber} with ${dayData.timeSlots.length} timeSlots`);
 
       // 创建时段活动
       for (const slotData of dayData.timeSlots) {
@@ -124,6 +126,7 @@ export class JourneyTemplateRepository {
     }
 
     // 重新查询以获取完整关联数据
+    console.log(`[JourneyTemplateRepository] Querying template ${savedTemplate.id} with relations`);
     const result = await this.findById(savedTemplate.id);
     if (!result) {
       throw new Error('Failed to create journey template');
