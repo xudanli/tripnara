@@ -898,6 +898,26 @@ ${dateInstructions}
       // 转换为响应格式
       const responseData = this.templateEntityToDetailDto(template, dto.tasks);
 
+      // 调试日志：检查返回的数据结构
+      this.logger.debug(
+        `Created template ${template.id}, days count: ${template.days?.length || 0}`,
+      );
+      this.logger.debug(
+        `Response data itineraryData.days count: ${responseData.itineraryData.days?.length || 0}`,
+      );
+      this.logger.debug(
+        `Response data structure: ${JSON.stringify({
+          hasItineraryData: !!responseData.itineraryData,
+          hasDays: !!responseData.itineraryData.days,
+          daysLength: responseData.itineraryData.days?.length || 0,
+        })}`,
+      );
+
+      // 确保 days 字段始终存在（即使是空数组）
+      if (!responseData.itineraryData.days) {
+        responseData.itineraryData.days = [];
+      }
+
       return {
         success: true,
         data: responseData,
@@ -950,21 +970,25 @@ ${dateInstructions}
         food?: string;
         tips?: string;
       }) || undefined,
-      days: (entity.days || []).map((day) => ({
-        day: day.dayNumber,
-        date: '', // 模版没有具体日期
-        timeSlots: (day.timeSlots || []).map((slot) => ({
-          time: slot.startTime || '',
-          title: slot.title || '',
-          activity: slot.title || '',
-          type: (slot.type as 'attraction' | 'meal' | 'hotel' | 'shopping' | 'transport') || 'attraction',
-          coordinates: slot.locationJson || { lat: 0, lng: 0 },
-          notes: slot.notes || '',
-          duration: slot.durationMinutes || 60,
-          cost: slot.cost ? Number(slot.cost) : 0,
-          details: slot.detailsJson,
-        })),
-      })),
+      days: Array.isArray(entity.days) && entity.days.length > 0
+        ? entity.days.map((day) => ({
+            day: day.dayNumber,
+            date: '', // 模版没有具体日期
+            timeSlots: Array.isArray(day.timeSlots) && day.timeSlots.length > 0
+              ? day.timeSlots.map((slot) => ({
+                  time: slot.startTime || '',
+                  title: slot.title || '',
+                  activity: slot.title || '',
+                  type: (slot.type as 'attraction' | 'meal' | 'hotel' | 'shopping' | 'transport') || 'attraction',
+                  coordinates: slot.locationJson || { lat: 0, lng: 0 },
+                  notes: slot.notes || '',
+                  duration: slot.durationMinutes || 60,
+                  cost: slot.cost ? Number(slot.cost) : 0,
+                  details: slot.detailsJson,
+                }))
+              : [],
+          }))
+        : [],
       totalCost: 0, // 模版不存储总费用
       summary: entity.summary || '',
     };
