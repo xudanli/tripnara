@@ -8,6 +8,7 @@ import {
 import { LlmService } from '../llm/llm.service';
 import { PreferencesService } from '../preferences/preferences.service';
 import { ItineraryRepository } from '../persistence/repositories/itinerary/itinerary.repository';
+import { JourneyTemplateRepository } from '../persistence/repositories/journey-template/journey-template.repository';
 import {
   GenerateItineraryRequestDto,
   GenerateItineraryResponseDto,
@@ -44,6 +45,11 @@ import {
   ItineraryDayEntity,
   ItineraryActivityEntity,
 } from '../persistence/entities/itinerary.entity';
+import {
+  JourneyTemplateEntity,
+  TemplateDayEntity,
+  TemplateTimeSlotEntity,
+} from '../persistence/entities/journey-template.entity';
 
 interface AiItineraryResponse {
   days: Array<{
@@ -71,6 +77,7 @@ export class ItineraryService {
     private readonly llmService: LlmService,
     private readonly preferencesService: PreferencesService,
     private readonly itineraryRepository: ItineraryRepository,
+    private readonly templateRepository: JourneyTemplateRepository,
   ) {}
 
   async generateItinerary(
@@ -834,84 +841,66 @@ ${dateInstructions}
     dto: CreateItineraryTemplateDto,
   ): Promise<CreateItineraryTemplateResponseDto> {
     try {
-      // 构建 itineraryData 对象
-      const itineraryData: ItineraryDataWithTimeSlotsDto = {
-        title: dto.title,
-        destination: dto.destination || '',
-        duration: dto.duration || (dto.days?.length || 0),
-        budget: dto.budget,
-        preferences: dto.preferences,
-        travelStyle: dto.travelStyle,
-        itinerary: [],
-        recommendations: dto.recommendations,
-        days: dto.days || [],
-        totalCost: dto.totalCost || 0,
-        summary: dto.summary || '',
-      };
+      // 构建 preferences JSON
+      const preferences: Record<string, unknown> = {};
+      if (dto.preferences) {
+        preferences.interests = dto.preferences;
+      }
+      if (dto.budget) {
+        preferences.budget = dto.budget;
+      }
+      if (dto.travelStyle) {
+        preferences.travelStyle = dto.travelStyle;
+      }
+      if (dto.recommendations) {
+        preferences.recommendations = dto.recommendations;
+      }
 
-      // 转换为 CreateItineraryFromFrontendDataDto 格式
-      const frontendDataDto: CreateItineraryFromFrontendDataDto = {
-        itineraryData,
-        tasks: dto.tasks,
-        startDate: dto.days?.[0]?.date,
-      };
-
-      // 创建行程
-      const createResponse = await this.createItineraryFromFrontendData(
-        frontendDataDto,
-        undefined, // 行程模版不需要 userId
-      );
-
-      // 构建响应数据
-      const itinerary = createResponse.data;
-
-      // 将 activities 转换回 timeSlots 格式
-      const convertActivitiesToTimeSlots = (
-        activities: ItineraryActivityDto[],
-      ): ItineraryTimeSlotDto[] => {
-        return activities.map((act) => ({
-          time: act.time,
-          title: act.title,
-          activity: act.title,
-          type: act.type,
-          coordinates: act.location,
-          notes: act.notes || '',
-          duration: act.duration,
-          cost: act.cost || 0,
-        }));
-      };
-
-      const responseItineraryData: ItineraryDataWithTimeSlotsDto = {
-        title: dto.title,
-        destination: itinerary.destination,
-        duration: itinerary.daysCount,
-        budget: dto.budget,
-        preferences: dto.preferences,
-        travelStyle: dto.travelStyle,
-        itinerary: [],
-        recommendations: dto.recommendations,
-        days: itinerary.days.map((day) => ({
-          day: day.day,
-          date: day.date,
-          timeSlots: convertActivitiesToTimeSlots(day.activities),
+      // 转换 days 数据为模版格式
+      const daysData = (dto.days || []).map((day, index) => ({
+        dayNumber: day.day || index + 1,
+        title: undefined,
+        summary: undefined,
+        detailsJson: undefined,
+        timeSlots: (day.timeSlots || []).map((slot, slotIndex) => ({
+          sequence: slotIndex + 1,
+          startTime: slot.time,
+          durationMinutes: slot.duration,
+          type: slot.type,
+          title: slot.title || slot.activity,
+          activityHighlights: undefined,
+          scenicIntro: undefined,
+          notes: slot.notes,
+          cost: slot.cost,
+          currencyCode: undefined,
+          locationJson: slot.coordinates,
+          detailsJson: slot.details,
         })),
-        totalCost: itinerary.totalCost,
-        summary: itinerary.summary,
-      };
+      }));
+
+      // 创建模版
+      const template = await this.templateRepository.createTemplate({
+        title: dto.title,
+        coverImage: undefined,
+        destination: dto.destination,
+        durationDays: dto.duration || daysData.length,
+        summary: dto.summary,
+        description: undefined,
+        coreInsight: undefined,
+        safetyNotice: undefined,
+        journeyBackground: undefined,
+        preferences: Object.keys(preferences).length > 0 ? preferences : undefined,
+        language: dto.language || 'zh-CN',
+        status: (dto.status as 'draft' | 'published' | 'archived') || 'draft',
+        daysData,
+      });
+
+      // 转换为响应格式
+      const responseData = this.templateEntityToDetailDto(template, dto.tasks);
 
       return {
         success: true,
-        data: {
-          id: itinerary.id,
-          status: itinerary.status,
-          language: dto.language || 'zh-CN',
-          itineraryData: responseItineraryData,
-          tasks: dto.tasks,
-          createdBy: undefined,
-          updatedBy: undefined,
-          createdAt: itinerary.createdAt,
-          updatedAt: itinerary.updatedAt,
-        },
+        data: responseData,
         message: '创建成功',
       };
     } catch (error) {
@@ -939,7 +928,68 @@ ${dateInstructions}
   }
 
   /**
-   * 将行程实体转换为模版详情格式
+   * 将模版实体转换为模版详情格式
+   */
+  private templateEntityToDetailDto(
+    entity: JourneyTemplateEntity,
+    tasks?: TaskDto[],
+  ): ItineraryTemplateDetailResponseDto {
+    const preferences = (entity.preferences as Record<string, unknown>) || {};
+
+    const itineraryData: ItineraryDataWithTimeSlotsDto = {
+      title: entity.title,
+      destination: entity.destination || '',
+      duration: entity.durationDays || 0,
+      budget: (preferences.budget as string) || undefined,
+      preferences: (preferences.interests as string[]) || [],
+      travelStyle: (preferences.travelStyle as string) || undefined,
+      itinerary: [],
+      recommendations: (preferences.recommendations as {
+        accommodation?: string;
+        transportation?: string;
+        food?: string;
+        tips?: string;
+      }) || undefined,
+      days: (entity.days || []).map((day) => ({
+        day: day.dayNumber,
+        date: '', // 模版没有具体日期
+        timeSlots: (day.timeSlots || []).map((slot) => ({
+          time: slot.startTime || '',
+          title: slot.title || '',
+          activity: slot.title || '',
+          type: (slot.type as 'attraction' | 'meal' | 'hotel' | 'shopping' | 'transport') || 'attraction',
+          coordinates: slot.locationJson || { lat: 0, lng: 0 },
+          notes: slot.notes || '',
+          duration: slot.durationMinutes || 60,
+          cost: slot.cost ? Number(slot.cost) : 0,
+          details: slot.detailsJson,
+        })),
+      })),
+      totalCost: 0, // 模版不存储总费用
+      summary: entity.summary || '',
+    };
+
+    return {
+      id: entity.id,
+      status: entity.status,
+      language: entity.language,
+      itineraryData,
+      tasks,
+      createdBy: undefined,
+      updatedBy: undefined,
+      createdAt:
+        entity.createdAt instanceof Date
+          ? entity.createdAt.toISOString()
+          : new Date(entity.createdAt).toISOString(),
+      updatedAt:
+        entity.updatedAt instanceof Date
+          ? entity.updatedAt.toISOString()
+          : new Date(entity.updatedAt).toISOString(),
+    };
+  }
+
+  /**
+   * 将行程实体转换为模版详情格式（已废弃，保留用于兼容）
    */
   private entityToTemplateDetailDto(
     entity: ItineraryEntity,
@@ -1055,97 +1105,45 @@ ${dateInstructions}
     const limit = query.limit || 10;
     const offset = (page - 1) * limit;
 
-    // 使用 repository 的查询方法，但需要扩展支持更多筛选条件
-    // 先获取所有符合条件的行程，然后在内存中筛选（或扩展 repository 方法）
     const statusFilter: 'draft' | 'published' | 'archived' | undefined =
       query.status && query.status !== 'all'
         ? (query.status as 'draft' | 'published' | 'archived')
         : undefined;
 
-    const [allItineraries, totalCount] = await this.itineraryRepository.findAll(
-      {
+    // 使用模版 Repository 查询
+    const [templates, total] = await this.templateRepository.findAll({
         status: statusFilter,
-        limit: 10000, // 临时方案：获取足够多的数据
-        offset: 0,
-      },
-    );
-
-    // 在内存中应用其他筛选条件
-    let filtered = allItineraries;
-
-    // 关键字搜索
-    if (query.keyword) {
-      const keyword = query.keyword.toLowerCase();
-      filtered = filtered.filter(
-        (it) =>
-          it.destination?.toLowerCase().includes(keyword) ||
-          it.summary?.toLowerCase().includes(keyword),
-      );
-    }
-
-    // 目的地筛选
-    if (query.destination) {
-      const dest = query.destination.toLowerCase();
-      filtered = filtered.filter((it) =>
-        it.destination?.toLowerCase().includes(dest),
-      );
-    }
-
-    // 预算筛选
-    if (query.budget && query.budget !== 'all') {
-      filtered = filtered.filter((it) => {
-        const prefs = (it.preferences as Record<string, unknown>) || {};
-        return prefs.budget === query.budget;
-      });
-    }
-
-    // 旅行风格筛选
-    if (query.travelStyle && query.travelStyle !== 'all') {
-      filtered = filtered.filter((it) => {
-        const prefs = (it.preferences as Record<string, unknown>) || {};
-        return prefs.travelStyle === query.travelStyle;
-      });
-    }
-
-    // 语言筛选（从 preferences 中）
-    if (query.language) {
-      filtered = filtered.filter((it) => {
-        const prefs = (it.preferences as Record<string, unknown>) || {};
-        return prefs.language === query.language;
-      });
-    }
-
-    // 计算总数
-    const total = filtered.length;
-
-    // 分页
-    const paginated = filtered.slice(offset, offset + limit);
+      language: query.language,
+      destination: query.destination,
+      keyword: query.keyword,
+      limit,
+      offset,
+    });
 
     // 转换为列表项格式
-    const listItems: ItineraryTemplateListItemDto[] = paginated.map((it) => {
-      const preferences = (it.preferences as Record<string, unknown>) || {};
-      const title = (preferences.title as string) || it.destination || '';
+    const listItems: ItineraryTemplateListItemDto[] = templates.map((template) => {
+      const preferences = (template.preferences as Record<string, unknown>) || {};
 
       return {
-        id: it.id,
-        status: it.status,
-        language: query.language || 'zh-CN',
+        id: template.id,
+        status: template.status,
+        language: template.language,
         itineraryData: {
-          title,
-          destination: it.destination,
-          duration: it.daysCount,
+          title: template.title,
+          destination: template.destination || '',
+          duration: template.durationDays || 0,
           budget: (preferences.budget as string) || undefined,
-          totalCost: it.totalCost ? Number(it.totalCost) : undefined,
-          summary: it.summary || undefined,
+          totalCost: undefined,
+          summary: template.summary || undefined,
         },
         createdAt:
-          it.createdAt instanceof Date
-            ? it.createdAt.toISOString()
-            : new Date(it.createdAt).toISOString(),
+          template.createdAt instanceof Date
+            ? template.createdAt.toISOString()
+            : new Date(template.createdAt).toISOString(),
         updatedAt:
-          it.updatedAt instanceof Date
-            ? it.updatedAt.toISOString()
-            : new Date(it.updatedAt).toISOString(),
+          template.updatedAt instanceof Date
+            ? template.updatedAt.toISOString()
+            : new Date(template.updatedAt).toISOString(),
       };
     });
 
@@ -1164,17 +1162,13 @@ ${dateInstructions}
     id: string,
     language?: string,
   ): Promise<ItineraryTemplateDetailResponseDto> {
-    const itinerary = await this.itineraryRepository.findById(id);
+    const template = await this.templateRepository.findById(id);
 
-    if (!itinerary) {
+    if (!template) {
       throw new NotFoundException(`行程模版不存在: ${id}`);
     }
 
-    // 从 preferences 中提取 language，如果没有则使用传入的或默认值
-    const preferences = (itinerary.preferences as Record<string, unknown>) || {};
-    const finalLanguage = (preferences.language as string) || language || 'zh-CN';
-
-    return this.entityToTemplateDetailDto(itinerary, finalLanguage);
+    return this.templateEntityToDetailDto(template);
   }
 
   /**
@@ -1184,68 +1178,39 @@ ${dateInstructions}
     id: string,
     dto: UpdateItineraryTemplateDto,
   ): Promise<UpdateItineraryTemplateResponseDto> {
-    // 获取现有行程
-    const existing = await this.itineraryRepository.findById(id);
+    // 获取现有模版
+    const existing = await this.templateRepository.findById(id);
     if (!existing) {
       throw new NotFoundException(`行程模版不存在: ${id}`);
     }
 
-    // 如果有更新字段，需要转换为 CreateItineraryRequestDto 格式
-    if (dto.days || dto.title || dto.destination || dto.duration) {
-      // 构建完整的 itineraryData
-      const itineraryData: ItineraryDataWithTimeSlotsDto = {
-        title: dto.title || (existing.preferences as Record<string, unknown>)?.title as string || existing.destination || '',
-        destination: dto.destination || existing.destination,
-        duration: dto.duration || existing.daysCount,
-        budget: dto.budget,
-        preferences: dto.preferences,
-        travelStyle: dto.travelStyle,
-        itinerary: [],
-        recommendations: dto.recommendations,
-        days: dto.days || [],
-        totalCost: dto.totalCost || existing.totalCost || 0,
-        summary: dto.summary || existing.summary || '',
-      };
+    // 构建更新数据
+    const updateData: any = {};
+    if (dto.title !== undefined) updateData.title = dto.title;
+    if (dto.destination !== undefined) updateData.destination = dto.destination;
+    if (dto.duration !== undefined) updateData.durationDays = dto.duration;
+    if (dto.summary !== undefined) updateData.summary = dto.summary;
+    if (dto.status !== undefined) updateData.status = dto.status;
+    if (dto.language !== undefined) updateData.language = dto.language;
 
-      // 转换为标准格式并更新
-      const frontendDataDto: CreateItineraryFromFrontendDataDto = {
-        itineraryData,
-        tasks: dto.tasks,
-        startDate: dto.days?.[0]?.date,
-      };
-
-      const createRequest = this.convertFrontendDataToCreateRequest(frontendDataDto);
-
-      // 更新行程
-      const updateDto: UpdateItineraryRequestDto = {
-        destination: createRequest.destination,
-        startDate: createRequest.startDate,
-        days: createRequest.days,
-        summary: createRequest.data.summary,
-        totalCost: createRequest.data.totalCost,
-        preferences: createRequest.preferences,
-        status: dto.status || existing.status,
-      };
-
-      await this.updateItinerary(id, updateDto, undefined);
-    } else {
-      // 只更新简单字段
-      const updateDto: UpdateItineraryRequestDto = {};
-      if (dto.status) updateDto.status = dto.status;
-      if (dto.totalCost !== undefined) {
-        updateDto.totalCost = dto.totalCost;
-      }
-      if (dto.summary !== undefined) {
-        updateDto.summary = dto.summary;
-      }
-
-      if (Object.keys(updateDto).length > 0) {
-        await this.updateItinerary(id, updateDto, undefined);
-      }
+    // 更新 preferences
+    const preferences: Record<string, unknown> = {
+      ...((existing.preferences as Record<string, unknown>) || {}),
+    };
+    if (dto.budget !== undefined) preferences.budget = dto.budget;
+    if (dto.preferences !== undefined) preferences.interests = dto.preferences;
+    if (dto.travelStyle !== undefined) preferences.travelStyle = dto.travelStyle;
+    if (dto.recommendations !== undefined)
+      preferences.recommendations = dto.recommendations;
+    if (Object.keys(preferences).length > 0) {
+      updateData.preferences = preferences;
     }
 
+    // 更新模版
+    await this.templateRepository.updateTemplate(id, updateData);
+
     // 获取更新后的数据
-    const updated = await this.getItineraryTemplateById(id, dto.language);
+    const updated = await this.getItineraryTemplateById(id);
 
     return {
       success: true,
@@ -1260,7 +1225,10 @@ ${dateInstructions}
   async deleteItineraryTemplate(
     id: string,
   ): Promise<DeleteItineraryTemplateResponseDto> {
-    await this.deleteItinerary(id, undefined);
+    const deleted = await this.templateRepository.deleteTemplate(id);
+    if (!deleted) {
+      throw new NotFoundException(`行程模版不存在: ${id}`);
+    }
     return {
       success: true,
       message: '删除成功',
@@ -1274,11 +1242,9 @@ ${dateInstructions}
     id: string,
   ): Promise<PublishItineraryTemplateResponseDto> {
     // 更新状态为 published
-    const updateDto: UpdateItineraryRequestDto = {
+    await this.templateRepository.updateTemplate(id, {
       status: 'published',
-    };
-
-    await this.updateItinerary(id, updateDto, undefined);
+    });
 
     // 获取更新后的数据
     const updated = await this.getItineraryTemplateById(id);
@@ -1296,7 +1262,7 @@ ${dateInstructions}
   async cloneItineraryTemplate(
     id: string,
   ): Promise<CloneItineraryTemplateResponseDto> {
-    // 获取原行程
+    // 获取原模版
     const original = await this.getItineraryTemplateById(id);
 
     // 构建新的创建请求
@@ -1318,7 +1284,7 @@ ${dateInstructions}
       tasks: original.tasks,
     };
 
-    // 创建新行程
+    // 创建新模版
     const created = await this.createItineraryTemplate(createDto);
 
     return {
