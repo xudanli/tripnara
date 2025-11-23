@@ -857,10 +857,31 @@ ${dateInstructions}
       }
 
       // 转换 days 数据为模版格式
+      // 处理前端可能发送的多种格式：
+      // 1. dto.days 是数组（正常情况）
+      // 2. dto.days 是字符串（前端错误格式）
+      // 3. 请求体中可能有 daysDetail 字段（前端使用的字段名）
+      let daysInput = dto.days;
+      
+      // 如果 days 不是数组，尝试从请求体获取 daysDetail
+      if (!Array.isArray(daysInput) || daysInput.length === 0) {
+        const requestBody = dto as any;
+        if (Array.isArray(requestBody.daysDetail) && requestBody.daysDetail.length > 0) {
+          this.logger.warn(
+            `days field is not an array or empty, using daysDetail instead. days type: ${typeof daysInput}, daysDetail length: ${requestBody.daysDetail.length}`,
+          );
+          daysInput = requestBody.daysDetail;
+        } else {
+          this.logger.warn(
+            `days field is not an array or empty. days type: ${typeof daysInput}, value: ${JSON.stringify(daysInput)}`,
+          );
+        }
+      }
+
       this.logger.debug(
-        `Creating template with ${dto.days?.length || 0} days from DTO`,
+        `Creating template with ${Array.isArray(daysInput) ? daysInput.length : 0} days from DTO`,
       );
-      const daysData = (dto.days || []).map((day, index) => ({
+      const daysData = (Array.isArray(daysInput) ? daysInput : []).map((day, index) => ({
         dayNumber: day.day || index + 1,
         title: undefined,
         summary: undefined,
