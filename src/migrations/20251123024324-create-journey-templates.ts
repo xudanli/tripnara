@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class CreateJourneyTemplates20250115000000 implements MigrationInterface {
-  name = 'CreateJourneyTemplates20250115000000';
+export class CreateJourneyTemplates20251123024324 implements MigrationInterface {
+  name = 'CreateJourneyTemplates20251123024324';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // 检查表是否已存在，如果存在则先删除（仅用于开发环境，生产环境应使用迁移）
