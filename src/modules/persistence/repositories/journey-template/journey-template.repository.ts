@@ -163,38 +163,32 @@ export class JourneyTemplateRepository {
   }
 
   async findById(id: string): Promise<JourneyTemplateEntity | null> {
+    // 手动查询并组装数据，避免 TypeORM 关联加载问题（与 createTemplate 保持一致）
     const template = await this.templateRepository.findOne({
       where: { id },
-      relations: ['days', 'days.timeSlots'],
     });
 
     if (!template) {
       return null;
     }
 
-    // 手动排序天数和时段
-    if (template.days) {
-      template.days.sort((a, b) => a.dayNumber - b.dayNumber);
-      // 排序每个天的时段
-      template.days.forEach((day) => {
-        if (day.timeSlots) {
-          day.timeSlots.sort((a, b) => a.sequence - b.sequence);
-        }
+    // 手动查询 days
+    const days = await this.dayRepository.find({
+      where: { templateId: id },
+      order: { dayNumber: 'ASC' },
+    });
+
+    // 为每个 day 查询 timeSlots
+    for (const day of days) {
+      const timeSlots = await this.timeSlotRepository.find({
+        where: { dayId: day.id },
+        order: { sequence: 'ASC' },
       });
-    } else {
-      // 如果 days 未加载，尝试手动查询
-      const days = await this.dayRepository.find({
-        where: { templateId: id },
-        relations: ['timeSlots'],
-        order: { dayNumber: 'ASC' },
-      });
-      template.days = days;
-      days.forEach((day) => {
-        if (day.timeSlots) {
-          day.timeSlots.sort((a, b) => a.sequence - b.sequence);
-        }
-      });
+      day.timeSlots = timeSlots;
     }
+
+    // 将 days 赋值给 template
+    template.days = days;
 
     return template;
   }
