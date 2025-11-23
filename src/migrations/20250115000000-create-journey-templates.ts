@@ -4,8 +4,24 @@ export class CreateJourneyTemplates20250115000000 implements MigrationInterface 
   name = 'CreateJourneyTemplates20250115000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    // 检查表是否已存在，如果存在则先删除（仅用于开发环境，生产环境应使用迁移）
+    const templateTableExists = await queryRunner.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'journey_templates'
+      );
+    `);
+
+    if (templateTableExists[0]?.exists) {
+      // 如果表已存在，先删除相关表（按依赖顺序）
+      await queryRunner.query(`DROP TABLE IF EXISTS "template_time_slots" CASCADE`);
+      await queryRunner.query(`DROP TABLE IF EXISTS "template_days" CASCADE`);
+      await queryRunner.query(`DROP TABLE IF EXISTS "journey_templates" CASCADE`);
+    }
+
     // 创建 journey_templates 表
-    await queryRunner.query(`CREATE TABLE IF NOT EXISTS "journey_templates" (
+    await queryRunner.query(`CREATE TABLE "journey_templates" (
       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       "title" varchar(255) NOT NULL,
       "cover_image" text,
@@ -27,7 +43,7 @@ export class CreateJourneyTemplates20250115000000 implements MigrationInterface 
     );
 
     // 创建 template_days 表
-    await queryRunner.query(`CREATE TABLE IF NOT EXISTS "template_days" (
+    await queryRunner.query(`CREATE TABLE "template_days" (
       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       "template_id" uuid NOT NULL,
       "day_number" int NOT NULL,
@@ -43,7 +59,7 @@ export class CreateJourneyTemplates20250115000000 implements MigrationInterface 
     );
 
     // 创建 template_time_slots 表
-    await queryRunner.query(`CREATE TABLE IF NOT EXISTS "template_time_slots" (
+    await queryRunner.query(`CREATE TABLE "template_time_slots" (
       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       "day_id" uuid NOT NULL,
       "sequence" int NOT NULL,
