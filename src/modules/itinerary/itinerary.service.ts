@@ -836,36 +836,67 @@ ${dateInstructions}
   /**
    * 创建行程模版（用于 /api/v1/itineraries 接口）
    * 接受顶层格式的数据，包含 title、language 等字段
+   * 也支持 itineraryData 嵌套格式（用于导入）
    */
   async createItineraryTemplate(
     dto: CreateItineraryTemplateDto,
   ): Promise<CreateItineraryTemplateResponseDto> {
     try {
+      // 检测是否是 itineraryData 嵌套格式
+      const requestBody = dto as any;
+      let actualDto = dto;
+      let tasks = dto.tasks;
+
+      // 如果存在 itineraryData 字段，说明是嵌套格式，需要提取数据
+      if (requestBody.itineraryData && typeof requestBody.itineraryData === 'object') {
+        this.logger.debug('Detected itineraryData nested format, extracting data');
+        const itineraryData = requestBody.itineraryData;
+        
+        // 从 itineraryData 中提取数据，构建顶层格式的 DTO
+        actualDto = {
+          ...dto,
+          title: dto.title || itineraryData.title || '',
+          destination: dto.destination || itineraryData.destination,
+          duration: dto.duration || itineraryData.duration,
+          budget: dto.budget || itineraryData.budget,
+          preferences: dto.preferences || itineraryData.preferences,
+          travelStyle: dto.travelStyle || itineraryData.travelStyle,
+          recommendations: dto.recommendations || itineraryData.recommendations,
+          days: dto.days || itineraryData.days,
+          totalCost: dto.totalCost || itineraryData.totalCost,
+          summary: dto.summary || itineraryData.summary,
+        } as CreateItineraryTemplateDto;
+        
+        // 提取 tasks（如果存在）
+        if (requestBody.tasks && !tasks) {
+          tasks = requestBody.tasks;
+        }
+      }
+
       // 构建 preferences JSON
       const preferences: Record<string, unknown> = {};
-      if (dto.preferences) {
-        preferences.interests = dto.preferences;
+      if (actualDto.preferences) {
+        preferences.interests = actualDto.preferences;
       }
-      if (dto.budget) {
-        preferences.budget = dto.budget;
+      if (actualDto.budget) {
+        preferences.budget = actualDto.budget;
       }
-      if (dto.travelStyle) {
-        preferences.travelStyle = dto.travelStyle;
+      if (actualDto.travelStyle) {
+        preferences.travelStyle = actualDto.travelStyle;
       }
-      if (dto.recommendations) {
-        preferences.recommendations = dto.recommendations;
+      if (actualDto.recommendations) {
+        preferences.recommendations = actualDto.recommendations;
       }
 
       // 转换 days 数据为模版格式
       // 处理前端可能发送的多种格式：
-      // 1. dto.days 是数组（正常情况）
-      // 2. dto.days 是字符串（前端错误格式）
+      // 1. actualDto.days 是数组（正常情况）
+      // 2. actualDto.days 是字符串（前端错误格式）
       // 3. 请求体中可能有 daysDetail 字段（前端使用的字段名）
-      let daysInput = dto.days;
+      let daysInput = actualDto.days;
       
       // 如果 days 不是数组，尝试从请求体获取 daysDetail
       if (!Array.isArray(daysInput) || daysInput.length === 0) {
-        const requestBody = dto as any;
         if (Array.isArray(requestBody.daysDetail) && requestBody.daysDetail.length > 0) {
           this.logger.warn(
             `days field is not an array or empty, using daysDetail instead. days type: ${typeof daysInput}, daysDetail length: ${requestBody.daysDetail.length}`,
@@ -908,18 +939,18 @@ ${dateInstructions}
 
       // 创建模版
       const template = await this.templateRepository.createTemplate({
-        title: dto.title,
+        title: actualDto.title,
         coverImage: undefined,
-        destination: dto.destination,
-        durationDays: dto.duration || daysData.length,
-        summary: dto.summary,
+        destination: actualDto.destination,
+        durationDays: actualDto.duration || daysData.length,
+        summary: actualDto.summary,
         description: undefined,
         coreInsight: undefined,
         safetyNotice: undefined,
         journeyBackground: undefined,
         preferences: Object.keys(preferences).length > 0 ? preferences : undefined,
-        language: dto.language || 'zh-CN',
-        status: (dto.status as 'draft' | 'published' | 'archived') || 'draft',
+        language: actualDto.language || 'zh-CN',
+        status: (actualDto.status as 'draft' | 'published' | 'archived') || 'draft',
         daysData,
       });
 
@@ -933,7 +964,7 @@ ${dateInstructions}
         );
       }
 
-      const responseData = this.templateEntityToDetailDto(template, dto.tasks);
+      const responseData = this.templateEntityToDetailDto(template, tasks);
 
       // 调试日志：检查返回的数据结构
       this.logger.debug(
