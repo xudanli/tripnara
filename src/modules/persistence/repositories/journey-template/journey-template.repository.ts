@@ -150,6 +150,19 @@ export class JourneyTemplateRepository {
           day.timeSlots.sort((a, b) => a.sequence - b.sequence);
         }
       });
+    } else {
+      // 如果 days 未加载，尝试手动查询
+      const days = await this.dayRepository.find({
+        where: { templateId: id },
+        relations: ['timeSlots'],
+        order: { dayNumber: 'ASC' },
+      });
+      template.days = days;
+      days.forEach((day) => {
+        if (day.timeSlots) {
+          day.timeSlots.sort((a, b) => a.sequence - b.sequence);
+        }
+      });
     }
 
     return template;

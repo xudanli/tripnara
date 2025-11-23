@@ -857,6 +857,9 @@ ${dateInstructions}
       }
 
       // 转换 days 数据为模版格式
+      this.logger.debug(
+        `Creating template with ${dto.days?.length || 0} days from DTO`,
+      );
       const daysData = (dto.days || []).map((day, index) => ({
         dayNumber: day.day || index + 1,
         title: undefined,
@@ -878,6 +881,10 @@ ${dateInstructions}
         })),
       }));
 
+      this.logger.debug(
+        `Converted ${daysData.length} days with total ${daysData.reduce((sum, d) => sum + d.timeSlots.length, 0)} timeSlots`,
+      );
+
       // 创建模版
       const template = await this.templateRepository.createTemplate({
         title: dto.title,
@@ -896,6 +903,15 @@ ${dateInstructions}
       });
 
       // 转换为响应格式
+      this.logger.debug(
+        `Template entity after creation: id=${template.id}, days loaded=${!!template.days}, days count=${template.days?.length || 0}`,
+      );
+      if (template.days && template.days.length > 0) {
+        this.logger.debug(
+          `First day: dayNumber=${template.days[0].dayNumber}, timeSlots count=${template.days[0].timeSlots?.length || 0}`,
+        );
+      }
+
       const responseData = this.templateEntityToDetailDto(template, dto.tasks);
 
       // 调试日志：检查返回的数据结构
@@ -906,10 +922,15 @@ ${dateInstructions}
         `Response data itineraryData.days count: ${responseData.itineraryData.days?.length || 0}`,
       );
       this.logger.debug(
+        `Response data top-level days count: ${responseData.days?.length || 0}`,
+      );
+      this.logger.debug(
         `Response data structure: ${JSON.stringify({
           hasItineraryData: !!responseData.itineraryData,
           hasDays: !!responseData.itineraryData.days,
           daysLength: responseData.itineraryData.days?.length || 0,
+          hasTopLevelDays: !!responseData.days,
+          topLevelDaysLength: responseData.days?.length || 0,
         })}`,
       );
 
