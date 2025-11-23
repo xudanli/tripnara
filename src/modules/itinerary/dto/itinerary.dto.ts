@@ -477,6 +477,21 @@ export class ItineraryDayWithTimeSlotsDto {
   @IsString()
   date!: string;
 
+  @ApiPropertyOptional({ description: '天数标题', example: '第一天：抵达目的地' })
+  @IsOptional()
+  @IsString()
+  title?: string;
+
+  @ApiPropertyOptional({ description: '天数摘要', example: '抵达目的地，入住酒店，自由活动' })
+  @IsOptional()
+  @IsString()
+  summary?: string;
+
+  @ApiPropertyOptional({ description: '天数详情（JSON对象）' })
+  @IsOptional()
+  @IsObject()
+  detailsJson?: Record<string, unknown>;
+
   @ApiProperty({ description: '时间段列表', type: [ItineraryTimeSlotDto] })
   @IsArray()
   @ValidateNested({ each: true })

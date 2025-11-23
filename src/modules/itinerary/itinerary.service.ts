@@ -914,23 +914,27 @@ ${dateInstructions}
       );
       const daysData = (Array.isArray(daysInput) ? daysInput : []).map((day, index) => ({
         dayNumber: day.day || index + 1,
-        title: undefined,
-        summary: undefined,
-        detailsJson: undefined,
-        timeSlots: (day.timeSlots || []).map((slot, slotIndex) => ({
-          sequence: slotIndex + 1,
-          startTime: slot.time,
-          durationMinutes: slot.duration,
-          type: slot.type,
-          title: slot.title || slot.activity,
-          activityHighlights: undefined,
-          scenicIntro: undefined,
-          notes: slot.notes,
-          cost: slot.cost,
-          currencyCode: undefined,
-          locationJson: slot.coordinates,
-          detailsJson: slot.details,
-        })),
+        title: day.title || undefined,
+        summary: day.summary || undefined,
+        detailsJson: day.detailsJson || undefined,
+        timeSlots: (day.timeSlots || []).map((slot, slotIndex) => {
+          // 从 details 中提取可能的字段
+          const slotDetails = slot.details as Record<string, unknown> | undefined;
+          return {
+            sequence: slotIndex + 1,
+            startTime: slot.time,
+            durationMinutes: slot.duration,
+            type: slot.type,
+            title: slot.title || slot.activity,
+            activityHighlights: slotDetails?.activityHighlights as Record<string, unknown> | undefined,
+            scenicIntro: slotDetails?.scenicIntro as string | undefined,
+            notes: slot.notes,
+            cost: slot.cost,
+            currencyCode: slotDetails?.currencyCode as string | undefined,
+            locationJson: slot.coordinates,
+            detailsJson: slot.details,
+          };
+        }),
       }));
 
       this.logger.debug(
@@ -1047,6 +1051,9 @@ ${dateInstructions}
         ? entity.days.map((day) => ({
             day: day.dayNumber,
             date: '', // 模版没有具体日期
+            title: day.title || undefined,
+            summary: day.summary || undefined,
+            detailsJson: day.detailsJson || undefined,
             timeSlots: Array.isArray(day.timeSlots) && day.timeSlots.length > 0
               ? day.timeSlots.map((slot) => ({
                   time: slot.startTime || '',
