@@ -559,6 +559,16 @@ export class ItineraryDataWithTimeSlotsDto {
   title!: string;
 }
 
+export class TaskLinkDto {
+  @ApiProperty({ description: '链接标签', example: 'IATA 入境政策查询' })
+  @IsString()
+  label!: string;
+
+  @ApiProperty({ description: '链接URL', example: 'https://www.iatatravelcentre.com/' })
+  @IsString()
+  url!: string;
+}
+
 export class TaskDto {
   @ApiPropertyOptional({ description: '任务ID' })
   @IsOptional()
@@ -597,10 +607,12 @@ export class TaskDto {
   @IsString()
   destination?: string;
 
-  @ApiPropertyOptional({ description: '链接列表' })
+  @ApiPropertyOptional({ description: '链接列表', type: [TaskLinkDto] })
   @IsOptional()
   @IsArray()
-  links?: Array<{ label: string; url: string }>;
+  @ValidateNested({ each: true })
+  @Type(() => TaskLinkDto)
+  links?: TaskLinkDto[];
 }
 
 export class CreateItineraryFromFrontendDataDto {
