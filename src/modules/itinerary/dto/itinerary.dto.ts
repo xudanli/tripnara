@@ -241,17 +241,14 @@ export class UpdateItineraryRequestDto {
 
   @ApiPropertyOptional({ description: '旅行天数', example: 5, minimum: 1, maximum: 30 })
   @IsOptional()
-  @Transform(({ value }) => {
-    // 如果值为 null、undefined、0 或无效值，转换为 undefined
-    if (value === null || value === undefined) {
-      return undefined;
-    }
-    const numValue = typeof value === 'string' ? parseInt(value, 10) : value;
-    // 如果转换后的值无效（< 1 或 > 30 或 NaN），返回 undefined
-    if (isNaN(numValue) || numValue < 1 || numValue > 30) {
-      return undefined;
-    }
-    return numValue;
+  @ValidateIf((o) => {
+    // 只有当 days 存在、是数字、且在有效范围内时才验证
+    if (o.days === undefined || o.days === null) return false;
+    if (typeof o.days !== 'number') return false;
+    if (isNaN(o.days)) return false;
+    // 如果值无效（< 1 或 > 30），跳过验证（让服务层处理）
+    if (o.days < 1 || o.days > 30) return false;
+    return true;
   })
   @IsNumber()
   @Min(1, { message: 'days must not be less than 1' })
