@@ -445,11 +445,11 @@ export class ItineraryTimeSlotDto {
 
   @ApiPropertyOptional({
     description: '类型',
-    enum: ['attraction', 'meal', 'hotel', 'shopping', 'transport'],
+    enum: ['attraction', 'meal', 'hotel', 'shopping', 'transport', 'ocean'],
   })
   @IsOptional()
   @IsString()
-  type?: 'attraction' | 'meal' | 'hotel' | 'shopping' | 'transport';
+  type?: 'attraction' | 'meal' | 'hotel' | 'shopping' | 'transport' | 'ocean';
 
   @ApiPropertyOptional({ description: '坐标' })
   @IsOptional()
@@ -625,6 +625,30 @@ export class TaskDto {
 }
 
 export class CreateItineraryFromFrontendDataDto {
+  @ApiProperty({ description: '行程数据', type: ItineraryDataWithTimeSlotsDto })
+  @IsObject()
+  @ValidateNested()
+  @Type(() => ItineraryDataWithTimeSlotsDto)
+  itineraryData!: ItineraryDataWithTimeSlotsDto;
+
+  @ApiPropertyOptional({ description: '任务列表', type: [TaskDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TaskDto)
+  tasks?: TaskDto[];
+
+  @ApiPropertyOptional({ description: '旅行开始日期（如果未提供，将使用第一天的日期）', example: '2025-11-21' })
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+}
+
+/**
+ * 从前端数据格式更新行程请求 DTO
+ * 支持完整的前端数据格式，包括 days 数组的详细内容
+ */
+export class UpdateItineraryFromFrontendDataDto {
   @ApiProperty({ description: '行程数据', type: ItineraryDataWithTimeSlotsDto })
   @IsObject()
   @ValidateNested()

@@ -238,5 +238,81 @@ export class ItineraryRepository {
     });
     return !!itinerary;
   }
+
+  /**
+   * 更新行程的完整数据，包括 days 和 activities
+   */
+  async updateItineraryWithDays(
+    id: string,
+    input: {
+      destination?: string;
+      startDate?: Date;
+      daysCount?: number;
+      summary?: string;
+      totalCost?: number;
+      preferences?: Record<string, unknown>;
+      status?: 'draft' | 'published' | 'archived';
+      daysData?: Array<{
+        day: number;
+        date: Date;
+        activities: Array<{
+          time: string;
+          title: string;
+          type: 'attraction' | 'meal' | 'hotel' | 'shopping' | 'transport' | 'ocean';
+          duration: number;
+          location: { lat: number; lng: number };
+          notes?: string;
+          cost?: number;
+        }>;
+      }>;
+    },
+  ): Promise<ItineraryEntity | null> {
+    // 更新主表字段
+    const updateData: any = {};
+    if (input.destination !== undefined) updateData.destination = input.destination;
+    if (input.startDate !== undefined) updateData.startDate = input.startDate;
+    if (input.daysCount !== undefined) updateData.daysCount = input.daysCount;
+    if (input.summary !== undefined) updateData.summary = input.summary;
+    if (input.totalCost !== undefined) updateData.totalCost = input.totalCost;
+    if (input.preferences !== undefined) updateData.preferences = input.preferences;
+    if (input.status !== undefined) updateData.status = input.status;
+
+    if (Object.keys(updateData).length > 0) {
+      await this.itineraryRepository.update(id, updateData);
+    }
+
+    // 如果提供了 daysData，更新 days 和 activities
+    if (input.daysData && input.daysData.length > 0) {
+      // 先删除现有的 days（级联删除 activities）
+      await this.dayRepository.delete({ itineraryId: id });
+
+      // 创建新的 days 和 activities
+      for (const dayData of input.daysData) {
+        const day = this.dayRepository.create({
+          itineraryId: id,
+          day: dayData.day,
+          date: dayData.date,
+        });
+        const savedDay = await this.dayRepository.save(day);
+
+        // 创建活动
+        for (const activityData of dayData.activities) {
+          const activity = this.activityRepository.create({
+            dayId: savedDay.id,
+            time: activityData.time,
+            title: activityData.title,
+            type: activityData.type,
+            duration: activityData.duration,
+            location: activityData.location,
+            notes: activityData.notes,
+            cost: activityData.cost,
+          });
+          await this.activityRepository.save(activity);
+        }
+      }
+    }
+
+    return this.findById(id);
+  }
 }
 

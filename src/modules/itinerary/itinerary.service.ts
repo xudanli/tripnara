@@ -23,6 +23,7 @@ import {
   ItineraryListItemDto,
   ItineraryDetailDto,
   CreateItineraryFromFrontendDataDto,
+  UpdateItineraryFromFrontendDataDto,
   ItineraryTimeSlotDto,
   ItineraryActivityDto,
   ItineraryDayDto,
@@ -588,6 +589,139 @@ ${dateInstructions}
     const itinerary = await this.itineraryRepository.updateItinerary(
       id,
       updateData,
+    );
+
+    if (!itinerary) {
+      throw new NotFoundException(`行程不存在: ${id}`);
+    }
+
+    return {
+      success: true,
+      data: this.entityToDetailDto(itinerary),
+    };
+  }
+
+  /**
+   * 从前端提供的完整行程数据格式更新行程
+   * 支持更新 days 数组的详细内容（activities/timeSlots）
+   */
+  async updateItineraryFromFrontendData(
+    id: string,
+    dto: UpdateItineraryFromFrontendDataDto,
+    userId?: string,
+  ): Promise<UpdateItineraryResponseDto> {
+    // 检查所有权（如果提供了 userId）
+    if (userId) {
+      const isOwner = await this.itineraryRepository.checkOwnership(id, userId);
+      if (!isOwner) {
+        throw new ForbiddenException('无权修改此行程');
+      }
+    }
+
+    const { itineraryData, startDate } = dto;
+
+    // 转换 timeSlots 为 activities
+    const convertTimeSlotToActivity = (
+      timeSlot: ItineraryTimeSlotDto,
+    ): ItineraryActivityDto => {
+      return {
+        time: timeSlot.time,
+        title: timeSlot.title || timeSlot.activity || '',
+        type: (timeSlot.type || 'attraction') as
+          | 'attraction'
+          | 'meal'
+          | 'hotel'
+          | 'shopping'
+          | 'transport'
+          | 'ocean',
+        duration: timeSlot.duration || 60,
+        location: timeSlot.coordinates || { lat: 0, lng: 0 },
+        notes: timeSlot.notes || '',
+        cost: timeSlot.cost || 0,
+      };
+    };
+
+    // 转换 days（包含 timeSlots）为 days（包含 activities）
+    const convertDays = (): Array<{
+      day: number;
+      date: Date;
+      activities: Array<{
+        time: string;
+        title: string;
+        type: 'attraction' | 'meal' | 'hotel' | 'shopping' | 'transport' | 'ocean';
+        duration: number;
+        location: { lat: number; lng: number };
+        notes?: string;
+        cost?: number;
+      }>;
+    }> => {
+      return itineraryData.days.map((day) => ({
+        day: day.day,
+        date: new Date(day.date),
+        activities: day.timeSlots.map(convertTimeSlotToActivity),
+      }));
+    };
+
+    // 确定开始日期：优先使用传入的 startDate，否则使用第一天的日期
+    const finalStartDate = startDate
+      ? new Date(startDate)
+      : itineraryData.days[0]?.date
+        ? new Date(itineraryData.days[0].date)
+        : undefined;
+
+    if (!finalStartDate) {
+      throw new BadRequestException(
+        '缺少开始日期：请提供 startDate 或确保 days 数组的第一天包含 date 字段',
+      );
+    }
+
+    // 构建 preferences
+    const preferences: {
+      interests?: string[];
+      budget?: 'low' | 'medium' | 'high';
+      travelStyle?: 'relaxed' | 'moderate' | 'intensive';
+    } = {};
+
+    if (itineraryData.preferences && Array.isArray(itineraryData.preferences)) {
+      preferences.interests = itineraryData.preferences;
+    }
+
+    if (itineraryData.budget) {
+      const budgetMap: Record<string, 'low' | 'medium' | 'high'> = {
+        low: 'low',
+        medium: 'medium',
+        high: 'high',
+        economy: 'low',
+        comfort: 'medium',
+        luxury: 'high',
+      };
+      preferences.budget =
+        budgetMap[itineraryData.budget.toLowerCase()] || 'medium';
+    }
+
+    if (itineraryData.travelStyle) {
+      const styleMap: Record<string, 'relaxed' | 'moderate' | 'intensive'> = {
+        relaxed: 'relaxed',
+        moderate: 'moderate',
+        intensive: 'intensive',
+      };
+      preferences.travelStyle =
+        styleMap[itineraryData.travelStyle.toLowerCase()] || 'moderate';
+    }
+
+    // 更新行程（包括 days 和 activities）
+    const itinerary = await this.itineraryRepository.updateItineraryWithDays(
+      id,
+      {
+        destination: itineraryData.destination,
+        startDate: finalStartDate,
+        daysCount: itineraryData.duration,
+        summary: itineraryData.summary || '',
+        totalCost: itineraryData.totalCost ?? 0,
+        preferences:
+          Object.keys(preferences).length > 0 ? preferences : undefined,
+        daysData: convertDays(),
+      },
     );
 
     if (!itinerary) {
