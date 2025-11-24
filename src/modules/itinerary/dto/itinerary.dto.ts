@@ -241,7 +241,18 @@ export class UpdateItineraryRequestDto {
 
   @ApiPropertyOptional({ description: '旅行天数', example: 5, minimum: 1, maximum: 30 })
   @IsOptional()
-  @ValidateIf((o) => o.days !== undefined && o.days !== null && typeof o.days === 'number')
+  @Transform(({ value }) => {
+    // 如果值为 null、undefined、0 或无效值，转换为 undefined
+    if (value === null || value === undefined) {
+      return undefined;
+    }
+    const numValue = typeof value === 'string' ? parseInt(value, 10) : value;
+    // 如果转换后的值无效（< 1 或 > 30 或 NaN），返回 undefined
+    if (isNaN(numValue) || numValue < 1 || numValue > 30) {
+      return undefined;
+    }
+    return numValue;
+  })
   @IsNumber()
   @Min(1, { message: 'days must not be less than 1' })
   @Max(30, { message: 'days must not be greater than 30' })
