@@ -25,6 +25,13 @@ import {
   DeleteItineraryResponseDto,
   ItineraryListResponseDto,
   ItineraryDetailResponseDto,
+  CreateDayDto,
+  UpdateDayDto,
+  CreateActivityDto,
+  UpdateActivityDto,
+  ReorderActivitiesDto,
+  ItineraryDayDto,
+  ItineraryActivityDto,
 } from './dto/itinerary.dto';
 
 @ApiTags('Journey V1')
@@ -139,6 +146,156 @@ export class JourneyV1Controller {
     @CurrentUser() user: { userId: string },
   ): Promise<DeleteItineraryResponseDto> {
     return this.itineraryService.deleteItinerary(journeyId, user.userId);
+  }
+
+  // ========== 天数管理接口 ==========
+
+  @Get(':journeyId/days')
+  @ApiOperation({
+    summary: '获取行程的所有天数',
+    description: '获取指定行程的所有天数及其活动信息',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async getJourneyDays(
+    @Param('journeyId') journeyId: string,
+    @CurrentUser() user: { userId: string },
+  ): Promise<Array<ItineraryDayDto & { id: string }>> {
+    return this.itineraryService.getJourneyDays(journeyId, user.userId);
+  }
+
+  @Post(':journeyId/days')
+  @ApiOperation({
+    summary: '为行程添加天数',
+    description: '为指定行程添加一个新的天数',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async createJourneyDay(
+    @Param('journeyId') journeyId: string,
+    @Body() dto: CreateDayDto,
+    @CurrentUser() user: { userId: string },
+  ): Promise<ItineraryDayDto & { id: string }> {
+    return this.itineraryService.createJourneyDay(journeyId, dto, user.userId);
+  }
+
+  @Patch(':journeyId/days/:dayId')
+  @ApiOperation({
+    summary: '更新指定天数',
+    description: '更新指定天数的信息（day、date）',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async updateJourneyDay(
+    @Param('journeyId') journeyId: string,
+    @Param('dayId') dayId: string,
+    @Body() dto: UpdateDayDto,
+    @CurrentUser() user: { userId: string },
+  ): Promise<ItineraryDayDto & { id: string }> {
+    return this.itineraryService.updateJourneyDay(journeyId, dayId, dto, user.userId);
+  }
+
+  @Delete(':journeyId/days/:dayId')
+  @ApiOperation({
+    summary: '删除指定天数',
+    description: '删除指定的天数（会级联删除该天的所有活动）',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async deleteJourneyDay(
+    @Param('journeyId') journeyId: string,
+    @Param('dayId') dayId: string,
+    @CurrentUser() user: { userId: string },
+  ): Promise<{ success: boolean; message?: string }> {
+    return this.itineraryService.deleteJourneyDay(journeyId, dayId, user.userId);
+  }
+
+  // ========== 活动管理接口 ==========
+
+  @Get(':journeyId/days/:dayId/slots')
+  @ApiOperation({
+    summary: '获取指定天数的所有时间段',
+    description: '获取指定天数的所有活动（时间段）',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async getJourneyDayActivities(
+    @Param('journeyId') journeyId: string,
+    @Param('dayId') dayId: string,
+    @CurrentUser() user: { userId: string },
+  ): Promise<Array<ItineraryActivityDto & { id: string }>> {
+    return this.itineraryService.getJourneyDayActivities(journeyId, dayId, user.userId);
+  }
+
+  @Post(':journeyId/days/:dayId/slots')
+  @ApiOperation({
+    summary: '为指定天数添加时间段',
+    description: '为指定天数添加一个新的活动（时间段）',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async createJourneyDayActivity(
+    @Param('journeyId') journeyId: string,
+    @Param('dayId') dayId: string,
+    @Body() dto: CreateActivityDto,
+    @CurrentUser() user: { userId: string },
+  ): Promise<ItineraryActivityDto & { id: string }> {
+    return this.itineraryService.createJourneyDayActivity(journeyId, dayId, dto, user.userId);
+  }
+
+  @Patch(':journeyId/days/:dayId/slots/:slotId')
+  @ApiOperation({
+    summary: '更新指定时间段',
+    description: '更新指定活动（时间段）的信息',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async updateJourneyDayActivity(
+    @Param('journeyId') journeyId: string,
+    @Param('dayId') dayId: string,
+    @Param('slotId') slotId: string,
+    @Body() dto: UpdateActivityDto,
+    @CurrentUser() user: { userId: string },
+  ): Promise<ItineraryActivityDto & { id: string }> {
+    return this.itineraryService.updateJourneyDayActivity(
+      journeyId,
+      dayId,
+      slotId,
+      dto,
+      user.userId,
+    );
+  }
+
+  @Delete(':journeyId/days/:dayId/slots/:slotId')
+  @ApiOperation({
+    summary: '删除指定时间段',
+    description: '删除指定的活动（时间段）',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async deleteJourneyDayActivity(
+    @Param('journeyId') journeyId: string,
+    @Param('dayId') dayId: string,
+    @Param('slotId') slotId: string,
+    @CurrentUser() user: { userId: string },
+  ): Promise<{ success: boolean; message?: string }> {
+    return this.itineraryService.deleteJourneyDayActivity(journeyId, dayId, slotId, user.userId);
+  }
+
+  @Post(':journeyId/days/:dayId/slots/reorder')
+  @ApiOperation({
+    summary: '重新排序时间段',
+    description: '根据提供的活动 ID 列表重新排序指定天数的活动',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async reorderJourneyDayActivities(
+    @Param('journeyId') journeyId: string,
+    @Param('dayId') dayId: string,
+    @Body() dto: ReorderActivitiesDto,
+    @CurrentUser() user: { userId: string },
+  ): Promise<Array<ItineraryActivityDto & { id: string }>> {
+    return this.itineraryService.reorderJourneyDayActivities(journeyId, dayId, dto, user.userId);
   }
 }
 

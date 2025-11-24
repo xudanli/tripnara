@@ -1544,5 +1544,413 @@ ${dateInstructions}
       message: '复制成功',
     };
   }
+
+  /**
+   * 获取行程的所有天数
+   */
+  async getJourneyDays(
+    journeyId: string,
+    userId?: string,
+  ): Promise<Array<ItineraryDayDto & { id: string }>> {
+    // 检查所有权
+    if (userId) {
+      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
+      if (!isOwner) {
+        throw new ForbiddenException('无权访问此行程');
+      }
+    }
+
+    const formatDayDate = (date: Date | string): string => {
+      if (date instanceof Date) {
+        return date.toISOString().split('T')[0];
+      }
+      return date.split('T')[0];
+    };
+
+    const days = await this.itineraryRepository.findDaysByItineraryId(journeyId);
+    return days.map((day) => ({
+      id: day.id,
+      day: day.day,
+      date: formatDayDate(day.date as Date | string),
+      activities: (day.activities || []).map((act) => ({
+        id: act.id,
+        time: act.time,
+        title: act.title,
+        type: act.type as
+          | 'attraction'
+          | 'meal'
+          | 'hotel'
+          | 'shopping'
+          | 'transport'
+          | 'ocean',
+        duration: act.duration,
+        location: act.location as { lat: number; lng: number },
+        notes: act.notes || '',
+        cost: act.cost || 0,
+      })),
+    }));
+  }
+
+  /**
+   * 为行程添加天数
+   */
+  async createJourneyDay(
+    journeyId: string,
+    dto: { day: number; date: string },
+    userId?: string,
+  ): Promise<ItineraryDayDto & { id: string }> {
+    // 检查所有权
+    if (userId) {
+      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
+      if (!isOwner) {
+        throw new ForbiddenException('无权修改此行程');
+      }
+    }
+
+    const formatDayDate = (date: Date | string): string => {
+      if (date instanceof Date) {
+        return date.toISOString().split('T')[0];
+      }
+      return date.split('T')[0];
+    };
+
+    const day = await this.itineraryRepository.createDay(journeyId, {
+      day: dto.day,
+      date: new Date(dto.date),
+    });
+
+    return {
+      id: day.id,
+      day: day.day,
+      date: formatDayDate(day.date as Date | string),
+      activities: [],
+    };
+  }
+
+  /**
+   * 更新指定天数
+   */
+  async updateJourneyDay(
+    journeyId: string,
+    dayId: string,
+    dto: { day?: number; date?: string },
+    userId?: string,
+  ): Promise<ItineraryDayDto & { id: string }> {
+    // 检查所有权
+    if (userId) {
+      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
+      if (!isOwner) {
+        throw new ForbiddenException('无权修改此行程');
+      }
+
+      const dayOwnership = await this.itineraryRepository.checkDayOwnership(dayId, journeyId);
+      if (!dayOwnership) {
+        throw new ForbiddenException('天数不属于此行程');
+      }
+    }
+
+    const formatDayDate = (date: Date | string): string => {
+      if (date instanceof Date) {
+        return date.toISOString().split('T')[0];
+      }
+      return date.split('T')[0];
+    };
+
+    const updateData: { day?: number; date?: Date } = {};
+    if (dto.day !== undefined) updateData.day = dto.day;
+    if (dto.date !== undefined) updateData.date = new Date(dto.date);
+
+    const updated = await this.itineraryRepository.updateDay(dayId, updateData);
+    if (!updated) {
+      throw new NotFoundException(`天数不存在: ${dayId}`);
+    }
+
+    return {
+      id: updated.id,
+      day: updated.day,
+      date: formatDayDate(updated.date as Date | string),
+      activities: (updated.activities || []).map((act) => ({
+        id: act.id,
+        time: act.time,
+        title: act.title,
+        type: act.type as
+          | 'attraction'
+          | 'meal'
+          | 'hotel'
+          | 'shopping'
+          | 'transport'
+          | 'ocean',
+        duration: act.duration,
+        location: act.location as { lat: number; lng: number },
+        notes: act.notes || '',
+        cost: act.cost || 0,
+      })),
+    };
+  }
+
+  /**
+   * 删除指定天数
+   */
+  async deleteJourneyDay(
+    journeyId: string,
+    dayId: string,
+    userId?: string,
+  ): Promise<{ success: boolean; message?: string }> {
+    // 检查所有权
+    if (userId) {
+      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
+      if (!isOwner) {
+        throw new ForbiddenException('无权修改此行程');
+      }
+
+      const dayOwnership = await this.itineraryRepository.checkDayOwnership(dayId, journeyId);
+      if (!dayOwnership) {
+        throw new ForbiddenException('天数不属于此行程');
+      }
+    }
+
+    const deleted = await this.itineraryRepository.deleteDay(dayId);
+    if (!deleted) {
+      throw new NotFoundException(`天数不存在: ${dayId}`);
+    }
+
+    return {
+      success: true,
+      message: '删除成功',
+    };
+  }
+
+  /**
+   * 获取指定天数的所有活动
+   */
+  async getJourneyDayActivities(
+    journeyId: string,
+    dayId: string,
+    userId?: string,
+  ): Promise<Array<ItineraryActivityDto & { id: string }>> {
+    // 检查所有权
+    if (userId) {
+      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
+      if (!isOwner) {
+        throw new ForbiddenException('无权访问此行程');
+      }
+
+      const dayOwnership = await this.itineraryRepository.checkDayOwnership(dayId, journeyId);
+      if (!dayOwnership) {
+        throw new ForbiddenException('天数不属于此行程');
+      }
+    }
+
+    const activities = await this.itineraryRepository.findActivitiesByDayId(dayId);
+    return activities.map((act) => ({
+      id: act.id,
+      time: act.time,
+      title: act.title,
+      type: act.type as
+        | 'attraction'
+        | 'meal'
+        | 'hotel'
+        | 'shopping'
+        | 'transport'
+        | 'ocean',
+      duration: act.duration,
+      location: act.location as { lat: number; lng: number },
+      notes: act.notes || '',
+      cost: act.cost || 0,
+    }));
+  }
+
+  /**
+   * 为指定天数添加活动
+   */
+  async createJourneyDayActivity(
+    journeyId: string,
+    dayId: string,
+    dto: {
+      time: string;
+      title: string;
+      type: 'attraction' | 'meal' | 'hotel' | 'shopping' | 'transport' | 'ocean';
+      duration: number;
+      location: { lat: number; lng: number };
+      notes?: string;
+      cost?: number;
+    },
+    userId?: string,
+  ): Promise<ItineraryActivityDto & { id: string }> {
+    // 检查所有权
+    if (userId) {
+      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
+      if (!isOwner) {
+        throw new ForbiddenException('无权修改此行程');
+      }
+
+      const dayOwnership = await this.itineraryRepository.checkDayOwnership(dayId, journeyId);
+      if (!dayOwnership) {
+        throw new ForbiddenException('天数不属于此行程');
+      }
+    }
+
+    const activity = await this.itineraryRepository.createActivity(dayId, dto);
+    return {
+      id: activity.id,
+      time: activity.time,
+      title: activity.title,
+      type: activity.type as
+        | 'attraction'
+        | 'meal'
+        | 'hotel'
+        | 'shopping'
+        | 'transport'
+        | 'ocean',
+      duration: activity.duration,
+      location: activity.location as { lat: number; lng: number },
+      notes: activity.notes || '',
+      cost: activity.cost || 0,
+    };
+  }
+
+  /**
+   * 更新指定活动
+   */
+  async updateJourneyDayActivity(
+    journeyId: string,
+    dayId: string,
+    activityId: string,
+    dto: {
+      time?: string;
+      title?: string;
+      type?: 'attraction' | 'meal' | 'hotel' | 'shopping' | 'transport' | 'ocean';
+      duration?: number;
+      location?: { lat: number; lng: number };
+      notes?: string;
+      cost?: number;
+    },
+    userId?: string,
+  ): Promise<ItineraryActivityDto & { id: string }> {
+    // 检查所有权
+    if (userId) {
+      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
+      if (!isOwner) {
+        throw new ForbiddenException('无权修改此行程');
+      }
+
+      const dayOwnership = await this.itineraryRepository.checkDayOwnership(dayId, journeyId);
+      if (!dayOwnership) {
+        throw new ForbiddenException('天数不属于此行程');
+      }
+
+      const activityOwnership = await this.itineraryRepository.checkActivityOwnership(
+        activityId,
+        dayId,
+      );
+      if (!activityOwnership) {
+        throw new ForbiddenException('活动不属于此天数');
+      }
+    }
+
+    const updated = await this.itineraryRepository.updateActivity(activityId, dto);
+    if (!updated) {
+      throw new NotFoundException(`活动不存在: ${activityId}`);
+    }
+
+    return {
+      id: updated.id,
+      time: updated.time,
+      title: updated.title,
+      type: updated.type as
+        | 'attraction'
+        | 'meal'
+        | 'hotel'
+        | 'shopping'
+        | 'transport'
+        | 'ocean',
+      duration: updated.duration,
+      location: updated.location as { lat: number; lng: number },
+      notes: updated.notes || '',
+      cost: updated.cost || 0,
+    };
+  }
+
+  /**
+   * 删除指定活动
+   */
+  async deleteJourneyDayActivity(
+    journeyId: string,
+    dayId: string,
+    activityId: string,
+    userId?: string,
+  ): Promise<{ success: boolean; message?: string }> {
+    // 检查所有权
+    if (userId) {
+      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
+      if (!isOwner) {
+        throw new ForbiddenException('无权修改此行程');
+      }
+
+      const dayOwnership = await this.itineraryRepository.checkDayOwnership(dayId, journeyId);
+      if (!dayOwnership) {
+        throw new ForbiddenException('天数不属于此行程');
+      }
+
+      const activityOwnership = await this.itineraryRepository.checkActivityOwnership(
+        activityId,
+        dayId,
+      );
+      if (!activityOwnership) {
+        throw new ForbiddenException('活动不属于此天数');
+      }
+    }
+
+    const deleted = await this.itineraryRepository.deleteActivity(activityId);
+    if (!deleted) {
+      throw new NotFoundException(`活动不存在: ${activityId}`);
+    }
+
+    return {
+      success: true,
+      message: '删除成功',
+    };
+  }
+
+  /**
+   * 重新排序活动
+   */
+  async reorderJourneyDayActivities(
+    journeyId: string,
+    dayId: string,
+    dto: { activityIds: string[] },
+    userId?: string,
+  ): Promise<Array<ItineraryActivityDto & { id: string }>> {
+    // 检查所有权
+    if (userId) {
+      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
+      if (!isOwner) {
+        throw new ForbiddenException('无权修改此行程');
+      }
+
+      const dayOwnership = await this.itineraryRepository.checkDayOwnership(dayId, journeyId);
+      if (!dayOwnership) {
+        throw new ForbiddenException('天数不属于此行程');
+      }
+    }
+
+    const activities = await this.itineraryRepository.reorderActivities(dayId, dto.activityIds);
+    return activities.map((act) => ({
+      id: act.id,
+      time: act.time,
+      title: act.title,
+      type: act.type as
+        | 'attraction'
+        | 'meal'
+        | 'hotel'
+        | 'shopping'
+        | 'transport'
+        | 'ocean',
+      duration: act.duration,
+      location: act.location as { lat: number; lng: number },
+      notes: act.notes || '',
+      cost: act.cost || 0,
+    }));
+  }
 }
 

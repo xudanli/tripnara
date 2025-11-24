@@ -314,5 +314,197 @@ export class ItineraryRepository {
 
     return this.findById(id);
   }
+
+  /**
+   * 获取行程的所有天数
+   */
+  async findDaysByItineraryId(itineraryId: string): Promise<ItineraryDayEntity[]> {
+    const days = await this.dayRepository.find({
+      where: { itineraryId },
+      relations: ['activities'],
+      order: { day: 'ASC' },
+    });
+
+    // 排序每个天的活动
+    days.forEach((day) => {
+      if (day.activities) {
+        day.activities.sort((a, b) => a.time.localeCompare(b.time));
+      }
+    });
+
+    return days;
+  }
+
+  /**
+   * 为行程添加天数
+   */
+  async createDay(
+    itineraryId: string,
+    input: {
+      day: number;
+      date: Date;
+    },
+  ): Promise<ItineraryDayEntity> {
+    const day = this.dayRepository.create({
+      itineraryId,
+      day: input.day,
+      date: input.date,
+    });
+    return await this.dayRepository.save(day);
+  }
+
+  /**
+   * 更新指定天数
+   */
+  async updateDay(
+    dayId: string,
+    input: {
+      day?: number;
+      date?: Date;
+    },
+  ): Promise<ItineraryDayEntity | null> {
+    const updateData: any = {};
+    if (input.day !== undefined) updateData.day = input.day;
+    if (input.date !== undefined) updateData.date = input.date;
+
+    await this.dayRepository.update(dayId, updateData);
+    return await this.dayRepository.findOne({
+      where: { id: dayId },
+      relations: ['activities'],
+    });
+  }
+
+  /**
+   * 删除指定天数（会级联删除 activities）
+   */
+  async deleteDay(dayId: string): Promise<boolean> {
+    const result = await this.dayRepository.delete(dayId);
+    return (result.affected ?? 0) > 0;
+  }
+
+  /**
+   * 检查天数是否属于指定行程
+   */
+  async checkDayOwnership(dayId: string, itineraryId: string): Promise<boolean> {
+    const day = await this.dayRepository.findOne({
+      where: { id: dayId, itineraryId },
+      select: ['id'],
+    });
+    return !!day;
+  }
+
+  /**
+   * 获取指定天数的所有活动
+   */
+  async findActivitiesByDayId(dayId: string): Promise<ItineraryActivityEntity[]> {
+    return await this.activityRepository.find({
+      where: { dayId },
+      order: { time: 'ASC' },
+    });
+  }
+
+  /**
+   * 为指定天数添加活动
+   */
+  async createActivity(
+    dayId: string,
+    input: {
+      time: string;
+      title: string;
+      type: 'attraction' | 'meal' | 'hotel' | 'shopping' | 'transport' | 'ocean';
+      duration: number;
+      location: { lat: number; lng: number };
+      notes?: string;
+      cost?: number;
+    },
+  ): Promise<ItineraryActivityEntity> {
+    const activity = this.activityRepository.create({
+      dayId,
+      time: input.time,
+      title: input.title,
+      type: input.type,
+      duration: input.duration,
+      location: input.location,
+      notes: input.notes,
+      cost: input.cost,
+    });
+    return await this.activityRepository.save(activity);
+  }
+
+  /**
+   * 更新指定活动
+   */
+  async updateActivity(
+    activityId: string,
+    input: {
+      time?: string;
+      title?: string;
+      type?: 'attraction' | 'meal' | 'hotel' | 'shopping' | 'transport' | 'ocean';
+      duration?: number;
+      location?: { lat: number; lng: number };
+      notes?: string;
+      cost?: number;
+    },
+  ): Promise<ItineraryActivityEntity | null> {
+    const updateData: any = {};
+    if (input.time !== undefined) updateData.time = input.time;
+    if (input.title !== undefined) updateData.title = input.title;
+    if (input.type !== undefined) updateData.type = input.type;
+    if (input.duration !== undefined) updateData.duration = input.duration;
+    if (input.location !== undefined) updateData.location = input.location;
+    if (input.notes !== undefined) updateData.notes = input.notes;
+    if (input.cost !== undefined) updateData.cost = input.cost;
+
+    await this.activityRepository.update(activityId, updateData);
+    return await this.activityRepository.findOne({
+      where: { id: activityId },
+    });
+  }
+
+  /**
+   * 删除指定活动
+   */
+  async deleteActivity(activityId: string): Promise<boolean> {
+    const result = await this.activityRepository.delete(activityId);
+    return (result.affected ?? 0) > 0;
+  }
+
+  /**
+   * 检查活动是否属于指定天数
+   */
+  async checkActivityOwnership(activityId: string, dayId: string): Promise<boolean> {
+    const activity = await this.activityRepository.findOne({
+      where: { id: activityId, dayId },
+      select: ['id'],
+    });
+    return !!activity;
+  }
+
+  /**
+   * 重新排序活动（通过更新 time 字段）
+   */
+  async reorderActivities(
+    dayId: string,
+    activityIds: string[],
+  ): Promise<ItineraryActivityEntity[]> {
+    // 获取所有活动
+    const activities = await this.findActivitiesByDayId(dayId);
+    const activityMap = new Map(activities.map((a) => [a.id, a]));
+
+    // 按照新的顺序更新 time 字段（使用索引作为时间排序）
+    for (let i = 0; i < activityIds.length; i++) {
+      const activityId = activityIds[i];
+      const activity = activityMap.get(activityId);
+      if (activity) {
+        // 使用索引生成时间字符串，保持原有格式（HH:MM）
+        const hours = Math.floor(i / 2);
+        const minutes = (i % 2) * 30;
+        const newTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+        await this.activityRepository.update(activityId, { time: newTime });
+      }
+    }
+
+    return await this.findActivitiesByDayId(dayId);
+  }
 }
 

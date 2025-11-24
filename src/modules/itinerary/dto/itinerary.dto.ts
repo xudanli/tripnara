@@ -994,3 +994,142 @@ export class CloneItineraryTemplateResponseDto {
   message?: string;
 }
 
+/**
+ * 创建天数请求 DTO
+ */
+export class CreateDayDto {
+  @ApiProperty({ description: '第几天', example: 1, minimum: 1 })
+  @IsNumber()
+  @Min(1)
+  day!: number;
+
+  @ApiProperty({ description: '日期', example: '2024-06-01' })
+  @IsDateString()
+  date!: string;
+}
+
+/**
+ * 更新天数请求 DTO
+ */
+export class UpdateDayDto {
+  @ApiPropertyOptional({ description: '第几天', example: 1, minimum: 1 })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  day?: number;
+
+  @ApiPropertyOptional({ description: '日期', example: '2024-06-01' })
+  @IsOptional()
+  @IsDateString()
+  date?: string;
+}
+
+/**
+ * 创建活动请求 DTO
+ */
+export class CreateActivityDto {
+  @ApiProperty({ description: '活动时间', example: '09:00' })
+  @IsString()
+  @IsNotEmpty()
+  time!: string;
+
+  @ApiProperty({ description: '活动标题', example: '铁力士峰云端漫步' })
+  @IsString()
+  @IsNotEmpty()
+  title!: string;
+
+  @ApiProperty({
+    description: '活动类型',
+    enum: ['attraction', 'meal', 'hotel', 'shopping', 'transport', 'ocean'],
+    example: 'attraction',
+  })
+  @IsString()
+  type!: 'attraction' | 'meal' | 'hotel' | 'shopping' | 'transport' | 'ocean';
+
+  @ApiProperty({ description: '持续时间（分钟）', example: 120, minimum: 1 })
+  @IsNumber()
+  @Min(1)
+  duration!: number;
+
+  @ApiProperty({
+    description: '位置坐标',
+    example: { lat: 46.7704, lng: 8.4050 },
+  })
+  @IsObject()
+  location!: { lat: number; lng: number };
+
+  @ApiPropertyOptional({ description: '活动描述和建议', example: '详细的游览建议和体验描述' })
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @ApiPropertyOptional({ description: '预估费用', example: 400, minimum: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  cost?: number;
+}
+
+/**
+ * 更新活动请求 DTO
+ */
+export class UpdateActivityDto {
+  @ApiPropertyOptional({ description: '活动时间', example: '09:00' })
+  @IsOptional()
+  @IsString()
+  time?: string;
+
+  @ApiPropertyOptional({ description: '活动标题', example: '铁力士峰云端漫步' })
+  @IsOptional()
+  @IsString()
+  title?: string;
+
+  @ApiPropertyOptional({
+    description: '活动类型',
+    enum: ['attraction', 'meal', 'hotel', 'shopping', 'transport', 'ocean'],
+    example: 'attraction',
+  })
+  @IsOptional()
+  @IsString()
+  type?: 'attraction' | 'meal' | 'hotel' | 'shopping' | 'transport' | 'ocean';
+
+  @ApiPropertyOptional({ description: '持续时间（分钟）', example: 120, minimum: 1 })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  duration?: number;
+
+  @ApiPropertyOptional({
+    description: '位置坐标',
+    example: { lat: 46.7704, lng: 8.4050 },
+  })
+  @IsOptional()
+  @IsObject()
+  location?: { lat: number; lng: number };
+
+  @ApiPropertyOptional({ description: '活动描述和建议', example: '详细的游览建议和体验描述' })
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @ApiPropertyOptional({ description: '预估费用', example: 400, minimum: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  cost?: number;
+}
+
+/**
+ * 重新排序活动请求 DTO
+ */
+export class ReorderActivitiesDto {
+  @ApiProperty({
+    description: '活动 ID 列表（按新顺序排列）',
+    example: ['activity-id-1', 'activity-id-2', 'activity-id-3'],
+    type: [String],
+  })
+  @IsArray()
+  @IsString({ each: true })
+  activityIds!: string[];
+}
+
