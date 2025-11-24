@@ -56,11 +56,11 @@ export class ItineraryActivityDto {
 
   @ApiProperty({
     description: '活动类型',
-    enum: ['attraction', 'meal', 'hotel', 'shopping', 'transport'],
+    enum: ['attraction', 'meal', 'hotel', 'shopping', 'transport', 'ocean'],
     example: 'attraction',
   })
   @IsString()
-  type!: 'attraction' | 'meal' | 'hotel' | 'shopping' | 'transport';
+  type!: 'attraction' | 'meal' | 'hotel' | 'shopping' | 'transport' | 'ocean';
 
   @ApiProperty({ description: '持续时间（分钟）', example: 120 })
   @IsNumber()
