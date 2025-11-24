@@ -32,6 +32,13 @@ import {
   ReorderActivitiesDto,
   ItineraryDayDto,
   ItineraryActivityDto,
+  CloneJourneyResponseDto,
+  ShareJourneyRequestDto,
+  ShareJourneyResponseDto,
+  ExportJourneyRequestDto,
+  ExportJourneyResponseDto,
+  ResetJourneyRequestDto,
+  ResetJourneyResponseDto,
 } from './dto/itinerary.dto';
 
 @ApiTags('Journey V1')
@@ -296,6 +303,67 @@ export class JourneyV1Controller {
     @CurrentUser() user: { userId: string },
   ): Promise<Array<ItineraryActivityDto & { id: string }>> {
     return this.itineraryService.reorderJourneyDayActivities(journeyId, dayId, dto, user.userId);
+  }
+
+  // ========== 扩展功能接口 ==========
+
+  @Post(':journeyId/clone')
+  @ApiOperation({
+    summary: '复制行程',
+    description: '复制指定的行程，创建一个新的草稿行程',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async cloneJourney(
+    @Param('journeyId') journeyId: string,
+    @CurrentUser() user: { userId: string },
+  ): Promise<CloneJourneyResponseDto> {
+    return this.itineraryService.cloneJourney(journeyId, user.userId);
+  }
+
+  @Post(':journeyId/share')
+  @ApiOperation({
+    summary: '分享行程',
+    description: '生成行程分享链接和分享码',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async shareJourney(
+    @Param('journeyId') journeyId: string,
+    @Body() dto: ShareJourneyRequestDto,
+    @CurrentUser() user: { userId: string },
+  ): Promise<ShareJourneyResponseDto> {
+    return this.itineraryService.shareJourney(journeyId, user.userId, dto);
+  }
+
+  @Post(':journeyId/export')
+  @ApiOperation({
+    summary: '导出行程',
+    description: '将行程导出为 PDF、ICS 或 JSON 格式',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async exportJourney(
+    @Param('journeyId') journeyId: string,
+    @Body() dto: ExportJourneyRequestDto,
+    @CurrentUser() user: { userId: string },
+  ): Promise<ExportJourneyResponseDto> {
+    return this.itineraryService.exportJourney(journeyId, user.userId, dto);
+  }
+
+  @Post(':journeyId/reset')
+  @ApiOperation({
+    summary: '重置行程',
+    description: '将行程重置为初始状态（可保留历史版本）',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async resetJourney(
+    @Param('journeyId') journeyId: string,
+    @Body() dto: ResetJourneyRequestDto,
+    @CurrentUser() user: { userId: string },
+  ): Promise<ResetJourneyResponseDto> {
+    return this.itineraryService.resetJourney(journeyId, user.userId, dto);
   }
 }
 

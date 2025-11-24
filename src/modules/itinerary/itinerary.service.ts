@@ -40,6 +40,13 @@ import {
   DeleteItineraryTemplateResponseDto,
   PublishItineraryTemplateResponseDto,
   CloneItineraryTemplateResponseDto,
+  CloneJourneyResponseDto,
+  ShareJourneyRequestDto,
+  ShareJourneyResponseDto,
+  ExportJourneyRequestDto,
+  ExportJourneyResponseDto,
+  ResetJourneyRequestDto,
+  ResetJourneyResponseDto,
 } from './dto/itinerary.dto';
 import {
   ItineraryEntity,
@@ -755,6 +762,271 @@ ${dateInstructions}
     return {
       success: true,
       message: '行程已删除',
+    };
+  }
+
+  /**
+   * 复制行程
+   */
+  async cloneJourney(
+    journeyId: string,
+    userId: string,
+  ): Promise<CloneJourneyResponseDto> {
+    // 检查所有权
+    const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
+    if (!isOwner) {
+      throw new ForbiddenException('无权复制此行程');
+    }
+
+    // 获取原行程
+    const original = await this.getItineraryById(journeyId, userId);
+    if (!original.data) {
+      throw new NotFoundException(`行程不存在: ${journeyId}`);
+    }
+
+    const originalEntity = await this.itineraryRepository.findById(journeyId);
+    if (!originalEntity) {
+      throw new NotFoundException(`行程不存在: ${journeyId}`);
+    }
+
+    // 构建新的创建请求
+    const daysData = originalEntity.days.map((day) => ({
+      day: day.day,
+      date: day.date,
+      activities: day.activities.map((act) => ({
+        time: act.time,
+        title: act.title,
+        type: act.type,
+        duration: act.duration,
+        location: act.location as { lat: number; lng: number },
+        notes: act.notes || '',
+        cost: act.cost || 0,
+      })),
+    }));
+
+    // 创建新行程
+    const newItinerary = await this.itineraryRepository.createItinerary({
+      userId,
+      destination: originalEntity.destination,
+      startDate: originalEntity.startDate,
+      daysCount: originalEntity.daysCount,
+      summary: originalEntity.summary || '',
+      totalCost: originalEntity.totalCost || 0,
+      preferences: originalEntity.preferences as Record<string, unknown>,
+      status: 'draft', // 复制的行程默认为草稿
+      daysData,
+    });
+
+    const detailDto = this.entityToDetailDto(newItinerary);
+    return {
+      success: true,
+      data: {
+        success: true,
+        data: detailDto,
+      } as ItineraryDetailResponseDto,
+      message: '复制成功',
+    };
+  }
+
+  /**
+   * 分享行程
+   */
+  async shareJourney(
+    journeyId: string,
+    userId: string,
+    dto: ShareJourneyRequestDto,
+  ): Promise<ShareJourneyResponseDto> {
+    // 检查所有权
+    const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
+    if (!isOwner) {
+      throw new ForbiddenException('无权分享此行程');
+    }
+
+    // 检查行程是否存在
+    const itinerary = await this.itineraryRepository.findById(journeyId);
+    if (!itinerary) {
+      throw new NotFoundException(`行程不存在: ${journeyId}`);
+    }
+
+    // 生成分享码（简单实现：使用行程ID的哈希）
+    const shareCode = Buffer.from(journeyId).toString('base64').substring(0, 8).toUpperCase();
+
+    // 计算过期时间
+    const expiresInDays = dto.expiresInDays || 7;
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + expiresInDays);
+
+    // 生成分享链接（这里使用简单的格式，实际应该根据前端路由配置）
+    const shareUrl = `/share/${shareCode}`;
+
+    // TODO: 如果需要保存分享信息到数据库，可以在这里添加
+    // 例如：保存 shareCode, password, expiresAt 到数据库
+
+    return {
+      success: true,
+      shareUrl,
+      shareCode,
+      password: dto.requirePassword ? dto.password : undefined,
+      expiresAt: expiresAt.toISOString(),
+      message: '分享成功',
+    };
+  }
+
+  /**
+   * 导出行程
+   */
+  async exportJourney(
+    journeyId: string,
+    userId: string,
+    dto: ExportJourneyRequestDto,
+  ): Promise<ExportJourneyResponseDto> {
+    // 检查所有权
+    const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
+    if (!isOwner) {
+      throw new ForbiddenException('无权导出行程');
+    }
+
+    // 获取行程详情
+    const itinerary = await this.getItineraryById(journeyId, userId);
+    if (!itinerary.data) {
+      throw new NotFoundException(`行程不存在: ${journeyId}`);
+    }
+
+    const { format } = dto;
+
+    if (format === 'json') {
+      // JSON 格式：直接返回数据
+      const filename = `journey-${journeyId}-${new Date().toISOString().split('T')[0]}.json`;
+      return {
+        success: true,
+        data: itinerary.data as unknown as Record<string, unknown>,
+        contentType: 'application/json',
+        filename,
+        message: '导出成功',
+      };
+    } else if (format === 'ics') {
+      // ICS 格式：生成 iCalendar 文件
+      const icsContent = this.generateICS(itinerary.data);
+      const filename = `journey-${journeyId}-${new Date().toISOString().split('T')[0]}.ics`;
+      return {
+        success: true,
+        data: icsContent,
+        contentType: 'text/calendar',
+        filename,
+        message: '导出成功',
+      };
+    } else if (format === 'pdf') {
+      // PDF 格式：返回占位符（实际需要 PDF 生成库）
+      const filename = `journey-${journeyId}-${new Date().toISOString().split('T')[0]}.pdf`;
+      return {
+        success: true,
+        data: 'PDF generation not implemented yet',
+        contentType: 'application/pdf',
+        filename,
+        message: 'PDF 导出功能待实现',
+      };
+    }
+
+    throw new BadRequestException(`不支持的导出格式: ${format}`);
+  }
+
+  /**
+   * 生成 ICS 文件内容
+   */
+  private generateICS(itinerary: ItineraryDetailDto): string {
+    const lines: string[] = [];
+    lines.push('BEGIN:VCALENDAR');
+    lines.push('VERSION:2.0');
+    lines.push('PRODID:-//TripMind//Journey Export//EN');
+    lines.push('CALSCALE:GREGORIAN');
+    lines.push('METHOD:PUBLISH');
+
+    if (itinerary.days && Array.isArray(itinerary.days)) {
+      itinerary.days.forEach((day) => {
+        if (day.activities && Array.isArray(day.activities)) {
+          day.activities.forEach((activity) => {
+            const startDate = day.date ? new Date(day.date) : new Date();
+            const [hours, minutes] = activity.time.split(':').map(Number);
+            startDate.setHours(hours || 0, minutes || 0, 0, 0);
+            const endDate = new Date(startDate);
+            endDate.setMinutes(endDate.getMinutes() + (activity.duration || 60));
+
+            const formatDate = (date: Date): string => {
+              return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+            };
+
+            lines.push('BEGIN:VEVENT');
+            lines.push(`UID:${itinerary.id}-${day.day}-${activity.time}@tripmind`);
+            lines.push(`DTSTART:${formatDate(startDate)}`);
+            lines.push(`DTEND:${formatDate(endDate)}`);
+            lines.push(`SUMMARY:${activity.title || '活动'}`);
+            if (activity.notes) {
+              lines.push(`DESCRIPTION:${activity.notes.replace(/\n/g, '\\n')}`);
+            }
+            if (activity.location) {
+              lines.push(`LOCATION:${activity.location.lat},${activity.location.lng}`);
+            }
+            lines.push('END:VEVENT');
+          });
+        }
+      });
+    }
+
+    lines.push('END:VCALENDAR');
+    return lines.join('\r\n');
+  }
+
+  /**
+   * 重置行程
+   */
+  async resetJourney(
+    journeyId: string,
+    userId: string,
+    dto: ResetJourneyRequestDto,
+  ): Promise<ResetJourneyResponseDto> {
+    // 检查所有权
+    const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
+    if (!isOwner) {
+      throw new ForbiddenException('无权重置此行程');
+    }
+
+    // 获取原行程
+    const itinerary = await this.itineraryRepository.findById(journeyId);
+    if (!itinerary) {
+      throw new NotFoundException(`行程不存在: ${journeyId}`);
+    }
+
+    // TODO: 如果 keepHistory 为 true，保存历史版本到数据库
+    let historyVersionId: string | undefined;
+    if (dto.keepHistory !== false) {
+      // 这里应该保存历史版本，暂时使用占位符
+      historyVersionId = `history-${journeyId}-${Date.now()}`;
+    }
+
+    // 重置行程状态为 draft
+    const updated = await this.itineraryRepository.updateItinerary(journeyId, {
+      status: 'draft',
+    });
+
+    if (!updated) {
+      throw new NotFoundException(`行程不存在: ${journeyId}`);
+    }
+
+    // 重新获取更新后的行程
+    const resetItinerary = await this.itineraryRepository.findById(journeyId);
+    if (!resetItinerary) {
+      throw new NotFoundException(`行程不存在: ${journeyId}`);
+    }
+
+    const detailDto = this.entityToDetailDto(resetItinerary);
+    return {
+      success: true,
+      data: {
+        success: true,
+        data: detailDto,
+      } as ItineraryDetailResponseDto,
+      historyVersionId,
+      message: '重置成功',
     };
   }
 

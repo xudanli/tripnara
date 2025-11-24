@@ -10,11 +10,9 @@
 - ✅ 使用用户偏好生成行程测试
 - ✅ AI生成失败错误处理测试
 
-#### Controller 测试 (`itinerary.controller.spec.ts`)
-- ✅ 控制器定义测试
-- ✅ 调用服务生成行程测试
+**测试结果**: 1个测试套件，4个测试用例全部通过
 
-**测试结果**: 2个测试套件，6个测试用例全部通过
+> **注意：** `ItineraryController` 已删除，相关测试文件已移除。现在使用 `JourneyV1Controller` 和 `ItineraryV1Controller`。
 
 ---
 

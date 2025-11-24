@@ -10,8 +10,11 @@ import {
   Min,
   Max,
   MaxLength,
+  MinLength,
   ValidateNested,
   ValidateIf,
+  IsIn,
+  IsBoolean,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 
@@ -1131,5 +1134,175 @@ export class ReorderActivitiesDto {
   @IsArray()
   @IsString({ each: true })
   activityIds!: string[];
+}
+
+/**
+ * 复制行程响应 DTO
+ */
+export class CloneJourneyResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({ description: '新创建的行程数据', type: ItineraryDetailResponseDto })
+  data!: ItineraryDetailResponseDto;
+
+  @ApiPropertyOptional({ description: '消息', example: '复制成功' })
+  message?: string;
+}
+
+/**
+ * 分享行程请求 DTO
+ */
+export class ShareJourneyRequestDto {
+  @ApiPropertyOptional({
+    description: '分享有效期（天数）',
+    example: 7,
+    minimum: 1,
+    maximum: 365,
+    default: 7,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(365)
+  expiresInDays?: number;
+
+  @ApiPropertyOptional({
+    description: '是否需要密码',
+    example: false,
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  requirePassword?: boolean;
+
+  @ApiPropertyOptional({
+    description: '分享密码（如果 requirePassword 为 true）',
+    example: '123456',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(4)
+  @MaxLength(20)
+  password?: string;
+}
+
+/**
+ * 分享行程响应 DTO
+ */
+export class ShareJourneyResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({
+    description: '分享链接',
+    example: 'https://app.example.com/share/abc123def456',
+  })
+  shareUrl!: string;
+
+  @ApiProperty({
+    description: '分享码',
+    example: 'ABC123',
+  })
+  shareCode!: string;
+
+  @ApiPropertyOptional({
+    description: '分享密码（如果设置了密码）',
+    example: '123456',
+  })
+  password?: string;
+
+  @ApiProperty({
+    description: '过期时间',
+    example: '2025-02-01T00:00:00.000Z',
+  })
+  expiresAt!: string;
+
+  @ApiPropertyOptional({ description: '消息', example: '分享成功' })
+  message?: string;
+}
+
+/**
+ * 导出行程请求 DTO
+ */
+export class ExportJourneyRequestDto {
+  @ApiProperty({
+    description: '导出格式',
+    enum: ['pdf', 'ics', 'json'],
+    example: 'pdf',
+  })
+  @IsString()
+  @IsIn(['pdf', 'ics', 'json'])
+  format!: 'pdf' | 'ics' | 'json';
+}
+
+/**
+ * 导出行程响应 DTO
+ */
+export class ExportJourneyResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({
+    description: '导出文件URL（如果是 PDF/ICS）或数据（如果是 JSON）',
+  })
+  data!: string | Record<string, unknown>;
+
+  @ApiProperty({
+    description: '文件类型',
+    example: 'application/pdf',
+  })
+  contentType!: string;
+
+  @ApiProperty({
+    description: '文件名',
+    example: 'journey-2025-01-15.pdf',
+  })
+  filename!: string;
+
+  @ApiPropertyOptional({ description: '消息', example: '导出成功' })
+  message?: string;
+}
+
+/**
+ * 重置行程请求 DTO
+ */
+export class ResetJourneyRequestDto {
+  @ApiPropertyOptional({
+    description: '是否保留历史版本',
+    example: true,
+    default: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  keepHistory?: boolean;
+
+  @ApiPropertyOptional({
+    description: '重置说明',
+    example: '重置为初始状态',
+  })
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}
+
+/**
+ * 重置行程响应 DTO
+ */
+export class ResetJourneyResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({ description: '重置后的行程数据', type: ItineraryDetailResponseDto })
+  data!: ItineraryDetailResponseDto;
+
+  @ApiPropertyOptional({
+    description: '历史版本ID（如果 keepHistory 为 true）',
+    example: 'version-id-123',
+  })
+  historyVersionId?: string;
+
+  @ApiPropertyOptional({ description: '消息', example: '重置成功' })
+  message?: string;
 }
 
