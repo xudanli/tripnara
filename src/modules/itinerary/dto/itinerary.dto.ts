@@ -1306,3 +1306,226 @@ export class ResetJourneyResponseDto {
   message?: string;
 }
 
+/**
+ * 获取任务列表响应 DTO
+ */
+export class TaskListResponseDto {
+  @ApiProperty({ description: '任务列表', type: [TaskDto] })
+  tasks!: TaskDto[];
+}
+
+/**
+ * 同步任务请求 DTO
+ */
+export class SyncTasksRequestDto {
+  @ApiPropertyOptional({
+    description: '是否强制重新生成',
+    example: false,
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  forceRegenerate?: boolean;
+
+  @ApiPropertyOptional({
+    description: '模板ID（如果要从模板同步）',
+  })
+  @IsOptional()
+  @IsString()
+  templateId?: string;
+}
+
+/**
+ * 同步任务响应 DTO
+ */
+export class SyncTasksResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({ description: '同步后的任务列表', type: [TaskDto] })
+  tasks!: TaskDto[];
+
+  @ApiPropertyOptional({ description: '消息', example: '同步成功' })
+  message?: string;
+}
+
+/**
+ * 更新任务请求 DTO
+ */
+export class UpdateTaskRequestDto {
+  @ApiPropertyOptional({ description: '任务标题' })
+  @IsOptional()
+  @IsString()
+  title?: string;
+
+  @ApiPropertyOptional({ description: '是否完成' })
+  @IsOptional()
+  @IsBoolean()
+  completed?: boolean;
+
+  @ApiPropertyOptional({ description: '链接列表', type: [TaskLinkDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TaskLinkDto)
+  links?: TaskLinkDto[];
+}
+
+/**
+ * 更新任务响应 DTO
+ */
+export class UpdateTaskResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({ description: '更新后的任务', type: TaskDto })
+  task!: TaskDto;
+
+  @ApiPropertyOptional({ description: '消息', example: '更新成功' })
+  message?: string;
+}
+
+/**
+ * 创建任务请求 DTO
+ */
+export class CreateTaskRequestDto {
+  @ApiProperty({ description: '任务标题' })
+  @IsString()
+  @IsNotEmpty()
+  title!: string;
+
+  @ApiPropertyOptional({ description: '类别' })
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @ApiPropertyOptional({ description: '目的地' })
+  @IsOptional()
+  @IsString()
+  destination?: string;
+
+  @ApiPropertyOptional({ description: '链接列表', type: [TaskLinkDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TaskLinkDto)
+  links?: TaskLinkDto[];
+}
+
+/**
+ * 创建任务响应 DTO
+ */
+export class CreateTaskResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({ description: '创建的任务', type: TaskDto })
+  task!: TaskDto;
+
+  @ApiPropertyOptional({ description: '消息', example: '创建成功' })
+  message?: string;
+}
+
+/**
+ * 删除任务响应 DTO
+ */
+export class DeleteTaskResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiPropertyOptional({ description: '消息', example: '删除成功' })
+  message?: string;
+}
+
+/**
+ * 准备任务模板列表项 DTO
+ */
+export class PreparationProfileListItemDto {
+  @ApiProperty({ description: '模板ID' })
+  id!: string;
+
+  @ApiProperty({ description: '模板代码' })
+  code!: string;
+
+  @ApiProperty({ description: '模板标题' })
+  title!: string;
+
+  @ApiProperty({ description: '任务数量' })
+  taskCount!: number;
+
+  @ApiProperty({ description: '创建时间' })
+  createdAt!: string;
+
+  @ApiProperty({ description: '更新时间' })
+  updatedAt!: string;
+}
+
+/**
+ * 准备任务模板列表响应 DTO
+ */
+export class PreparationProfileListResponseDto {
+  @ApiProperty({ description: '模板列表', type: [PreparationProfileListItemDto] })
+  data!: PreparationProfileListItemDto[];
+
+  @ApiProperty({ description: '总数量' })
+  total!: number;
+}
+
+/**
+ * 准备任务模板详情响应 DTO
+ */
+export class PreparationProfileDetailResponseDto {
+  @ApiProperty({ description: '模板ID' })
+  id!: string;
+
+  @ApiProperty({ description: '模板代码' })
+  code!: string;
+
+  @ApiProperty({ description: '模板标题' })
+  title!: string;
+
+  @ApiProperty({ description: '任务列表', type: [TaskDto] })
+  tasks!: TaskDto[];
+
+  @ApiProperty({ description: '创建时间' })
+  createdAt!: string;
+
+  @ApiProperty({ description: '更新时间' })
+  updatedAt!: string;
+}
+
+/**
+ * 创建准备任务模板请求 DTO
+ */
+export class CreatePreparationProfileRequestDto {
+  @ApiProperty({ description: '模板代码（唯一标识）', example: 'iceland-general' })
+  @IsString()
+  @IsNotEmpty()
+  code!: string;
+
+  @ApiProperty({ description: '模板标题', example: '冰岛通用准备任务' })
+  @IsString()
+  @IsNotEmpty()
+  title!: string;
+
+  @ApiProperty({ description: '任务列表', type: [TaskDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TaskDto)
+  tasks!: TaskDto[];
+}
+
+/**
+ * 创建准备任务模板响应 DTO
+ */
+export class CreatePreparationProfileResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({ description: '创建的模板数据', type: PreparationProfileDetailResponseDto })
+  data!: PreparationProfileDetailResponseDto;
+
+  @ApiPropertyOptional({ description: '消息', example: '创建成功' })
+  message?: string;
+}
+

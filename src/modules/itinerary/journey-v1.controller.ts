@@ -16,6 +16,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ItineraryService } from './itinerary.service';
 import {
+  GenerateItineraryRequestDto,
+  GenerateItineraryResponseDto,
   CreateItineraryRequestDto,
   CreateItineraryFromFrontendDataDto,
   UpdateItineraryRequestDto,
@@ -39,6 +41,18 @@ import {
   ExportJourneyResponseDto,
   ResetJourneyRequestDto,
   ResetJourneyResponseDto,
+  TaskListResponseDto,
+  SyncTasksRequestDto,
+  SyncTasksResponseDto,
+  UpdateTaskRequestDto,
+  UpdateTaskResponseDto,
+  CreateTaskRequestDto,
+  CreateTaskResponseDto,
+  DeleteTaskResponseDto,
+  PreparationProfileListResponseDto,
+  PreparationProfileDetailResponseDto,
+  CreatePreparationProfileRequestDto,
+  CreatePreparationProfileResponseDto,
 } from './dto/itinerary.dto';
 
 @ApiTags('Journey V1')
@@ -46,6 +60,20 @@ import {
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class JourneyV1Controller {
   constructor(private readonly itineraryService: ItineraryService) {}
+
+  @Post('generate')
+  @ApiOperation({
+    summary: '生成旅行行程',
+    description: '使用 AI 根据目的地、天数、偏好等信息生成详细的旅行行程',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async generateJourney(
+    @Body() dto: GenerateItineraryRequestDto,
+    @CurrentUser() user: { userId: string },
+  ): Promise<GenerateItineraryResponseDto> {
+    return this.itineraryService.generateItinerary(dto, user.userId);
+  }
 
   @Get()
   @ApiOperation({
@@ -364,6 +392,122 @@ export class JourneyV1Controller {
     @CurrentUser() user: { userId: string },
   ): Promise<ResetJourneyResponseDto> {
     return this.itineraryService.resetJourney(journeyId, user.userId, dto);
+  }
+
+  // ========== 任务管理接口 ==========
+
+  @Get(':journeyId/tasks')
+  @ApiOperation({
+    summary: '查看行程准备任务',
+    description: '获取指定行程的所有准备任务',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async getJourneyTasks(
+    @Param('journeyId') journeyId: string,
+    @CurrentUser() user: { userId: string },
+  ): Promise<TaskListResponseDto> {
+    return this.itineraryService.getJourneyTasks(journeyId, user.userId);
+  }
+
+  @Post(':journeyId/tasks/sync')
+  @ApiOperation({
+    summary: '同步任务',
+    description: '根据目的地/模板重新生成并合并任务',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async syncJourneyTasks(
+    @Param('journeyId') journeyId: string,
+    @Body() dto: SyncTasksRequestDto,
+    @CurrentUser() user: { userId: string },
+  ): Promise<SyncTasksResponseDto> {
+    return this.itineraryService.syncJourneyTasks(journeyId, user.userId, dto);
+  }
+
+  @Patch(':journeyId/tasks/:taskId')
+  @ApiOperation({
+    summary: '修改任务',
+    description: '修改任务的完成状态、标题、链接等信息',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async updateJourneyTask(
+    @Param('journeyId') journeyId: string,
+    @Param('taskId') taskId: string,
+    @Body() dto: UpdateTaskRequestDto,
+    @CurrentUser() user: { userId: string },
+  ): Promise<UpdateTaskResponseDto> {
+    return this.itineraryService.updateJourneyTask(journeyId, taskId, user.userId, dto);
+  }
+
+  @Delete(':journeyId/tasks/:taskId')
+  @ApiOperation({
+    summary: '删除任务',
+    description: '删除指定的任务',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async deleteJourneyTask(
+    @Param('journeyId') journeyId: string,
+    @Param('taskId') taskId: string,
+    @CurrentUser() user: { userId: string },
+  ): Promise<DeleteTaskResponseDto> {
+    return this.itineraryService.deleteJourneyTask(journeyId, taskId, user.userId);
+  }
+
+  @Post(':journeyId/tasks')
+  @ApiOperation({
+    summary: '新增自定义任务',
+    description: '为行程添加一个自定义任务',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async createJourneyTask(
+    @Param('journeyId') journeyId: string,
+    @Body() dto: CreateTaskRequestDto,
+    @CurrentUser() user: { userId: string },
+  ): Promise<CreateTaskResponseDto> {
+    return this.itineraryService.createJourneyTask(journeyId, user.userId, dto);
+  }
+
+  // ========== 准备任务模板管理接口 ==========
+
+  @Get('preparation-profiles')
+  @ApiOperation({
+    summary: '获取准备任务模板列表',
+    description: '获取所有准备任务模板（后台维护）',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async getPreparationProfiles(): Promise<PreparationProfileListResponseDto> {
+    return this.itineraryService.getPreparationProfiles();
+  }
+
+  @Get('preparation-profiles/:id')
+  @ApiOperation({
+    summary: '获取准备任务模板详情',
+    description: '根据ID获取准备任务模板的详细信息',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async getPreparationProfileById(
+    @Param('id') id: string,
+  ): Promise<PreparationProfileDetailResponseDto> {
+    return this.itineraryService.getPreparationProfileById(id);
+  }
+
+  @Post('preparation-profiles')
+  @ApiOperation({
+    summary: '创建任务模板',
+    description: '创建新的准备任务模板（仅管理员）',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async createPreparationProfile(
+    @Body() dto: CreatePreparationProfileRequestDto,
+  ): Promise<CreatePreparationProfileResponseDto> {
+    return this.itineraryService.createPreparationProfile(dto);
   }
 }
 

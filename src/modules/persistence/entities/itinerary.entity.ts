@@ -45,6 +45,9 @@ export class ItineraryEntity {
   @Column({ type: 'jsonb', nullable: true })
   preferences?: Record<string, unknown>;
 
+  @Column({ type: 'jsonb', nullable: true })
+  tasks?: Array<Record<string, unknown>>;
+
   @Column({
     type: 'varchar',
     length: 20,
