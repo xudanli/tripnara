@@ -656,6 +656,11 @@ export class CreateItineraryFromFrontendDataDto {
   @IsOptional()
   @IsDateString()
   startDate?: string;
+
+  @ApiPropertyOptional({ description: '后端行程ID（创建时将被忽略，仅用于前端兼容性）' })
+  @IsOptional()
+  @IsString()
+  backendItineraryId?: string;
 }
 
 /**
