@@ -234,7 +234,15 @@ curl -X PATCH "http://localhost:3000/api/v1/journeys/04d7126d-219f-49ab-b71a-a59
             "duration": 120,
             "location": { "lat": 64.1419, "lng": -21.9274 },
             "notes": "提前预订门票",
-            "cost": 1200
+            "cost": 1200,
+            "details": {
+              "name": {
+                "chinese": "蓝湖温泉",
+                "english": "Blue Lagoon"
+              },
+              "openingHours": "每日9:00-22:00",
+              "rating": 4.7
+            }
           }
         ]
       }
