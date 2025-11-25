@@ -32,6 +32,7 @@ type CreateItineraryInput = {
       location: { lat: number; lng: number };
       notes?: string;
       cost?: number;
+      details?: Record<string, unknown>;
     }>;
   }>;
 };
@@ -96,6 +97,7 @@ export class ItineraryRepository {
           location: activityData.location,
           notes: activityData.notes,
           cost: activityData.cost,
+          details: activityData.details,
         });
         await this.activityRepository.save(activity);
       }
@@ -270,6 +272,7 @@ export class ItineraryRepository {
           location: { lat: number; lng: number };
           notes?: string;
           cost?: number;
+          details?: Record<string, unknown>;
         }>;
       }>;
     },
@@ -313,6 +316,7 @@ export class ItineraryRepository {
             location: activityData.location,
             notes: activityData.notes,
             cost: activityData.cost,
+            details: activityData.details,
           });
           await this.activityRepository.save(activity);
         }
@@ -376,6 +380,7 @@ export class ItineraryRepository {
         location: { lat: number; lng: number };
         notes?: string;
         cost?: number;
+        details?: Record<string, unknown>;
       }>;
     }>,
   ): Promise<ItineraryDayEntity[]> {
@@ -403,6 +408,7 @@ export class ItineraryRepository {
             location: act.location,
             notes: act.notes,
             cost: act.cost,
+            details: act.details,
           }),
         );
         await this.activityRepository.save(activities);
@@ -490,6 +496,7 @@ export class ItineraryRepository {
       location: { lat: number; lng: number };
       notes?: string;
       cost?: number;
+      details?: Record<string, unknown>;
     },
   ): Promise<ItineraryActivityEntity> {
     const activity = this.activityRepository.create({
@@ -501,6 +508,7 @@ export class ItineraryRepository {
       location: input.location,
       notes: input.notes,
       cost: input.cost,
+      details: input.details,
     });
     return await this.activityRepository.save(activity);
   }
@@ -518,6 +526,7 @@ export class ItineraryRepository {
       location?: { lat: number; lng: number };
       notes?: string;
       cost?: number;
+      details?: Record<string, unknown>;
     },
   ): Promise<ItineraryActivityEntity | null> {
     const updateData: any = {};
@@ -528,6 +537,7 @@ export class ItineraryRepository {
     if (input.location !== undefined) updateData.location = input.location;
     if (input.notes !== undefined) updateData.notes = input.notes;
     if (input.cost !== undefined) updateData.cost = input.cost;
+    if (input.details !== undefined) updateData.details = input.details;
 
     await this.activityRepository.update(activityId, updateData);
     return await this.activityRepository.findOne({

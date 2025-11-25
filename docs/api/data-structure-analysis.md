@@ -109,6 +109,7 @@
 | `timeSlot.duration` | `ItineraryActivityEntity.duration` | ✅ 完全存储 |
 | `timeSlot.cost` | `ItineraryActivityEntity.cost` | ✅ 完全存储 |
 | `timeSlot.notes` | `ItineraryActivityEntity.notes` | ✅ 完全存储 |
+| `timeSlot.details` | `ItineraryActivityEntity.details` (JSONB) | ✅ **完全存储** |
 
 ### ⚠️ 不会被存储的字段（但不会报错）
 
@@ -117,13 +118,18 @@
 | `backendItineraryId` | 创建新行程不需要ID | 无影响 |
 | `itineraryData.itinerary` | 空数组，会被忽略 | 无影响 |
 | `itineraryData.recommendations` | 当前版本不支持存储 | **详细信息丢失** ⚠️ |
-| `timeSlot.details` | 只保存基础字段，details 会被忽略 | **详细信息丢失** ⚠️ |
+
+### ✅ 现在会被存储的字段（已实现）
+
+| 前端字段路径 | 后端存储位置 | 状态 |
+|-------------|------------|------|
+| `timeSlot.details` | `ItineraryActivityEntity.details` (JSONB) | ✅ **已实现** |
 
 ---
 
 ## ⚠️ 需要注意的问题
 
-### 1. `details` 字段不会存储
+### 1. `details` 字段现在可以存储 ✅
 
 前端数据结构中 `timeSlot.details` 包含了很多详细信息：
 - `details.name`（中文、英文、本地名称）
@@ -137,7 +143,7 @@
 - `details.accessibility`
 - `details.category`
 
-**当前后端只存储基础字段**，这些详细信息会被丢失。
+**✅ 已实现：** 这些详细信息现在会被完整存储到数据库的 JSONB 字段中。
 
 ### 2. `recommendations` 字段不会存储
 

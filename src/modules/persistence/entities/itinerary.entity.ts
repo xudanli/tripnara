@@ -148,6 +148,9 @@ export class ItineraryActivityEntity {
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   cost?: number;
 
+  @Column({ type: 'jsonb', nullable: true })
+  details?: Record<string, unknown>;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt!: Date;
 

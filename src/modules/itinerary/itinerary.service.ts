@@ -544,6 +544,7 @@ ${dateInstructions}
             location,
           notes: act.notes || '',
           cost: act.cost || 0,
+          details: (act as any).details,
           };
         }),
       };
@@ -603,6 +604,7 @@ ${dateInstructions}
             location: act.location || { lat: 0, lng: 0 },
           notes: act.notes || '',
             cost: act.cost ?? 0,
+            details: act.details,
         })),
       })),
     });
@@ -923,6 +925,7 @@ ${dateInstructions}
         location: act.location as { lat: number; lng: number },
         notes: act.notes || '',
         cost: act.cost || 0,
+        details: act.details,
       })),
     }));
 
@@ -1208,6 +1211,7 @@ ${dateInstructions}
         location: act.location as { lat: number; lng: number },
         notes: act.notes || '',
         cost: act.cost ? Number(act.cost) : 0,
+        details: act.details,
       })),
     }));
 
@@ -1290,6 +1294,7 @@ ${dateInstructions}
         location: timeSlot.coordinates || { lat: 0, lng: 0 },
         notes: timeSlot.notes || '',
         cost: timeSlot.cost || 0,
+        details: timeSlot.details,
       };
     };
 
@@ -1562,6 +1567,7 @@ ${dateInstructions}
       notes: act.notes || '',
       duration: act.duration,
       cost: act.cost || 0,
+      details: act.details,
     }));
   }
 
@@ -1718,6 +1724,7 @@ ${dateInstructions}
             location: act.location,
             notes: act.notes || '',
             cost: act.cost || 0,
+            details: (act as any).details,
           })),
         ),
       })),
@@ -1994,6 +2001,7 @@ ${dateInstructions}
         location: act.location as { lat: number; lng: number },
         notes: act.notes || '',
         cost: act.cost || 0,
+        details: act.details,
       })),
     }));
     } catch (error) {
@@ -2068,6 +2076,7 @@ ${dateInstructions}
               location: act.location || { lat: 0, lng: 0 },
               notes: act.notes || '',
               cost: act.cost || 0,
+              details: (act as any).details,
             }))
           : undefined,
       },
@@ -2104,6 +2113,7 @@ ${dateInstructions}
         location: act.location as { lat: number; lng: number },
         notes: act.notes || '',
         cost: act.cost || 0,
+        details: act.details,
       })),
     };
   }
@@ -2200,6 +2210,7 @@ ${dateInstructions}
             location: act.location as { lat: number; lng: number },
             notes: act.notes || '',
             cost: act.cost || 0,
+            details: act.details,
           })),
         }));
       }
@@ -2236,6 +2247,7 @@ ${dateInstructions}
         location: act.location as { lat: number; lng: number },
         notes: act.notes || '',
         cost: act.cost || 0,
+        details: act.details,
       })),
     }));
   }
@@ -2297,6 +2309,7 @@ ${dateInstructions}
         location: act.location as { lat: number; lng: number },
         notes: act.notes || '',
         cost: act.cost || 0,
+        details: act.details,
       })),
     };
   }
@@ -2370,6 +2383,7 @@ ${dateInstructions}
       location: act.location as { lat: number; lng: number },
       notes: act.notes || '',
       cost: act.cost || 0,
+      details: act.details,
     }));
   }
 
@@ -2563,6 +2577,7 @@ ${dateInstructions}
       location: act.location as { lat: number; lng: number },
       notes: act.notes || '',
       cost: act.cost || 0,
+      details: act.details,
     }));
   }
 

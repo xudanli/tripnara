@@ -83,6 +83,11 @@ export class ItineraryActivityDto {
   @ApiProperty({ description: '预估费用', example: 400 })
   @IsNumber()
   cost!: number;
+
+  @ApiPropertyOptional({ description: '详细信息（JSON对象）', example: { name: { chinese: '...', english: '...' } } })
+  @IsOptional()
+  @IsObject()
+  details?: Record<string, unknown>;
 }
 
 export class ItineraryDayDto {
