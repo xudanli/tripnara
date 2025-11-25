@@ -14,7 +14,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { RawBodyPipe } from './pipes/raw-body.pipe';
-import { ApiBearerAuth, ApiOperation, ApiTags, ApiParam, ApiResponse } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags, ApiParam, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ItineraryService } from './itinerary.service';
@@ -438,6 +438,22 @@ export class JourneyV1Controller {
     name: 'journeyId',
     description: '行程ID',
     example: '770e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiBody({
+    type: BatchGetActivitiesRequestDto,
+    description: '批量获取活动请求体',
+    examples: {
+      withDayIds: {
+        summary: '获取指定天数的活动',
+        value: {
+          dayIds: ['day-id-1', 'day-id-2'],
+        },
+      },
+      allDays: {
+        summary: '获取整个行程所有天的活动',
+        value: {},
+      },
+    },
   })
   @ApiResponse({
     status: 200,
