@@ -4,6 +4,7 @@ import {
   Controller,
   Delete,
   Get,
+  Logger,
   Param,
   Patch,
   Post,
@@ -12,6 +13,7 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
+import { RawBodyPipe } from './pipes/raw-body.pipe';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -63,6 +65,8 @@ import {
 @Controller('v1/journeys')
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class JourneyV1Controller {
+  private readonly logger = new Logger(JourneyV1Controller.name);
+  
   constructor(private readonly itineraryService: ItineraryService) {}
 
   @Post('generate')
@@ -210,15 +214,19 @@ export class JourneyV1Controller {
   })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  @UsePipes(new ValidationPipe({ skipMissingProperties: true, whitelist: false, transform: false }))
+  @UsePipes(new RawBodyPipe())
   async createJourneyDay(
     @Param('journeyId') journeyId: string,
-    @Body() body: unknown,
+    @Body(new RawBodyPipe()) body: any,
     @CurrentUser() user: { userId: string },
   ): Promise<
     | (ItineraryDayDto & { id: string })
     | Array<ItineraryDayDto & { id: string }>
   > {
+    // 添加日志以便调试
+    this.logger.debug(`收到创建天数请求: journeyId=${journeyId}, body type=${typeof body}, isArray=${Array.isArray(body)}`);
+    this.logger.debug(`请求体内容: ${JSON.stringify(body)}`);
+    
     // 智能识别输入格式
     let daysData: Array<{ day: number; date: string }> = [];
 
@@ -247,15 +255,18 @@ export class JourneyV1Controller {
           },
         ];
       } else {
+        this.logger.warn(`无效的请求格式: ${JSON.stringify(body)}`);
         throw new BadRequestException(
-          '无效的请求格式。请使用单个对象、数组或包装格式',
+          `无效的请求格式。请使用单个对象 {day: 1, date: "2025-11-25"}、数组格式 [{day: 1, date: "2025-11-25"}, ...] 或包装格式 {days: [{day: 1, date: "2025-11-25"}, ...]}`,
         );
       }
     } else {
+      this.logger.warn(`请求体类型不正确: ${typeof body}, value: ${JSON.stringify(body)}`);
       throw new BadRequestException('请求体必须是对象或数组');
     }
 
     // 验证数据
+    this.logger.debug(`解析后的天数数据: ${daysData.length} 个天数`);
     if (daysData.length === 0) {
       throw new BadRequestException('至少需要提供一个天数数据');
     }

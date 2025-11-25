@@ -68,6 +68,8 @@ const envSchema = z.object({
     .url()
     .optional()
     .default('https://devapi.qweather.com/v7'),
+  UNSPLASH_ACCESS_KEY: z.string().min(1).optional(),
+  PEXELS_API_KEY: z.string().min(1).optional(),
   GUIDES_GOOGLE_API_KEY: z.string().min(1).optional(),
   GUIDES_GOOGLE_CX: z.string().min(1).optional(),
   GOOGLE_CLIENT_ID: z
