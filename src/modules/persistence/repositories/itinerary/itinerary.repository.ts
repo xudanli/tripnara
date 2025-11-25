@@ -1,11 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, FindOptionsWhere } from 'typeorm';
 import {
   ItineraryEntity,
   ItineraryDayEntity,
   ItineraryActivityEntity,
 } from '../../entities/itinerary.entity';
+import {
+  ExpenseEntity,
+  ExpenseCategory,
+  ExpenseSplitType,
+} from '../../entities/expense.entity';
 
 type CreateItineraryInput = {
   userId?: string;
@@ -53,6 +58,8 @@ export class ItineraryRepository {
     private readonly dayRepository: Repository<ItineraryDayEntity>,
     @InjectRepository(ItineraryActivityEntity)
     private readonly activityRepository: Repository<ItineraryActivityEntity>,
+    @InjectRepository(ExpenseEntity)
+    private readonly expenseRepository: Repository<ExpenseEntity>,
   ) {}
 
   async createItinerary(input: CreateItineraryInput): Promise<ItineraryEntity> {
@@ -647,6 +654,169 @@ export class ItineraryRepository {
     await this.itineraryRepository.update(itineraryId, {
       safetyNotice: safetyNotice as any,
     });
+  }
+
+  /**
+   * 获取行程的所有支出记录
+   */
+  async findExpensesByItineraryId(
+    itineraryId: string,
+    filters?: {
+      category?: ExpenseCategory;
+      startDate?: Date;
+      endDate?: Date;
+      payerId?: string;
+    },
+  ): Promise<ExpenseEntity[]> {
+    const where: FindOptionsWhere<ExpenseEntity> = { itineraryId };
+
+    if (filters?.category) {
+      where.category = filters.category;
+    }
+    if (filters?.payerId) {
+      where.payerId = filters.payerId;
+    }
+
+    const expenses = await this.expenseRepository.find({
+      where,
+      order: { date: 'DESC', createdAt: 'DESC' },
+    });
+
+    // 如果提供了日期范围，在内存中过滤（因为 date 是 date 类型，查询比较麻烦）
+    if (filters?.startDate || filters?.endDate) {
+      return expenses.filter((expense) => {
+        const expenseDate = new Date(expense.date);
+        if (filters.startDate && expenseDate < filters.startDate) {
+          return false;
+        }
+        if (filters.endDate) {
+          const endDate = new Date(filters.endDate);
+          endDate.setHours(23, 59, 59, 999);
+          if (expenseDate > endDate) {
+            return false;
+          }
+        }
+        return true;
+      });
+    }
+
+    return expenses;
+  }
+
+  /**
+   * 计算支出总额
+   */
+  async calculateTotalExpenses(
+    itineraryId: string,
+    currencyCode?: string,
+  ): Promise<number> {
+    const expenses = await this.findExpensesByItineraryId(itineraryId);
+
+    if (currencyCode) {
+      // 如果指定了货币代码，只计算该货币的支出
+      const filteredExpenses = expenses.filter(
+        (expense) => expense.currencyCode === currencyCode,
+      );
+      return filteredExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
+    }
+
+    // 默认计算所有支出（不进行货币转换）
+    return expenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
+  }
+
+  /**
+   * 创建支出记录
+   */
+  async createExpense(
+    itineraryId: string,
+    input: {
+      title: string;
+      amount: number;
+      currencyCode: string;
+      category?: ExpenseCategory;
+      location?: string;
+      payerId?: string;
+      payerName?: string;
+      splitType?: ExpenseSplitType;
+      splitDetails?: Record<string, number>;
+      date: Date;
+      notes?: string;
+    },
+  ): Promise<ExpenseEntity> {
+    const expense = this.expenseRepository.create({
+      itineraryId,
+      title: input.title,
+      amount: input.amount,
+      currencyCode: input.currencyCode || 'USD',
+      category: input.category,
+      location: input.location,
+      payerId: input.payerId,
+      payerName: input.payerName,
+      splitType: input.splitType || 'none',
+      splitDetails: input.splitDetails,
+      date: input.date,
+      notes: input.notes,
+    });
+
+    return await this.expenseRepository.save(expense);
+  }
+
+  /**
+   * 更新支出记录
+   */
+  async updateExpense(
+    expenseId: string,
+    input: {
+      title?: string;
+      amount?: number;
+      currencyCode?: string;
+      category?: ExpenseCategory;
+      location?: string;
+      payerId?: string;
+      payerName?: string;
+      splitType?: ExpenseSplitType;
+      splitDetails?: Record<string, number>;
+      date?: Date;
+      notes?: string;
+    },
+  ): Promise<ExpenseEntity | null> {
+    const updateData: any = {};
+    if (input.title !== undefined) updateData.title = input.title;
+    if (input.amount !== undefined) updateData.amount = input.amount;
+    if (input.currencyCode !== undefined) updateData.currencyCode = input.currencyCode;
+    if (input.category !== undefined) updateData.category = input.category;
+    if (input.location !== undefined) updateData.location = input.location;
+    if (input.payerId !== undefined) updateData.payerId = input.payerId;
+    if (input.payerName !== undefined) updateData.payerName = input.payerName;
+    if (input.splitType !== undefined) updateData.splitType = input.splitType;
+    if (input.splitDetails !== undefined) updateData.splitDetails = input.splitDetails;
+    if (input.date !== undefined) updateData.date = input.date;
+    if (input.notes !== undefined) updateData.notes = input.notes;
+
+    await this.expenseRepository.update(expenseId, updateData);
+    return await this.expenseRepository.findOne({ where: { id: expenseId } });
+  }
+
+  /**
+   * 删除支出记录
+   */
+  async deleteExpense(expenseId: string): Promise<boolean> {
+    const result = await this.expenseRepository.delete(expenseId);
+    return (result.affected ?? 0) > 0;
+  }
+
+  /**
+   * 检查支出是否属于指定行程
+   */
+  async checkExpenseOwnership(
+    expenseId: string,
+    itineraryId: string,
+  ): Promise<boolean> {
+    const expense = await this.expenseRepository.findOne({
+      where: { id: expenseId, itineraryId },
+      select: ['id'],
+    });
+    return !!expense;
   }
 }
 

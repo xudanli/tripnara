@@ -1610,3 +1610,220 @@ export class GetSafetyNoticeResponseDto {
   data!: SafetyNoticeDto;
 }
 
+/**
+ * 支出分类类型
+ */
+export type ExpenseCategory =
+  | '交通'
+  | '住宿'
+  | '餐饮'
+  | '景点'
+  | '购物'
+  | '其他';
+
+/**
+ * 分摊方式类型
+ */
+export type ExpenseSplitType = 'none' | 'equal' | 'custom';
+
+/**
+ * 支出 DTO
+ */
+export class ExpenseDto {
+  @ApiProperty({ description: '支出ID', example: 'exp_123456' })
+  id!: string;
+
+  @ApiProperty({ description: '支出标题', example: '午餐' })
+  title!: string;
+
+  @ApiProperty({ description: '支出金额', example: 2500 })
+  amount!: number;
+
+  @ApiProperty({ description: '货币代码', example: 'ISK' })
+  currencyCode!: string;
+
+  @ApiPropertyOptional({
+    description: '分类',
+    enum: ['交通', '住宿', '餐饮', '景点', '购物', '其他'],
+    example: '餐饮',
+  })
+  category?: ExpenseCategory;
+
+  @ApiPropertyOptional({ description: '位置/商家', example: '雷克雅未克市中心餐厅' })
+  location?: string;
+
+  @ApiPropertyOptional({ description: '付款人ID', example: 'user_001' })
+  payerId?: string;
+
+  @ApiPropertyOptional({ description: '付款人名称', example: '张三' })
+  payerName?: string;
+
+  @ApiPropertyOptional({
+    description: '分摊方式',
+    enum: ['none', 'equal', 'custom'],
+    example: 'equal',
+    default: 'none',
+  })
+  splitType?: ExpenseSplitType;
+
+  @ApiPropertyOptional({
+    description: '自定义分摊详情',
+    example: { memberId1: 1000, memberId2: 1500 },
+  })
+  splitDetails?: Record<string, number>;
+
+  @ApiProperty({ description: '支出日期', example: '2025-11-25' })
+  date!: string;
+
+  @ApiPropertyOptional({ description: '备注', example: '四人AA' })
+  notes?: string;
+
+  @ApiProperty({ description: '创建时间', example: '2025-11-25T12:00:00Z' })
+  createdAt!: string;
+
+  @ApiProperty({ description: '更新时间', example: '2025-11-25T12:00:00Z' })
+  updatedAt!: string;
+}
+
+/**
+ * 创建支出请求 DTO
+ */
+export class CreateExpenseDto {
+  @ApiProperty({ description: '支出标题', example: '午餐' })
+  @IsString()
+  @IsNotEmpty()
+  title!: string;
+
+  @ApiProperty({ description: '支出金额', example: 2500, minimum: 0.01 })
+  @IsNumber()
+  @Min(0.01, { message: '支出金额必须大于0' })
+  amount!: number;
+
+  @ApiPropertyOptional({ description: '货币代码', example: 'ISK', default: 'USD' })
+  @IsOptional()
+  @IsString()
+  @MinLength(3)
+  @MaxLength(10)
+  currencyCode?: string;
+
+  @ApiPropertyOptional({
+    description: '分类',
+    enum: ['交通', '住宿', '餐饮', '景点', '购物', '其他'],
+    example: '餐饮',
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['交通', '住宿', '餐饮', '景点', '购物', '其他'])
+  category?: ExpenseCategory;
+
+  @ApiPropertyOptional({ description: '位置/商家', example: '雷克雅未克市中心餐厅' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  location?: string;
+
+  @ApiPropertyOptional({ description: '付款人ID', example: 'user_001' })
+  @IsOptional()
+  @IsString()
+  payerId?: string;
+
+  @ApiPropertyOptional({ description: '付款人名称', example: '张三' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  payerName?: string;
+
+  @ApiPropertyOptional({
+    description: '分摊方式',
+    enum: ['none', 'equal', 'custom'],
+    example: 'equal',
+    default: 'none',
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['none', 'equal', 'custom'])
+  splitType?: ExpenseSplitType;
+
+  @ApiPropertyOptional({
+    description: '自定义分摊详情（当splitType为custom时必填）',
+    example: { memberId1: 1000, memberId2: 1500 },
+  })
+  @IsOptional()
+  @IsObject()
+  @ValidateIf((o) => o.splitType === 'custom')
+  @IsNotEmpty({ message: '当分摊方式为custom时，必须提供splitDetails' })
+  splitDetails?: Record<string, number>;
+
+  @ApiPropertyOptional({
+    description: '支出日期',
+    example: '2025-11-25',
+    default: 'today',
+  })
+  @IsOptional()
+  @IsDateString()
+  date?: string;
+
+  @ApiPropertyOptional({ description: '备注', example: '四人AA' })
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+/**
+ * 更新支出请求 DTO
+ */
+export class UpdateExpenseDto extends PartialType(CreateExpenseDto) {}
+
+/**
+ * 获取支出列表响应 DTO
+ */
+export class GetExpenseListResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({ description: '支出列表', type: [ExpenseDto] })
+  data!: ExpenseDto[];
+
+  @ApiProperty({ description: '总支出金额', example: 2500 })
+  total!: number;
+}
+
+/**
+ * 创建支出响应 DTO
+ */
+export class CreateExpenseResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({ description: '创建的支出', type: ExpenseDto })
+  data!: ExpenseDto;
+
+  @ApiPropertyOptional({ description: '消息', example: '支出创建成功' })
+  message?: string;
+}
+
+/**
+ * 更新支出响应 DTO
+ */
+export class UpdateExpenseResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({ description: '更新后的支出', type: ExpenseDto })
+  data!: ExpenseDto;
+
+  @ApiPropertyOptional({ description: '消息', example: '支出更新成功' })
+  message?: string;
+}
+
+/**
+ * 删除支出响应 DTO
+ */
+export class DeleteExpenseResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiPropertyOptional({ description: '消息', example: '支出删除成功' })
+  message?: string;
+}
+

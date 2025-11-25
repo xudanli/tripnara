@@ -59,6 +59,12 @@ import {
   GenerateSafetyNoticeRequestDto,
   GenerateSafetyNoticeResponseDto,
   GetSafetyNoticeResponseDto,
+  CreateExpenseDto,
+  UpdateExpenseDto,
+  GetExpenseListResponseDto,
+  CreateExpenseResponseDto,
+  UpdateExpenseResponseDto,
+  DeleteExpenseResponseDto,
 } from './dto/itinerary.dto';
 
 @ApiTags('Journey V1')
@@ -703,6 +709,81 @@ export class JourneyV1Controller {
     @CurrentUser() user: { userId: string },
   ): Promise<GetSafetyNoticeResponseDto> {
     return this.itineraryService.getSafetyNotice(journeyId, user.userId);
+  }
+
+  // ==================== 支出管理接口 ====================
+
+  @Get(':journeyId/expenses')
+  @ApiOperation({
+    summary: '获取支出列表',
+    description: '获取行程的所有支出记录，支持按分类、日期、付款人筛选',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async getExpenses(
+    @Param('journeyId') journeyId: string,
+    @CurrentUser() user: { userId: string },
+    @Query('category') category?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('payerId') payerId?: string,
+  ): Promise<GetExpenseListResponseDto> {
+    return this.itineraryService.getExpenses(
+      journeyId,
+      user.userId,
+      {
+        category,
+        startDate,
+        endDate,
+        payerId,
+      },
+    );
+  }
+
+  @Post(':journeyId/expenses')
+  @ApiOperation({
+    summary: '创建支出',
+    description: '为行程添加新的支出记录',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async createExpense(
+    @Param('journeyId') journeyId: string,
+    @Body() dto: CreateExpenseDto,
+    @CurrentUser() user: { userId: string },
+  ): Promise<CreateExpenseResponseDto> {
+    return this.itineraryService.createExpense(journeyId, dto, user.userId);
+  }
+
+  @Patch(':journeyId/expenses/:expenseId')
+  @ApiOperation({
+    summary: '更新支出',
+    description: '更新指定的支出记录',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async updateExpense(
+    @Param('journeyId') journeyId: string,
+    @Param('expenseId') expenseId: string,
+    @Body() dto: UpdateExpenseDto,
+    @CurrentUser() user: { userId: string },
+  ): Promise<UpdateExpenseResponseDto> {
+    return this.itineraryService.updateExpense(journeyId, expenseId, dto, user.userId);
+  }
+
+  @Delete(':journeyId/expenses/:expenseId')
+  @ApiOperation({
+    summary: '删除支出',
+    description: '删除指定的支出记录',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async deleteExpense(
+    @Param('journeyId') journeyId: string,
+    @Param('expenseId') expenseId: string,
+    @CurrentUser() user: { userId: string },
+  ): Promise<DeleteExpenseResponseDto> {
+    return this.itineraryService.deleteExpense(journeyId, expenseId, user.userId);
   }
 }
 
