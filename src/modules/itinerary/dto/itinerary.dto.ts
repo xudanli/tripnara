@@ -1529,3 +1529,60 @@ export class CreatePreparationProfileResponseDto {
   message?: string;
 }
 
+/**
+ * 生成安全提示请求 DTO
+ */
+export class GenerateSafetyNoticeRequestDto {
+  @ApiPropertyOptional({ description: '语言代码', example: 'zh-CN', default: 'zh-CN' })
+  @IsOptional()
+  @IsString()
+  lang?: string;
+
+  @ApiPropertyOptional({ description: '是否强制刷新（忽略缓存）', example: false, default: false })
+  @IsOptional()
+  @IsBoolean()
+  forceRefresh?: boolean;
+}
+
+/**
+ * 安全提示响应 DTO
+ */
+export class SafetyNoticeDto {
+  @ApiProperty({ description: '安全提示文本', example: '前往冰岛旅行时，请注意以下安全事项...' })
+  noticeText!: string;
+
+  @ApiProperty({ description: '语言代码', example: 'zh-CN' })
+  lang!: string;
+
+  @ApiPropertyOptional({ description: '是否来自缓存', example: true })
+  fromCache?: boolean;
+
+  @ApiPropertyOptional({ description: '生成时间', example: '2025-01-15T10:00:00.000Z' })
+  generatedAt?: string;
+}
+
+/**
+ * 生成安全提示响应 DTO
+ */
+export class GenerateSafetyNoticeResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({ description: '安全提示数据', type: SafetyNoticeDto })
+  data!: SafetyNoticeDto;
+
+  @ApiPropertyOptional({ description: '消息', example: '安全提示生成成功' })
+  message?: string;
+}
+
+/**
+ * 获取安全提示响应 DTO
+ */
+export class GetSafetyNoticeResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({ description: '安全提示数据', type: SafetyNoticeDto })
+  data!: SafetyNoticeDto;
+}
+

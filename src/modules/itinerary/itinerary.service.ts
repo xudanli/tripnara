@@ -12,6 +12,8 @@ import { JourneyTemplateRepository } from '../persistence/repositories/journey-t
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PreparationProfileEntity } from '../persistence/entities/reference.entity';
+import { AiSafetyNoticeCacheEntity } from '../persistence/entities/ai-log.entity';
+import * as crypto from 'crypto';
 import {
   GenerateItineraryRequestDto,
   GenerateItineraryResponseDto,
@@ -62,6 +64,10 @@ import {
   PreparationProfileDetailResponseDto,
   CreatePreparationProfileRequestDto,
   CreatePreparationProfileResponseDto,
+  GenerateSafetyNoticeRequestDto,
+  GenerateSafetyNoticeResponseDto,
+  GetSafetyNoticeResponseDto,
+  SafetyNoticeDto,
 } from './dto/itinerary.dto';
 import {
   ItineraryEntity,
@@ -103,6 +109,8 @@ export class ItineraryService {
     private readonly templateRepository: JourneyTemplateRepository,
     @InjectRepository(PreparationProfileEntity)
     private readonly preparationProfileRepository: Repository<PreparationProfileEntity>,
+    @InjectRepository(AiSafetyNoticeCacheEntity)
+    private readonly safetyNoticeCacheRepository: Repository<AiSafetyNoticeCacheEntity>,
   ) {}
 
   async generateItinerary(
@@ -2537,6 +2545,210 @@ ${dateInstructions}
       },
       message: '创建成功',
     };
+  }
+
+  /**
+   * 生成安全提示
+   */
+  async generateSafetyNotice(
+    journeyId: string,
+    userId: string,
+    dto: GenerateSafetyNoticeRequestDto,
+  ): Promise<GenerateSafetyNoticeResponseDto> {
+    // 验证行程存在且属于用户
+    const itinerary = await this.itineraryRepository.findById(journeyId);
+    if (!itinerary) {
+      throw new NotFoundException(`行程不存在: ${journeyId}`);
+    }
+    if (itinerary.userId !== userId) {
+      throw new ForbiddenException('无权访问此行程');
+    }
+
+    const lang = dto.lang || 'zh-CN';
+    const forceRefresh = dto.forceRefresh || false;
+
+    // 构建缓存键：目的地 + 语言 + 行程摘要的哈希
+    const destination = itinerary.destination || '未知目的地';
+    const summary = itinerary.summary || '';
+    const cacheKey = this.buildSafetyNoticeCacheKey(destination, lang, summary);
+
+    // 如果不强制刷新，先检查缓存
+    if (!forceRefresh) {
+      const cached = await this.safetyNoticeCacheRepository.findOne({
+        where: { cacheKey },
+      });
+
+      if (cached) {
+        // 检查缓存是否过期（7天）
+        const cacheAge = Date.now() - cached.updatedAt.getTime();
+        const cacheTTL = 7 * 24 * 60 * 60 * 1000; // 7天
+
+        if (cacheAge < cacheTTL) {
+          return {
+            success: true,
+            data: {
+              noticeText: cached.noticeText,
+              lang: cached.lang,
+              fromCache: true,
+              generatedAt: cached.updatedAt.toISOString(),
+            },
+            message: '安全提示（来自缓存）',
+          };
+        }
+      }
+    }
+
+    // 生成新的安全提示
+    const noticeText = await this.generateSafetyNoticeWithAI(destination, summary, lang);
+
+    // 保存或更新缓存
+    let cacheEntity = await this.safetyNoticeCacheRepository.findOne({
+      where: { cacheKey },
+    });
+
+    if (cacheEntity) {
+      cacheEntity.noticeText = noticeText;
+      cacheEntity.lang = lang;
+      cacheEntity.updatedAt = new Date();
+      await this.safetyNoticeCacheRepository.save(cacheEntity);
+    } else {
+      cacheEntity = this.safetyNoticeCacheRepository.create({
+        cacheKey,
+        noticeText,
+        lang,
+        metadata: {
+          destination,
+          journeyId,
+        },
+      });
+      await this.safetyNoticeCacheRepository.save(cacheEntity);
+    }
+
+    // 更新行程的安全提示字段
+    await this.itineraryRepository.updateSafetyNotice(journeyId, {
+      noticeText,
+      lang,
+      generatedAt: new Date().toISOString(),
+      cacheKey,
+    });
+
+    return {
+      success: true,
+      data: {
+        noticeText,
+        lang,
+        fromCache: false,
+        generatedAt: new Date().toISOString(),
+      },
+      message: '安全提示生成成功',
+    };
+  }
+
+  /**
+   * 获取安全提示
+   */
+  async getSafetyNotice(
+    journeyId: string,
+    userId: string,
+  ): Promise<GetSafetyNoticeResponseDto> {
+    // 验证行程存在且属于用户
+    const itinerary = await this.itineraryRepository.findById(journeyId);
+    if (!itinerary) {
+      throw new NotFoundException(`行程不存在: ${journeyId}`);
+    }
+    if (itinerary.userId !== userId) {
+      throw new ForbiddenException('无权访问此行程');
+    }
+
+    // 从行程中获取安全提示
+    const safetyNotice = itinerary.safetyNotice as
+      | { noticeText: string; lang: string; generatedAt: string; cacheKey?: string }
+      | undefined;
+
+    if (safetyNotice && safetyNotice.noticeText) {
+      return {
+        success: true,
+        data: {
+          noticeText: safetyNotice.noticeText,
+          lang: safetyNotice.lang || 'zh-CN',
+          fromCache: false,
+          generatedAt: safetyNotice.generatedAt,
+        },
+      };
+    }
+
+    // 如果没有安全提示，返回空提示
+    return {
+      success: true,
+      data: {
+        noticeText: '暂无安全提示，请先生成安全提示。',
+        lang: 'zh-CN',
+        fromCache: false,
+      },
+    };
+  }
+
+  /**
+   * 构建安全提示缓存键
+   */
+  private buildSafetyNoticeCacheKey(
+    destination: string,
+    lang: string,
+    summary: string,
+  ): string {
+    // 使用目的地、语言和摘要的前100个字符构建哈希
+    const summaryHash = crypto
+      .createHash('md5')
+      .update(summary.substring(0, 100))
+      .digest('hex')
+      .substring(0, 8);
+    return `safety:${destination}:${lang}:${summaryHash}`;
+  }
+
+  /**
+   * 使用 AI 生成安全提示
+   */
+  private async generateSafetyNoticeWithAI(
+    destination: string,
+    summary: string,
+    lang: string,
+  ): Promise<string> {
+    const systemMessage = `你是一个专业的旅行安全顾问，擅长为不同目的地提供详细、实用的安全提示和建议。
+
+请根据目的地信息和行程摘要，生成一份全面的安全提示，包括：
+1. 当地安全状况
+2. 常见风险和注意事项
+3. 紧急联系方式
+4. 健康和安全建议
+5. 文化礼仪提醒
+
+请用${lang === 'zh-CN' ? '中文' : '英文'}回复，内容要详细、实用，字数控制在500-800字。`;
+
+    const prompt = `目的地：${destination}
+
+行程摘要：${summary || '无'}
+
+请为这个目的地生成详细的安全提示。`;
+
+    try {
+      const noticeText = await this.llmService.chatCompletion({
+        provider: 'deepseek',
+        model: 'deepseek-chat',
+        messages: [
+          { role: 'system', content: systemMessage },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.7,
+        maxOutputTokens: 1500,
+      });
+
+      return noticeText.trim();
+    } catch (error) {
+      this.logger.error(`生成安全提示失败: ${error}`);
+      throw new BadRequestException(
+        `AI服务调用失败: ${error instanceof Error ? error.message : '未知错误'}`,
+      );
+    }
   }
 }
 

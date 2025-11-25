@@ -53,6 +53,9 @@ import {
   PreparationProfileDetailResponseDto,
   CreatePreparationProfileRequestDto,
   CreatePreparationProfileResponseDto,
+  GenerateSafetyNoticeRequestDto,
+  GenerateSafetyNoticeResponseDto,
+  GetSafetyNoticeResponseDto,
 } from './dto/itinerary.dto';
 
 @ApiTags('Journey V1')
@@ -508,6 +511,35 @@ export class JourneyV1Controller {
     @Body() dto: CreatePreparationProfileRequestDto,
   ): Promise<CreatePreparationProfileResponseDto> {
     return this.itineraryService.createPreparationProfile(dto);
+  }
+
+  @Post(':journeyId/safety-notice')
+  @ApiOperation({
+    summary: '生成安全提示',
+    description: '为行程生成/刷新安全提示（调用 AI + 缓存）',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async generateSafetyNotice(
+    @Param('journeyId') journeyId: string,
+    @CurrentUser() user: { userId: string },
+    @Body() dto: GenerateSafetyNoticeRequestDto,
+  ): Promise<GenerateSafetyNoticeResponseDto> {
+    return this.itineraryService.generateSafetyNotice(journeyId, user.userId, dto);
+  }
+
+  @Get(':journeyId/safety-notice')
+  @ApiOperation({
+    summary: '获取安全提示',
+    description: '获取当前行程的安全提示内容',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async getSafetyNotice(
+    @Param('journeyId') journeyId: string,
+    @CurrentUser() user: { userId: string },
+  ): Promise<GetSafetyNoticeResponseDto> {
+    return this.itineraryService.getSafetyNotice(journeyId, user.userId);
   }
 }
 

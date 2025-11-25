@@ -572,5 +572,14 @@ export class ItineraryRepository {
     await this.updateTasks(itineraryId, filteredTasks);
     return filteredTasks;
   }
+
+  async updateSafetyNotice(
+    itineraryId: string,
+    safetyNotice: Record<string, unknown>,
+  ): Promise<void> {
+    await this.itineraryRepository.update(itineraryId, {
+      safetyNotice: safetyNotice as any,
+    });
+  }
 }
 
