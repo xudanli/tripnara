@@ -131,6 +131,13 @@ export class JourneyV1Controller {
   })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @UsePipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      forbidNonWhitelisted: false, // 禁用禁止未列出的属性，允许前端传递额外字段
+    }),
+  )
   async createJourneyFromFrontendData(
     @Body() dto: CreateItineraryFromFrontendDataDto,
     @CurrentUser() user: { userId: string },
