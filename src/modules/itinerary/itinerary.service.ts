@@ -2402,6 +2402,69 @@ ${dateInstructions}
   }
 
   /**
+   * 批量获取多个天数的活动详情
+   */
+  async batchGetJourneyActivities(
+    journeyId: string,
+    dayIds: string[] | undefined,
+    userId?: string,
+  ): Promise<{
+    activities: Record<string, Array<ItineraryActivityDto & { id: string }>>;
+    totalCount: number;
+  }> {
+    // 检查所有权
+    if (userId) {
+      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
+      if (!isOwner) {
+        throw new ForbiddenException('无权访问此行程');
+      }
+
+      // 如果指定了 dayIds，验证这些天数是否属于此行程
+      if (dayIds && dayIds.length > 0) {
+        for (const dayId of dayIds) {
+          const dayOwnership = await this.itineraryRepository.checkDayOwnership(dayId, journeyId);
+          if (!dayOwnership) {
+            throw new ForbiddenException(`天数 ${dayId} 不属于此行程`);
+          }
+        }
+      }
+    }
+
+    // 批量查询活动
+    const activitiesMap = await this.itineraryRepository.findActivitiesByDayIds(dayIds, journeyId);
+
+    // 转换为 DTO 格式
+    const result: Record<string, Array<ItineraryActivityDto & { id: string }>> = {};
+    let totalCount = 0;
+
+    for (const [dayId, activities] of Object.entries(activitiesMap)) {
+      result[dayId] = activities.map((act) => ({
+        id: act.id,
+        time: act.time,
+        title: act.title,
+        type: act.type as
+          | 'attraction'
+          | 'meal'
+          | 'hotel'
+          | 'shopping'
+          | 'transport'
+          | 'ocean',
+        duration: act.duration,
+        location: act.location as { lat: number; lng: number },
+        notes: act.notes || '',
+        cost: act.cost || 0,
+        details: act.details,
+      }));
+      totalCount += result[dayId].length;
+    }
+
+    return {
+      activities: result,
+      totalCount,
+    };
+  }
+
+  /**
    * 为指定天数添加活动
    */
   async createJourneyDayActivity(

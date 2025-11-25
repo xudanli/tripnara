@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindOptionsWhere } from 'typeorm';
+import { Repository, FindOptionsWhere, In } from 'typeorm';
 import {
   ItineraryEntity,
   ItineraryDayEntity,
@@ -485,6 +485,52 @@ export class ItineraryRepository {
       where: { dayId },
       order: { time: 'ASC' },
     });
+  }
+
+  /**
+   * 批量获取多个天数的活动
+   * @param dayIds 天数ID列表，如果为空则获取整个行程的所有活动
+   * @param itineraryId 行程ID（用于验证所有权和获取所有天数）
+   */
+  async findActivitiesByDayIds(
+    dayIds: string[] | undefined,
+    itineraryId: string,
+  ): Promise<Record<string, ItineraryActivityEntity[]>> {
+    let targetDayIds = dayIds;
+
+    // 如果没有指定 dayIds，获取整个行程的所有天数
+    if (!targetDayIds || targetDayIds.length === 0) {
+      const days = await this.findDaysByItineraryId(itineraryId);
+      targetDayIds = days.map((day) => day.id);
+    }
+
+    if (targetDayIds.length === 0) {
+      return {};
+    }
+
+    // 批量查询所有指定天数的活动
+    const activities = await this.activityRepository.find({
+      where: { dayId: In(targetDayIds) },
+      order: { dayId: 'ASC', time: 'ASC' },
+    });
+
+    // 按 dayId 分组
+    const result: Record<string, ItineraryActivityEntity[]> = {};
+    activities.forEach((activity) => {
+      if (!result[activity.dayId]) {
+        result[activity.dayId] = [];
+      }
+      result[activity.dayId].push(activity);
+    });
+
+    // 确保所有请求的 dayIds 都有对应的键（即使为空数组）
+    targetDayIds.forEach((dayId) => {
+      if (!result[dayId]) {
+        result[dayId] = [];
+      }
+    });
+
+    return result;
   }
 
   /**

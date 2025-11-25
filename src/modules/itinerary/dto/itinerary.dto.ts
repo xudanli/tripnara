@@ -1837,3 +1837,47 @@ export class DeleteExpenseResponseDto {
   message?: string;
 }
 
+/**
+ * 批量获取活动详情请求 DTO
+ */
+export class BatchGetActivitiesRequestDto {
+  @ApiPropertyOptional({
+    description: '天数ID列表，如果不提供则获取整个行程所有天的活动',
+    type: [String],
+    example: ['day-id-1', 'day-id-2'],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  dayIds?: string[];
+}
+
+/**
+ * 批量获取活动详情响应 DTO
+ * 按天数分组返回活动列表
+ */
+export class BatchActivitiesResponseDto {
+  @ApiProperty({
+    description: '活动详情，按天数ID分组',
+    example: {
+      'day-id-1': [
+        {
+          id: 'activity-id-1',
+          time: '09:00',
+          title: '活动标题',
+          type: 'attraction',
+          duration: 90,
+          location: { lat: 64.1419, lng: -21.9274 },
+          notes: '活动备注',
+          cost: 1200,
+          details: {},
+        },
+      ],
+    },
+  })
+  activities!: Record<string, Array<ItineraryActivityDto & { id: string }>>;
+
+  @ApiProperty({ description: '总活动数量', example: 10 })
+  totalCount!: number;
+}
+

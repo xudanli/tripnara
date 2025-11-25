@@ -65,6 +65,8 @@ import {
   CreateExpenseResponseDto,
   UpdateExpenseResponseDto,
   DeleteExpenseResponseDto,
+  BatchGetActivitiesRequestDto,
+  BatchActivitiesResponseDto,
 } from './dto/itinerary.dto';
 
 @ApiTags('Journey V1')
@@ -439,6 +441,30 @@ export class JourneyV1Controller {
     @CurrentUser() user: { userId: string },
   ): Promise<Array<ItineraryActivityDto & { id: string }>> {
     return this.itineraryService.getJourneyDayActivities(journeyId, dayId, user.userId);
+  }
+
+  @Post(':journeyId/activities/batch')
+  @ApiOperation({
+    summary: '批量获取多个天数的活动详情',
+    description:
+      '批量获取指定行程中多个天数的所有活动详情。如果不提供 dayIds，则返回整个行程所有天的活动。',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async batchGetJourneyActivities(
+    @Param('journeyId') journeyId: string,
+    @Body() dto: BatchGetActivitiesRequestDto,
+    @CurrentUser() user: { userId: string },
+  ): Promise<BatchActivitiesResponseDto> {
+    const result = await this.itineraryService.batchGetJourneyActivities(
+      journeyId,
+      dto.dayIds,
+      user.userId,
+    );
+    return {
+      activities: result.activities,
+      totalCount: result.totalCount,
+    };
   }
 
   @Post(':journeyId/days/:dayId/slots')
