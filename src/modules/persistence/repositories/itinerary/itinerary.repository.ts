@@ -78,15 +78,29 @@ export class ItineraryRepository {
     const savedItinerary = await this.itineraryRepository.save(itinerary);
 
     // 创建天数
-    console.log(`[ItineraryRepository] Creating ${input.daysData.length} days for itinerary ${savedItinerary.id}`);
+    console.log(`[ItineraryRepository] Creating ${input.daysData?.length || 0} days for itinerary ${savedItinerary.id}`);
+    
+    if (!input.daysData || input.daysData.length === 0) {
+      console.warn(`[ItineraryRepository] WARNING: No days data provided for itinerary ${savedItinerary.id}`);
+      const result = await this.findById(savedItinerary.id);
+      if (!result) {
+        throw new Error('Failed to create itinerary');
+      }
+      return result;
+    }
+    
     for (const dayData of input.daysData) {
+      if (!dayData.activities) {
+        dayData.activities = [];
+      }
+      
       const day = this.dayRepository.create({
         itineraryId: savedItinerary.id,
         day: dayData.day,
         date: dayData.date,
       });
       const savedDay = await this.dayRepository.save(day);
-      console.log(`[ItineraryRepository] Created day ${savedDay.day} with ${dayData.activities.length} activities`);
+      console.log(`[ItineraryRepository] Created day ${savedDay.day} (id: ${savedDay.id}) with ${dayData.activities.length} activities`);
 
       // 创建活动
       for (const activityData of dayData.activities) {

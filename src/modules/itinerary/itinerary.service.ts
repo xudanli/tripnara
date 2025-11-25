@@ -588,27 +588,34 @@ ${dateInstructions}
     this.logger.log(
       `Creating itinerary with ${dto.data.days.length} days, total activities: ${totalActivities}`,
     );
+    
+    // 详细日志：记录每个 day 的信息
+    dto.data.days.forEach((day, index) => {
+      this.logger.debug(
+        `Day ${index + 1}: day=${day.day}, date=${day.date}, activities=${day.activities?.length || 0}`,
+      );
+    });
 
     const itinerary = await this.itineraryRepository.createItinerary({
       userId,
       destination: dto.destination,
-      startDate: parseDate(dto.startDate),
+        startDate: parseDate(dto.startDate),
       daysCount: dto.days,
-      summary: dto.data.summary || '',
-      totalCost: dto.data.totalCost ?? 0,
+        summary: dto.data.summary || '',
+        totalCost: dto.data.totalCost ?? 0,
       preferences: dto.preferences as Record<string, unknown>,
       status: dto.status || 'draft',
       daysData: dto.data.days.map((day) => ({
         day: day.day,
-        date: parseDate(day.date),
-        activities: (day.activities || []).map((act) => ({
-          time: act.time || '09:00',
-          title: act.title || '',
-          type: act.type || 'attraction',
-          duration: act.duration || 60,
-          location: act.location || { lat: 0, lng: 0 },
+          date: parseDate(day.date),
+          activities: (day.activities || []).map((act) => ({
+            time: act.time || '09:00',
+            title: act.title || '',
+            type: act.type || 'attraction',
+            duration: act.duration || 60,
+            location: act.location || { lat: 0, lng: 0 },
           notes: act.notes || '',
-          cost: act.cost ?? 0,
+            cost: act.cost ?? 0,
           details: act.details,
         })),
       })),
@@ -1314,11 +1321,20 @@ ${dateInstructions}
 
     // 转换 days（包含 timeSlots）为 days（包含 activities）
     const convertDays = (): ItineraryDayDto[] => {
-      return itineraryData.days.map((day) => ({
+      if (!itineraryData.days || !Array.isArray(itineraryData.days)) {
+        this.logger.warn(`Invalid days data: ${JSON.stringify(itineraryData.days)}`);
+        return [];
+      }
+      
+      return itineraryData.days.map((day) => {
+        const timeSlots = day.timeSlots || [];
+        this.logger.debug(`Converting day ${day.day} with ${timeSlots.length} timeSlots`);
+        return {
         day: day.day,
         date: day.date,
-        activities: day.timeSlots.map(convertTimeSlotToActivity),
-      }));
+          activities: timeSlots.map(convertTimeSlotToActivity),
+        };
+      });
     };
 
     // 确定开始日期：优先使用传入的 startDate，否则使用第一天的日期
@@ -1360,13 +1376,28 @@ ${dateInstructions}
       preferences.travelStyle = styleMap[itineraryData.travelStyle.toLowerCase()] || 'moderate';
     }
 
+    // 转换 days
+    const convertedDays = convertDays();
+    
+    // 验证 days 数据
+    if (!convertedDays || convertedDays.length === 0) {
+      this.logger.error(`No days data converted from frontend data. Original days: ${JSON.stringify(itineraryData.days)}`);
+      throw new BadRequestException(
+        '无法创建行程：days 数据为空或格式不正确。请确保提供有效的 days 数组，每个 day 包含 timeSlots 数组。',
+      );
+    }
+    
+    this.logger.log(
+      `Converted ${convertedDays.length} days from frontend data. Total activities: ${convertedDays.reduce((sum, d) => sum + (d.activities?.length || 0), 0)}`,
+    );
+
     // 构建 CreateItineraryRequestDto
     const createRequest: CreateItineraryRequestDto = {
       destination: itineraryData.destination,
       startDate: finalStartDate,
       days: itineraryData.duration,
       data: {
-        days: convertDays(),
+        days: convertedDays,
         totalCost: itineraryData.totalCost || 0,
         summary: itineraryData.summary || '',
       },
