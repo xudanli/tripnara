@@ -228,30 +228,61 @@ export class JourneyV1Controller {
     this.logger.debug(`请求体内容: ${JSON.stringify(body)}`);
     
     // 智能识别输入格式
-    let daysData: Array<{ day: number; date: string }> = [];
+    let daysData: Array<{
+      day: number;
+      date: string;
+      activities?: Array<{
+        time: string;
+        title: string;
+        type: string;
+        duration: number;
+        location: { lat: number; lng: number };
+        notes?: string;
+        cost?: number;
+      }>;
+    }> = [];
 
     if (Array.isArray(body)) {
-      // 数组格式：[{day: 1, date: "2025-11-25"}, ...]
+      // 数组格式：[{day: 1, date: "2025-11-25", activities: [...]}, ...]
       daysData = body.map((item) => ({
         day: item.day,
         date: item.date,
+        activities: item.activities || undefined, // 保留activities字段
       }));
     } else if (typeof body === 'object' && body !== null) {
       const bodyObj = body as Record<string, unknown>;
       if ('days' in bodyObj && Array.isArray(bodyObj.days)) {
-        // 包装格式：{days: [{day: 1, date: "2025-11-25"}, ...]}
+        // 包装格式：{days: [{day: 1, date: "2025-11-25", activities: [...]}, ...]}
         daysData = (bodyObj.days as Array<Record<string, unknown>>).map(
           (item) => ({
             day: item.day as number,
             date: item.date as string,
+            activities: item.activities as Array<{
+              time: string;
+              title: string;
+              type: string;
+              duration: number;
+              location: { lat: number; lng: number };
+              notes?: string;
+              cost?: number;
+            }> | undefined,
           }),
         );
       } else if ('day' in bodyObj && 'date' in bodyObj) {
-        // 单个对象格式：{day: 1, date: "2025-11-25"}
+        // 单个对象格式：{day: 1, date: "2025-11-25", activities: [...]}
         daysData = [
           {
             day: bodyObj.day as number,
             date: bodyObj.date as string,
+            activities: bodyObj.activities as Array<{
+              time: string;
+              title: string;
+              type: string;
+              duration: number;
+              location: { lat: number; lng: number };
+              notes?: string;
+              cost?: number;
+            }> | undefined,
           },
         ];
       } else {

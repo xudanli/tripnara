@@ -508,7 +508,7 @@ ${dateInstructions}
         activities: day.activities.map((act, actIndex) => {
           // 验证必要字段
           if (!act.time || !act.title || !act.type) {
-            throw new Error(
+          throw new Error(
               `第${day.day}天第${actIndex + 1}个活动缺少必要字段（time、title或type）`,
             );
           }
@@ -524,19 +524,19 @@ ${dateInstructions}
             location = this.getDefaultLocation();
           }
 
-          return {
-            time: act.time,
-            title: act.title,
-            type: act.type as
-              | 'attraction'
-              | 'meal'
-              | 'hotel'
-              | 'shopping'
-              | 'transport',
-            duration: act.duration || 60,
+      return {
+          time: act.time,
+          title: act.title,
+          type: act.type as
+            | 'attraction'
+            | 'meal'
+            | 'hotel'
+            | 'shopping'
+            | 'transport',
+          duration: act.duration || 60,
             location,
-            notes: act.notes || '',
-            cost: act.cost || 0,
+          notes: act.notes || '',
+          cost: act.cost || 0,
           };
         }),
       };
@@ -1943,51 +1943,51 @@ ${dateInstructions}
     userId?: string,
   ): Promise<Array<ItineraryDayDto & { id: string }>> {
     try {
-      // 检查所有权
-      if (userId) {
-        const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-        if (!isOwner) {
-          throw new ForbiddenException('无权访问此行程');
-        }
+    // 检查所有权
+    if (userId) {
+      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
+      if (!isOwner) {
+        throw new ForbiddenException('无权访问此行程');
       }
+    }
 
-      const formatDayDate = (date: Date | string): string => {
-        if (date instanceof Date) {
-          return date.toISOString().split('T')[0];
-        }
+    const formatDayDate = (date: Date | string): string => {
+      if (date instanceof Date) {
+        return date.toISOString().split('T')[0];
+      }
         if (typeof date === 'string') {
-          return date.split('T')[0];
+      return date.split('T')[0];
         }
         return '';
-      };
+    };
 
-      const days = await this.itineraryRepository.findDaysByItineraryId(journeyId);
+    const days = await this.itineraryRepository.findDaysByItineraryId(journeyId);
       
       this.logger.debug(
         `Found ${days.length} days for journey ${journeyId}`,
       );
 
-      return days.map((day) => ({
-        id: day.id,
-        day: day.day,
-        date: formatDayDate(day.date as Date | string),
-        activities: (day.activities || []).map((act) => ({
-          id: act.id,
-          time: act.time,
-          title: act.title,
-          type: act.type as
-            | 'attraction'
-            | 'meal'
-            | 'hotel'
-            | 'shopping'
-            | 'transport'
-            | 'ocean',
-          duration: act.duration,
-          location: act.location as { lat: number; lng: number },
-          notes: act.notes || '',
-          cost: act.cost || 0,
-        })),
-      }));
+    return days.map((day) => ({
+      id: day.id,
+      day: day.day,
+      date: formatDayDate(day.date as Date | string),
+      activities: (day.activities || []).map((act) => ({
+        id: act.id,
+        time: act.time,
+        title: act.title,
+        type: act.type as
+          | 'attraction'
+          | 'meal'
+          | 'hotel'
+          | 'shopping'
+          | 'transport'
+          | 'ocean',
+        duration: act.duration,
+        location: act.location as { lat: number; lng: number },
+        notes: act.notes || '',
+        cost: act.cost || 0,
+      })),
+    }));
     } catch (error) {
       this.logger.error(
         `Failed to get journey days for ${journeyId}`,
@@ -2006,11 +2006,23 @@ ${dateInstructions}
   }
 
   /**
-   * 为行程添加天数
+   * 为行程添加天数（支持同时创建activities）
    */
   async createJourneyDay(
     journeyId: string,
-    dto: { day: number; date: string },
+    dto: {
+      day: number;
+      date: string;
+      activities?: Array<{
+        time: string;
+        title: string;
+        type: string;
+        duration: number;
+        location: { lat: number; lng: number };
+        notes?: string;
+        cost?: number;
+      }>;
+    },
     userId?: string,
   ): Promise<ItineraryDayDto & { id: string }> {
     // 检查所有权
@@ -2028,25 +2040,76 @@ ${dateInstructions}
       return date.split('T')[0];
     };
 
-    const day = await this.itineraryRepository.createDay(journeyId, {
+    // 使用批量创建方法，即使只有一个天数
+    const days = await this.itineraryRepository.createDays(journeyId, [
+      {
       day: dto.day,
       date: new Date(dto.date),
-    });
+        activities: dto.activities
+          ? dto.activities.map((act) => ({
+              time: act.time,
+              title: act.title,
+              type: act.type as
+                | 'attraction'
+                | 'meal'
+                | 'hotel'
+                | 'shopping'
+                | 'transport'
+                | 'ocean',
+              duration: act.duration || 60,
+              location: act.location || { lat: 0, lng: 0 },
+              notes: act.notes || '',
+              cost: act.cost || 0,
+            }))
+          : undefined,
+      },
+    ]);
 
+    if (days.length === 0) {
+      throw new Error('Failed to create day');
+    }
+
+    const day = days[0];
     return {
       id: day.id,
       day: day.day,
       date: formatDayDate(day.date as Date | string),
-      activities: [],
+      activities: (day.activities || []).map((act) => ({
+        time: act.time,
+        title: act.title,
+        type: act.type as
+          | 'attraction'
+          | 'meal'
+          | 'hotel'
+          | 'shopping'
+          | 'transport'
+          | 'ocean',
+        duration: act.duration,
+        location: act.location as { lat: number; lng: number },
+        notes: act.notes || '',
+        cost: act.cost || 0,
+      })),
     };
   }
 
   /**
-   * 批量为行程添加天数
+   * 批量为行程添加天数（支持同时创建activities）
    */
   async createJourneyDays(
     journeyId: string,
-    dtos: Array<{ day: number; date: string }>,
+    dtos: Array<{
+      day: number;
+      date: string;
+      activities?: Array<{
+        time: string;
+        title: string;
+        type: string;
+        duration: number;
+        location: { lat: number; lng: number };
+        notes?: string;
+        cost?: number;
+      }>;
+    }>,
     userId?: string,
   ): Promise<Array<ItineraryDayDto & { id: string }>> {
     // 检查所有权
@@ -2067,19 +2130,51 @@ ${dateInstructions}
       return '';
     };
 
-    const days = await this.itineraryRepository.createDays(
-      journeyId,
-      dtos.map((dto) => ({
-        day: dto.day,
-        date: new Date(dto.date),
-      })),
-    );
+    // 转换activities格式
+    const daysInput = dtos.map((dto) => ({
+      day: dto.day,
+      date: new Date(dto.date),
+      activities: dto.activities
+        ? dto.activities.map((act) => ({
+            time: act.time,
+            title: act.title,
+            type: act.type as
+              | 'attraction'
+              | 'meal'
+              | 'hotel'
+              | 'shopping'
+              | 'transport'
+              | 'ocean',
+            duration: act.duration || 60,
+            location: act.location || { lat: 0, lng: 0 },
+            notes: act.notes || '',
+            cost: act.cost || 0,
+          }))
+        : undefined,
+    }));
 
+    const days = await this.itineraryRepository.createDays(journeyId, daysInput);
+
+    // 返回包含activities的数据
     return days.map((day) => ({
       id: day.id,
       day: day.day,
       date: formatDayDate(day.date as Date | string),
-      activities: [],
+      activities: (day.activities || []).map((act) => ({
+        time: act.time,
+        title: act.title,
+        type: act.type as
+          | 'attraction'
+          | 'meal'
+          | 'hotel'
+          | 'shopping'
+          | 'transport'
+          | 'ocean',
+        duration: act.duration,
+        location: act.location as { lat: number; lng: number },
+        notes: act.notes || '',
+        cost: act.cost || 0,
+      })),
     }));
   }
 

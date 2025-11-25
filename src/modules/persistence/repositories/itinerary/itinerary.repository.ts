@@ -361,6 +361,15 @@ export class ItineraryRepository {
     inputs: Array<{
       day: number;
       date: Date;
+      activities?: Array<{
+        time: string;
+        title: string;
+        type: 'attraction' | 'meal' | 'hotel' | 'shopping' | 'transport' | 'ocean';
+        duration: number;
+        location: { lat: number; lng: number };
+        notes?: string;
+        cost?: number;
+      }>;
     }>,
   ): Promise<ItineraryDayEntity[]> {
     const days = inputs.map((input) =>
@@ -370,7 +379,45 @@ export class ItineraryRepository {
         date: input.date,
       }),
     );
-    return await this.dayRepository.save(days);
+    const savedDays = await this.dayRepository.save(days);
+
+    // 如果提供了activities，为每个天数创建活动
+    for (let i = 0; i < savedDays.length; i++) {
+      const day = savedDays[i];
+      const input = inputs[i];
+      if (input.activities && Array.isArray(input.activities) && input.activities.length > 0) {
+        const activities = input.activities.map((act) =>
+          this.activityRepository.create({
+            dayId: day.id,
+            time: act.time,
+            title: act.title,
+            type: act.type,
+            duration: act.duration,
+            location: act.location,
+            notes: act.notes,
+            cost: act.cost,
+          }),
+        );
+        await this.activityRepository.save(activities);
+      }
+    }
+
+    // 重新查询以获取完整的关联数据（包括activities）
+    const dayIds = savedDays.map((day) => day.id);
+    const daysWithActivities = await this.dayRepository.find({
+      where: dayIds.map((id) => ({ id })),
+      relations: ['activities'],
+      order: { day: 'ASC' },
+    });
+
+    // 排序每个天的活动
+    daysWithActivities.forEach((day) => {
+      if (day.activities) {
+        day.activities.sort((a, b) => a.time.localeCompare(b.time));
+      }
+    });
+
+    return daysWithActivities;
   }
 
   /**
