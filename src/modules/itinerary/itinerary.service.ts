@@ -584,34 +584,48 @@ ${dateInstructions}
         return date;
       };
 
+    const totalActivities = dto.data.days.reduce((sum, d) => sum + (d.activities?.length || 0), 0);
+    this.logger.log(
+      `Creating itinerary with ${dto.data.days.length} days, total activities: ${totalActivities}`,
+    );
+
     const itinerary = await this.itineraryRepository.createItinerary({
       userId,
       destination: dto.destination,
-        startDate: parseDate(dto.startDate),
+      startDate: parseDate(dto.startDate),
       daysCount: dto.days,
-        summary: dto.data.summary || '',
-        totalCost: dto.data.totalCost ?? 0,
+      summary: dto.data.summary || '',
+      totalCost: dto.data.totalCost ?? 0,
       preferences: dto.preferences as Record<string, unknown>,
       status: dto.status || 'draft',
       daysData: dto.data.days.map((day) => ({
         day: day.day,
-          date: parseDate(day.date),
-          activities: (day.activities || []).map((act) => ({
-            time: act.time || '09:00',
-            title: act.title || '',
-            type: act.type || 'attraction',
-            duration: act.duration || 60,
-            location: act.location || { lat: 0, lng: 0 },
+        date: parseDate(day.date),
+        activities: (day.activities || []).map((act) => ({
+          time: act.time || '09:00',
+          title: act.title || '',
+          type: act.type || 'attraction',
+          duration: act.duration || 60,
+          location: act.location || { lat: 0, lng: 0 },
           notes: act.notes || '',
-            cost: act.cost ?? 0,
-            details: act.details,
+          cost: act.cost ?? 0,
+          details: act.details,
         })),
       })),
     });
 
+    this.logger.log(
+      `Created itinerary ${itinerary.id} with ${itinerary.days?.length || 0} days (expected ${dto.data.days.length})`,
+    );
+
+    const detailDto = this.entityToDetailDto(itinerary);
+    this.logger.log(
+      `Returning itinerary detail with ${detailDto.days?.length || 0} days in DTO`,
+    );
+
     return {
       success: true,
-      data: this.entityToDetailDto(itinerary),
+      data: detailDto,
     };
     } catch (error) {
       this.logger.error(

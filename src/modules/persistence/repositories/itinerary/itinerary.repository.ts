@@ -78,6 +78,7 @@ export class ItineraryRepository {
     const savedItinerary = await this.itineraryRepository.save(itinerary);
 
     // 创建天数
+    console.log(`[ItineraryRepository] Creating ${input.daysData.length} days for itinerary ${savedItinerary.id}`);
     for (const dayData of input.daysData) {
       const day = this.dayRepository.create({
         itineraryId: savedItinerary.id,
@@ -85,6 +86,7 @@ export class ItineraryRepository {
         date: dayData.date,
       });
       const savedDay = await this.dayRepository.save(day);
+      console.log(`[ItineraryRepository] Created day ${savedDay.day} with ${dayData.activities.length} activities`);
 
       // 创建活动
       for (const activityData of dayData.activities) {
@@ -108,6 +110,8 @@ export class ItineraryRepository {
     if (!result) {
       throw new Error('Failed to create itinerary');
     }
+    
+    console.log(`[ItineraryRepository] Created itinerary ${result.id} with ${result.days?.length || 0} days`);
     return result;
   }
 
