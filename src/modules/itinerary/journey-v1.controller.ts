@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -204,17 +205,104 @@ export class JourneyV1Controller {
 
   @Post(':journeyId/days')
   @ApiOperation({
-    summary: '为行程添加天数',
-    description: '为指定行程添加一个新的天数',
+    summary: '为行程添加天数（支持单个或批量）',
+    description: '为指定行程添加天数。支持单个对象、数组或包装格式。单个对象格式：{day: 1, date: "2025-11-25"}，数组格式：[{day: 1, date: "2025-11-25"}, ...]，包装格式：{days: [{day: 1, date: "2025-11-25"}, ...]}',
   })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @UsePipes(new ValidationPipe({ skipMissingProperties: true, whitelist: false, transform: false }))
   async createJourneyDay(
     @Param('journeyId') journeyId: string,
-    @Body() dto: CreateDayDto,
+    @Body() body: unknown,
     @CurrentUser() user: { userId: string },
-  ): Promise<ItineraryDayDto & { id: string }> {
-    return this.itineraryService.createJourneyDay(journeyId, dto, user.userId);
+  ): Promise<
+    | (ItineraryDayDto & { id: string })
+    | Array<ItineraryDayDto & { id: string }>
+  > {
+    // 智能识别输入格式
+    let daysData: Array<{ day: number; date: string }> = [];
+
+    if (Array.isArray(body)) {
+      // 数组格式：[{day: 1, date: "2025-11-25"}, ...]
+      daysData = body.map((item) => ({
+        day: item.day,
+        date: item.date,
+      }));
+    } else if (typeof body === 'object' && body !== null) {
+      const bodyObj = body as Record<string, unknown>;
+      if ('days' in bodyObj && Array.isArray(bodyObj.days)) {
+        // 包装格式：{days: [{day: 1, date: "2025-11-25"}, ...]}
+        daysData = (bodyObj.days as Array<Record<string, unknown>>).map(
+          (item) => ({
+            day: item.day as number,
+            date: item.date as string,
+          }),
+        );
+      } else if ('day' in bodyObj && 'date' in bodyObj) {
+        // 单个对象格式：{day: 1, date: "2025-11-25"}
+        daysData = [
+          {
+            day: bodyObj.day as number,
+            date: bodyObj.date as string,
+          },
+        ];
+      } else {
+        throw new BadRequestException(
+          '无效的请求格式。请使用单个对象、数组或包装格式',
+        );
+      }
+    } else {
+      throw new BadRequestException('请求体必须是对象或数组');
+    }
+
+    // 验证数据
+    if (daysData.length === 0) {
+      throw new BadRequestException('至少需要提供一个天数数据');
+    }
+
+    // 验证每个天数的格式
+    for (let i = 0; i < daysData.length; i++) {
+      const dayData = daysData[i];
+      if (typeof dayData.day !== 'number' || dayData.day < 1) {
+        throw new BadRequestException(
+          `第${i + 1}个天数数据格式不正确：day必须是大于等于1的数字`,
+        );
+      }
+      if (typeof dayData.date !== 'string' || !dayData.date) {
+        throw new BadRequestException(
+          `第${i + 1}个天数数据格式不正确：date必须是有效的日期字符串`,
+        );
+      }
+      // 验证日期格式（ISO 8601格式：YYYY-MM-DD）
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(dayData.date)) {
+        throw new BadRequestException(
+          `第${i + 1}个天数数据格式不正确：date必须是YYYY-MM-DD格式的日期字符串`,
+        );
+      }
+      // 验证日期是否有效
+      const dateObj = new Date(dayData.date);
+      if (isNaN(dateObj.getTime())) {
+        throw new BadRequestException(
+          `第${i + 1}个天数数据格式不正确：date必须是有效的日期`,
+        );
+      }
+    }
+
+    // 如果是单个，返回单个结果；如果是多个，返回数组
+    if (daysData.length === 1) {
+      return this.itineraryService.createJourneyDay(
+        journeyId,
+        daysData[0],
+        user.userId,
+      );
+    } else {
+      return this.itineraryService.createJourneyDays(
+        journeyId,
+        daysData,
+        user.userId,
+      );
+    }
   }
 
   @Patch(':journeyId/days/:dayId')

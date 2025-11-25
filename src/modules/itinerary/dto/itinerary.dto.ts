@@ -1018,6 +1018,24 @@ export class CreateDayDto {
 }
 
 /**
+ * 批量创建天数请求 DTO
+ */
+export class CreateDaysDto {
+  @ApiProperty({
+    description: '天数数组',
+    type: [CreateDayDto],
+    example: [
+      { day: 1, date: '2025-11-25' },
+      { day: 2, date: '2025-11-26' },
+    ],
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateDayDto)
+  days!: CreateDayDto[];
+}
+
+/**
  * 更新天数请求 DTO
  */
 export class UpdateDayDto {

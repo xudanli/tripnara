@@ -2042,6 +2042,48 @@ ${dateInstructions}
   }
 
   /**
+   * 批量为行程添加天数
+   */
+  async createJourneyDays(
+    journeyId: string,
+    dtos: Array<{ day: number; date: string }>,
+    userId?: string,
+  ): Promise<Array<ItineraryDayDto & { id: string }>> {
+    // 检查所有权
+    if (userId) {
+      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
+      if (!isOwner) {
+        throw new ForbiddenException('无权修改此行程');
+      }
+    }
+
+    const formatDayDate = (date: Date | string): string => {
+      if (date instanceof Date) {
+        return date.toISOString().split('T')[0];
+      }
+      if (typeof date === 'string') {
+        return date.split('T')[0];
+      }
+      return '';
+    };
+
+    const days = await this.itineraryRepository.createDays(
+      journeyId,
+      dtos.map((dto) => ({
+        day: dto.day,
+        date: new Date(dto.date),
+      })),
+    );
+
+    return days.map((day) => ({
+      id: day.id,
+      day: day.day,
+      date: formatDayDate(day.date as Date | string),
+      activities: [],
+    }));
+  }
+
+  /**
    * 更新指定天数
    */
   async updateJourneyDay(

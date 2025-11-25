@@ -354,6 +354,26 @@ export class ItineraryRepository {
   }
 
   /**
+   * 批量为行程添加天数
+   */
+  async createDays(
+    itineraryId: string,
+    inputs: Array<{
+      day: number;
+      date: Date;
+    }>,
+  ): Promise<ItineraryDayEntity[]> {
+    const days = inputs.map((input) =>
+      this.dayRepository.create({
+        itineraryId,
+        day: input.day,
+        date: input.date,
+      }),
+    );
+    return await this.dayRepository.save(days);
+  }
+
+  /**
    * 更新指定天数
    */
   async updateDay(
