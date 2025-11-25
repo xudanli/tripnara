@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 import { NotFoundException } from '@nestjs/common';
 import { DestinationEntity } from '../persistence/entities/reference.entity';
 import { FestivalService } from './services/festival.service';
+import { WeatherService } from './services/weather.service';
 import { EventsRequestDto, EventsResponseDto } from './dto/destination.dto';
 
 @ApiTags('Destinations V1')
@@ -15,6 +16,7 @@ export class DestinationsV1Controller {
     @InjectRepository(DestinationEntity)
     private readonly destinationRepository: Repository<DestinationEntity>,
     private readonly festivalService: FestivalService,
+    private readonly weatherService: WeatherService,
   ) {}
 
   @Get(':id/events')
@@ -50,6 +52,48 @@ export class DestinationsV1Controller {
     };
 
     return this.festivalService.listEvents(dto);
+  }
+
+  @Get(':id/weather')
+  @ApiOperation({
+    summary: '获取目的地天气信息',
+    description: '根据目的地ID获取天气信息（可选，需要配置天气 API）',
+  })
+  @ApiParam({ name: 'id', description: '目的地ID（UUID）' })
+  async getDestinationWeather(@Param('id') id: string) {
+    // 根据ID查找目的地
+    const destination = await this.destinationRepository.findOne({
+      where: { id },
+    });
+
+    if (!destination) {
+      throw new NotFoundException(`目的地不存在: ${id}`);
+    }
+
+    // 获取坐标（如果有）
+    const coordinates = destination.geoJson as
+      | { lat?: number; lng?: number; coordinates?: [number, number] }
+      | undefined;
+
+    let lat: number | undefined;
+    let lng: number | undefined;
+
+    if (coordinates) {
+      if (coordinates.lat && coordinates.lng) {
+        lat = coordinates.lat;
+        lng = coordinates.lng;
+      } else if (coordinates.coordinates) {
+        // GeoJSON 格式：[lng, lat]
+        lng = coordinates.coordinates[0];
+        lat = coordinates.coordinates[1];
+      }
+    }
+
+    return this.weatherService.getWeatherByDestinationId(
+      id,
+      destination.name,
+      lat && lng ? { lat, lng } : undefined,
+    );
   }
 }
 
