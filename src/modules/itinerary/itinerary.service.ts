@@ -88,14 +88,14 @@ interface AiItineraryResponse {
       time: string;
       title: string;
       type: string;
-      duration: number;
-      location: { lat: number; lng: number };
-      notes: string;
-      cost: number;
+      duration?: number;
+      location?: unknown; // LLM可能返回各种格式，使用unknown类型
+      notes?: string;
+      cost?: number;
     }>;
   }>;
-  totalCost: number;
-  summary: string;
+  totalCost?: number | string; // 支持数字或字符串
+  summary?: string;
 }
 
 @Injectable()
@@ -371,6 +371,90 @@ ${dateInstructions}
 注意：请确保返回完整的JSON数据，包含所有${days}天的行程安排。`;
   }
 
+  /**
+   * 尝试将location字段转换为标准的{lat, lng}格式
+   * 支持多种输入格式：数字、字符串、对象等
+   */
+  private normalizeLocation(
+    location: unknown,
+    activityTitle: string,
+    day: number,
+    activityIndex: number,
+  ): { lat: number; lng: number } | null {
+    // 如果location为空或undefined
+    if (!location || typeof location !== 'object') {
+      this.logger.warn(
+        `第${day}天第${activityIndex + 1}个活动"${activityTitle}"的location字段缺失或格式不正确: ${JSON.stringify(location)}，使用默认坐标`,
+      );
+      return null;
+    }
+
+    // 尝试从对象中提取lat和lng
+    const locObj = location as Record<string, unknown>;
+    let lat: number | null = null;
+    let lng: number | null = null;
+
+    // 尝试获取lat（支持lat、latitude等字段名）
+    const latValue =
+      locObj.lat ?? locObj.latitude ?? locObj.Lat ?? locObj.Latitude;
+    if (latValue !== undefined && latValue !== null) {
+      if (typeof latValue === 'number') {
+        lat = latValue;
+      } else if (typeof latValue === 'string') {
+        const parsed = parseFloat(latValue);
+        if (!isNaN(parsed)) {
+          lat = parsed;
+        }
+      }
+    }
+
+    // 尝试获取lng（支持lng、lng、longitude等字段名）
+    const lngValue =
+      locObj.lng ??
+      locObj.longitude ??
+      locObj.Lng ??
+      locObj.Longitude ??
+      locObj.lon;
+    if (lngValue !== undefined && lngValue !== null) {
+      if (typeof lngValue === 'number') {
+        lng = lngValue;
+      } else if (typeof lngValue === 'string') {
+        const parsed = parseFloat(lngValue);
+        if (!isNaN(parsed)) {
+          lng = parsed;
+        }
+      }
+    }
+
+    // 验证坐标范围
+    if (lat !== null && lng !== null) {
+      if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        return { lat, lng };
+      } else {
+        this.logger.warn(
+          `第${day}天第${activityIndex + 1}个活动"${activityTitle}"的location坐标超出有效范围: lat=${lat}, lng=${lng}，使用默认坐标`,
+        );
+        return null;
+      }
+    }
+
+    // 如果无法解析，记录警告并返回null
+    this.logger.warn(
+      `第${day}天第${activityIndex + 1}个活动"${activityTitle}"的location字段格式不正确: ${JSON.stringify(location)}，使用默认坐标`,
+    );
+    return null;
+  }
+
+  /**
+   * 获取默认坐标（基于目的地或通用默认值）
+   * 这里返回一个通用默认值，实际应用中可以根据destination进行地理编码
+   */
+  private getDefaultLocation(): { lat: number; lng: number } {
+    // 返回一个默认坐标（可以后续改进为根据destination进行地理编码）
+    // 这里使用冰岛的默认坐标作为fallback
+    return { lat: 64.9631, lng: -19.0208 };
+  }
+
   private validateAndTransformResponse(
     aiResponse: AiItineraryResponse,
   ): ItineraryDataDto {
@@ -418,38 +502,43 @@ ${dateInstructions}
         throw new Error(`第${day.day}天的activities字段格式不正确`);
       }
 
-      // 验证每个活动
-      day.activities.forEach((activity, actIndex) => {
-        if (!activity.time || !activity.title || !activity.type) {
-          throw new Error(
-            `第${day.day}天第${actIndex + 1}个活动缺少必要字段`,
-          );
-        }
-
-        if (!activity.location || typeof activity.location.lat !== 'number' || typeof activity.location.lng !== 'number') {
-          throw new Error(
-            `第${day.day}天第${actIndex + 1}个活动location字段格式不正确`,
-          );
-        }
-      });
-
       return {
         day: day.day,
         date: day.date,
-        activities: day.activities.map((act) => ({
-          time: act.time,
-          title: act.title,
-          type: act.type as
-            | 'attraction'
-            | 'meal'
-            | 'hotel'
-            | 'shopping'
-            | 'transport',
-          duration: act.duration || 60,
-          location: act.location,
-          notes: act.notes || '',
-          cost: act.cost || 0,
-        })),
+        activities: day.activities.map((act, actIndex) => {
+          // 验证必要字段
+          if (!act.time || !act.title || !act.type) {
+            throw new Error(
+              `第${day.day}天第${actIndex + 1}个活动缺少必要字段（time、title或type）`,
+            );
+          }
+
+          // 规范化location字段，如果无效则使用默认值
+          let location = this.normalizeLocation(
+            act.location,
+            act.title || '未知活动',
+            day.day,
+            actIndex + 1,
+          );
+          if (!location) {
+            location = this.getDefaultLocation();
+          }
+
+          return {
+            time: act.time,
+            title: act.title,
+            type: act.type as
+              | 'attraction'
+              | 'meal'
+              | 'hotel'
+              | 'shopping'
+              | 'transport',
+            duration: act.duration || 60,
+            location,
+            notes: act.notes || '',
+            cost: act.cost || 0,
+          };
+        }),
       };
     });
 
