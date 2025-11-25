@@ -93,6 +93,7 @@ export class DestinationsV1Controller {
       id,
       destination.name,
       lat && lng ? { lat, lng } : undefined,
+      destination.countryCode,
     );
   }
 }

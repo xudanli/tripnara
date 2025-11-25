@@ -131,25 +131,38 @@ if (weather.forecast) {
 
 ## 注意事项
 
-1. **当前状态**：
-   - 接口已实现框架，但需要配置第三方天气 API
-   - 如果未配置天气 API，会返回占位符数据
-   - 配置天气 API 后，需要实现实际的 API 调用逻辑
+1. **天气 API 配置**：
+   - **WeatherAPI**（全球城市）：配置 `WEATHER_API_KEY` 和 `WEATHER_API_URL`（默认：`https://api.weatherapi.com/v1`）
+   - **和风天气 QWeather**（中国城市）：配置 `QWEATHER_API_KEY` 和 `QWEATHER_API_URL`（默认：`https://devapi.qweather.com/v7`）
 
-2. **环境变量配置**：
-   - `WEATHER_API_KEY`：天气 API 密钥
-   - `WEATHER_API_URL`：天气 API 基础 URL
+2. **自动选择 API**：
+   - 系统会根据目的地的国家代码自动选择天气 API
+   - 中国城市（CN/CHN）使用和风天气 QWeather
+   - 其他城市使用 WeatherAPI
+   - 如果未配置对应的 API，会返回占位符数据
 
 3. **数据来源**：
    - 接口会根据目的地ID查找目的地信息
    - 如果目的地有坐标信息，会使用坐标查询天气
    - 否则使用目的地名称查询天气
+   - 和风天气需要先通过城市名称或坐标获取 locationId，再查询天气
 
-4. **占位符数据**：
-   - 当天气 API 未配置时，返回默认的占位符数据
-   - 占位符数据仅用于测试，实际使用时需要配置真实的天气 API
+4. **返回数据**：
+   - 当前天气：温度、天气状况、湿度、风速
+   - 天气预报：未来7天的天气情况（WeatherAPI）或未来7天（和风天气）
 
-5. **实现说明**：
-   - 当用户提供天气 API 后，需要在 `WeatherService.getWeatherByDestinationId` 方法中实现实际的 API 调用
-   - 可以参考 `FestivalService` 或 `TransportService` 的实现方式
+5. **错误处理**：
+   - 如果 API 调用失败，会返回错误信息
+   - 如果未配置 API，会返回占位符数据（不会抛出错误）
+
+6. **环境变量示例**：
+   ```env
+   # WeatherAPI（全球）
+   WEATHER_API_KEY=your-weather-api-key
+   WEATHER_API_URL=https://api.weatherapi.com/v1
+   
+   # 和风天气（中国）
+   QWEATHER_API_KEY=your-qweather-api-key
+   QWEATHER_API_URL=https://devapi.qweather.com/v7
+   ```
 

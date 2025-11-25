@@ -56,6 +56,18 @@ const envSchema = z.object({
     .url()
     .optional()
     .default('https://travel-advisor.p.rapidapi.com'),
+  WEATHER_API_KEY: z.string().min(1).optional(),
+  WEATHER_API_URL: z
+    .string()
+    .url()
+    .optional()
+    .default('https://api.weatherapi.com/v1'),
+  QWEATHER_API_KEY: z.string().min(1).optional(),
+  QWEATHER_API_URL: z
+    .string()
+    .url()
+    .optional()
+    .default('https://devapi.qweather.com/v7'),
   GUIDES_GOOGLE_API_KEY: z.string().min(1).optional(),
   GUIDES_GOOGLE_CX: z.string().min(1).optional(),
   GOOGLE_CLIENT_ID: z
