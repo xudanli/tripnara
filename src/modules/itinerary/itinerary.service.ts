@@ -1188,6 +1188,21 @@ ${dateInstructions}
       return '';
     };
 
+    // 确保days字段始终是数组
+    const daysMapped = daysArray.map((day) => ({
+      day: day.day,
+      date: formatDayDate(day.date as Date | string),
+      activities: (day.activities || []).map((act) => ({
+        time: act.time,
+        title: act.title,
+        type: act.type as any,
+        duration: act.duration,
+        location: act.location as { lat: number; lng: number },
+        notes: act.notes || '',
+        cost: act.cost ? Number(act.cost) : 0,
+      })),
+    }));
+
     return {
       id: entity.id,
       destination: entity.destination,
@@ -1203,19 +1218,8 @@ ${dateInstructions}
       updatedAt: entity.updatedAt instanceof Date 
         ? entity.updatedAt.toISOString() 
         : new Date(entity.updatedAt).toISOString(),
-      days: daysArray.map((day) => ({
-        day: day.day,
-        date: formatDayDate(day.date as Date | string),
-        activities: day.activities.map((act) => ({
-          time: act.time,
-          title: act.title,
-          type: act.type as any,
-          duration: act.duration,
-          location: act.location as { lat: number; lng: number },
-          notes: act.notes || '',
-          cost: act.cost ? Number(act.cost) : 0,
-        })),
-      })),
+      days: daysMapped,
+      hasDays: daysMapped.length > 0, // 添加hasDays辅助字段
     };
   }
 
@@ -1938,43 +1942,67 @@ ${dateInstructions}
     journeyId: string,
     userId?: string,
   ): Promise<Array<ItineraryDayDto & { id: string }>> {
-    // 检查所有权
-    if (userId) {
-      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-      if (!isOwner) {
-        throw new ForbiddenException('无权访问此行程');
+    try {
+      // 检查所有权
+      if (userId) {
+        const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
+        if (!isOwner) {
+          throw new ForbiddenException('无权访问此行程');
+        }
       }
+
+      const formatDayDate = (date: Date | string): string => {
+        if (date instanceof Date) {
+          return date.toISOString().split('T')[0];
+        }
+        if (typeof date === 'string') {
+          return date.split('T')[0];
+        }
+        return '';
+      };
+
+      const days = await this.itineraryRepository.findDaysByItineraryId(journeyId);
+      
+      this.logger.debug(
+        `Found ${days.length} days for journey ${journeyId}`,
+      );
+
+      return days.map((day) => ({
+        id: day.id,
+        day: day.day,
+        date: formatDayDate(day.date as Date | string),
+        activities: (day.activities || []).map((act) => ({
+          id: act.id,
+          time: act.time,
+          title: act.title,
+          type: act.type as
+            | 'attraction'
+            | 'meal'
+            | 'hotel'
+            | 'shopping'
+            | 'transport'
+            | 'ocean',
+          duration: act.duration,
+          location: act.location as { lat: number; lng: number },
+          notes: act.notes || '',
+          cost: act.cost || 0,
+        })),
+      }));
+    } catch (error) {
+      this.logger.error(
+        `Failed to get journey days for ${journeyId}`,
+        error instanceof Error ? error.stack : error,
+      );
+      // 如果是ForbiddenException或NotFoundException，直接抛出
+      if (error instanceof ForbiddenException || error instanceof NotFoundException) {
+        throw error;
+      }
+      // 其他错误，返回空数组而不是抛出异常（更友好的错误处理）
+      this.logger.warn(
+        `Error fetching days for journey ${journeyId}, returning empty array`,
+      );
+      return [];
     }
-
-    const formatDayDate = (date: Date | string): string => {
-      if (date instanceof Date) {
-        return date.toISOString().split('T')[0];
-      }
-      return date.split('T')[0];
-    };
-
-    const days = await this.itineraryRepository.findDaysByItineraryId(journeyId);
-    return days.map((day) => ({
-      id: day.id,
-      day: day.day,
-      date: formatDayDate(day.date as Date | string),
-      activities: (day.activities || []).map((act) => ({
-        id: act.id,
-        time: act.time,
-        title: act.title,
-        type: act.type as
-          | 'attraction'
-          | 'meal'
-          | 'hotel'
-          | 'shopping'
-          | 'transport'
-          | 'ocean',
-        duration: act.duration,
-        location: act.location as { lat: number; lng: number },
-        notes: act.notes || '',
-        cost: act.cost || 0,
-      })),
-    }));
   }
 
   /**

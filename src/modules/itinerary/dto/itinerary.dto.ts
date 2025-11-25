@@ -359,6 +359,12 @@ export class ItineraryDetailDto {
   days!: ItineraryDayDto[];
 
   @ApiPropertyOptional({
+    description: '是否有天数数据（辅助字段，用于前端判断）',
+    example: true,
+  })
+  hasDays?: boolean;
+
+  @ApiPropertyOptional({
     description: '用户偏好',
     type: ItineraryPreferencesDto,
   })
