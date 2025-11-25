@@ -14,7 +14,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { RawBodyPipe } from './pipes/raw-body.pipe';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags, ApiParam, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ItineraryService } from './itinerary.service';
@@ -428,26 +428,29 @@ export class JourneyV1Controller {
 
   // ========== 活动管理接口 ==========
 
-  @Get(':journeyId/days/:dayId/slots')
-  @ApiOperation({
-    summary: '获取指定天数的所有时间段',
-    description: '获取指定天数的所有活动（时间段）',
-  })
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  async getJourneyDayActivities(
-    @Param('journeyId') journeyId: string,
-    @Param('dayId') dayId: string,
-    @CurrentUser() user: { userId: string },
-  ): Promise<Array<ItineraryActivityDto & { id: string }>> {
-    return this.itineraryService.getJourneyDayActivities(journeyId, dayId, user.userId);
-  }
-
   @Post(':journeyId/activities/batch')
   @ApiOperation({
     summary: '批量获取多个天数的活动详情',
     description:
       '批量获取指定行程中多个天数的所有活动详情。如果不提供 dayIds，则返回整个行程所有天的活动。',
+  })
+  @ApiParam({
+    name: 'journeyId',
+    description: '行程ID',
+    example: '770e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '成功返回活动详情',
+    type: BatchActivitiesResponseDto,
+  })
+  @ApiResponse({
+    status: 403,
+    description: '无权访问此行程',
+  })
+  @ApiResponse({
+    status: 404,
+    description: '行程不存在',
   })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
@@ -465,6 +468,21 @@ export class JourneyV1Controller {
       activities: result.activities,
       totalCount: result.totalCount,
     };
+  }
+
+  @Get(':journeyId/days/:dayId/slots')
+  @ApiOperation({
+    summary: '获取指定天数的所有时间段',
+    description: '获取指定天数的所有活动（时间段）',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async getJourneyDayActivities(
+    @Param('journeyId') journeyId: string,
+    @Param('dayId') dayId: string,
+    @CurrentUser() user: { userId: string },
+  ): Promise<Array<ItineraryActivityDto & { id: string }>> {
+    return this.itineraryService.getJourneyDayActivities(journeyId, dayId, user.userId);
   }
 
   @Post(':journeyId/days/:dayId/slots')
