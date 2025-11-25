@@ -703,7 +703,8 @@ ${dateInstructions}
     if (dto.days !== undefined) {
       if (dto.days >= 1 && dto.days <= 30) {
         updateData.daysCount = dto.days;
-      } else {
+      } else if (dto.days !== 0) {
+        // 只有当 days 不为 0 时才记录警告（0 可能是前端重置值）
         this.logger.warn(
           `Invalid days value: ${dto.days}, ignoring update for itinerary ${id}`,
         );
@@ -2078,9 +2079,9 @@ ${dateInstructions}
 
     const day = days[0];
     
-    // 更新行程的 daysCount（取最大的 day 值）
+    // 更新行程的 daysCount（取最大的 day 值，表示行程总天数）
     const allDays = await this.itineraryRepository.findDaysByItineraryId(journeyId);
-    const maxDay = Math.max(...allDays.map((d) => d.day));
+    const maxDay = Math.max(...allDays.map((d) => d.day), 0);
     await this.itineraryRepository.updateItinerary(journeyId, {
       daysCount: maxDay,
     });
@@ -2146,7 +2147,7 @@ ${dateInstructions}
     };
 
     // 转换activities格式
-    const daysInput = dtos.map((dto) => ({
+    let daysInput = dtos.map((dto) => ({
       day: dto.day,
       date: new Date(dto.date),
       activities: dto.activities
@@ -2168,15 +2169,52 @@ ${dateInstructions}
         : undefined,
     }));
 
+    // 检查是否已有相同的 day 值，避免重复创建
+    const existingDays = await this.itineraryRepository.findDaysByItineraryId(journeyId);
+    const existingDayNumbers = new Set(existingDays.map((d) => d.day));
+    const duplicateDays = daysInput.filter((d) => existingDayNumbers.has(d.day));
+    
+    if (duplicateDays.length > 0) {
+      this.logger.warn(
+        `发现重复的天数 day 值: ${duplicateDays.map((d) => d.day).join(', ')}，将跳过这些天数`,
+      );
+      // 过滤掉重复的天数
+      const uniqueDaysInput = daysInput.filter((d) => !existingDayNumbers.has(d.day));
+      if (uniqueDaysInput.length === 0) {
+        // 如果所有天数都重复，返回现有天数
+        return existingDays.map((day) => ({
+          id: day.id,
+          day: day.day,
+          date: formatDayDate(day.date as Date | string),
+          activities: (day.activities || []).map((act) => ({
+            time: act.time,
+            title: act.title,
+            type: act.type as
+              | 'attraction'
+              | 'meal'
+              | 'hotel'
+              | 'shopping'
+              | 'transport'
+              | 'ocean',
+            duration: act.duration,
+            location: act.location as { lat: number; lng: number },
+            notes: act.notes || '',
+            cost: act.cost || 0,
+          })),
+        }));
+      }
+      // 只创建不重复的天数
+      daysInput = uniqueDaysInput;
+    }
+
     const days = await this.itineraryRepository.createDays(journeyId, daysInput);
 
-    // 更新行程的 daysCount（取最大的 day 值）
-    const maxDay = Math.max(...days.map((d) => d.day));
-    const allDays = await this.itineraryRepository.findDaysByItineraryId(journeyId);
-    const actualDaysCount = Math.max(maxDay, allDays.length);
+    // 更新行程的 daysCount（取最大的 day 值，表示行程总天数）
+    const allDaysAfterCreate = await this.itineraryRepository.findDaysByItineraryId(journeyId);
+    const maxDay = Math.max(...allDaysAfterCreate.map((d) => d.day), 0);
     
     await this.itineraryRepository.updateItinerary(journeyId, {
-      daysCount: actualDaysCount,
+      daysCount: maxDay,
     });
 
     // 返回包含activities的数据
