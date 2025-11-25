@@ -166,3 +166,50 @@ export class ExternalApiKeyEntity {
   @UpdateDateColumn({ type: 'timestamptz' })
   updatedAt!: Date;
 }
+
+export type AlertSeverity = 'low' | 'medium' | 'high' | 'critical';
+export type AlertStatus = 'active' | 'expired' | 'archived';
+
+@Entity({ name: 'travel_alerts' })
+@Index(['destination', 'startDate', 'endDate'])
+@Index(['status', 'severity'])
+export class TravelAlertEntity {
+  @PrimaryGeneratedColumn('uuid')
+  id!: string;
+
+  @Column({ type: 'varchar', length: 255 })
+  title!: string;
+
+  @Column({ type: 'text' })
+  content!: string;
+
+  @Column({ type: 'varchar', length: 255 })
+  destination!: string;
+
+  @Column({ type: 'varchar', length: 3, nullable: true })
+  countryCode?: string;
+
+  @Column({ type: 'varchar', length: 20 })
+  severity!: AlertSeverity;
+
+  @Column({ type: 'varchar', length: 20, default: 'active' })
+  status!: AlertStatus;
+
+  @Column({ type: 'timestamptz' })
+  startDate!: Date;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  endDate?: Date;
+
+  @Column({ type: 'jsonb', nullable: true })
+  metadata?: Record<string, unknown>;
+
+  @Column({ type: 'uuid', nullable: true })
+  createdBy?: string;
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt!: Date;
+
+  @UpdateDateColumn({ type: 'timestamptz' })
+  updatedAt!: Date;
+}

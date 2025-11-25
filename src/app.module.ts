@@ -23,6 +23,7 @@ import { LocationModule } from './modules/location/location.module';
 import { TravelModule } from './modules/travel/travel.module';
 import { InspirationModule } from './modules/inspiration/inspiration.module';
 import { SeekerModule } from './modules/seeker/seeker.module';
+import { AlertsModule } from './modules/alerts/alerts.module';
 
 const resolveEnvFilePaths = (): string[] => {
   const env = process.env.NODE_ENV?.toLowerCase();
@@ -104,6 +105,7 @@ const resolveEnvFilePaths = (): string[] => {
     TravelModule,
     InspirationModule,
     SeekerModule,
+    AlertsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

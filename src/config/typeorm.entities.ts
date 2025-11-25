@@ -21,6 +21,7 @@ import {
   PreparationProfileEntity,
   MediaAssetEntity,
   ExternalApiKeyEntity,
+  TravelAlertEntity,
 } from '../modules/persistence/entities/reference.entity';
 import {
   VisaPolicyEntity,
@@ -58,6 +59,7 @@ export const TYPEORM_ENTITIES = [
   PreparationProfileEntity,
   MediaAssetEntity,
   ExternalApiKeyEntity,
+  TravelAlertEntity,
   VisaPolicyEntity,
   VisaUnionEntity,
   VisaUnionCountryEntity,
