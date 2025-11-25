@@ -244,45 +244,78 @@ export class JourneyV1Controller {
 
     if (Array.isArray(body)) {
       // 数组格式：[{day: 1, date: "2025-11-25", activities: [...]}, ...]
-      daysData = body.map((item) => ({
-        day: item.day,
-        date: item.date,
-        activities: item.activities || undefined, // 保留activities字段
-      }));
+      // 或 [{day: 1, date: "2025-11-25", timeSlots: [...]}, ...]
+      daysData = body.map((item) => {
+        // 支持 timeSlots 和 activities 两种字段名
+        const activitiesData = item.activities || item.timeSlots || undefined;
+        
+        // 转换activities格式，处理字段名映射
+        const activities = activitiesData
+          ? activitiesData.map((slot: any) => ({
+              time: slot.time || slot.startTime,
+              title: slot.title || slot.activity || '',
+              type: slot.type || 'attraction',
+              duration: slot.duration || slot.durationMinutes || 60,
+              location: slot.location || slot.coordinates || { lat: 0, lng: 0 },
+              notes: slot.notes || slot.description || '',
+              cost: slot.cost || 0,
+            }))
+          : undefined;
+
+        return {
+          day: item.day,
+          date: item.date,
+          activities,
+        };
+      });
     } else if (typeof body === 'object' && body !== null) {
       const bodyObj = body as Record<string, unknown>;
       if ('days' in bodyObj && Array.isArray(bodyObj.days)) {
         // 包装格式：{days: [{day: 1, date: "2025-11-25", activities: [...]}, ...]}
+        // 或 {days: [{day: 1, date: "2025-11-25", timeSlots: [...]}, ...]}
         daysData = (bodyObj.days as Array<Record<string, unknown>>).map(
-          (item) => ({
-            day: item.day as number,
-            date: item.date as string,
-            activities: item.activities as Array<{
-              time: string;
-              title: string;
-              type: string;
-              duration: number;
-              location: { lat: number; lng: number };
-              notes?: string;
-              cost?: number;
-            }> | undefined,
-          }),
+          (item) => {
+            const activitiesData = item.activities || item.timeSlots || undefined;
+            const activities = activitiesData
+              ? (activitiesData as Array<any>).map((slot: any) => ({
+                  time: slot.time || slot.startTime,
+                  title: slot.title || slot.activity || '',
+                  type: slot.type || 'attraction',
+                  duration: slot.duration || slot.durationMinutes || 60,
+                  location: slot.location || slot.coordinates || { lat: 0, lng: 0 },
+                  notes: slot.notes || slot.description || '',
+                  cost: slot.cost || 0,
+                }))
+              : undefined;
+
+            return {
+              day: item.day as number,
+              date: item.date as string,
+              activities,
+            };
+          },
         );
       } else if ('day' in bodyObj && 'date' in bodyObj) {
         // 单个对象格式：{day: 1, date: "2025-11-25", activities: [...]}
+        // 或 {day: 1, date: "2025-11-25", timeSlots: [...]}
+        const activitiesData = bodyObj.activities || bodyObj.timeSlots || undefined;
+        const activities = activitiesData
+          ? (activitiesData as Array<any>).map((slot: any) => ({
+              time: slot.time || slot.startTime,
+              title: slot.title || slot.activity || '',
+              type: slot.type || 'attraction',
+              duration: slot.duration || slot.durationMinutes || 60,
+              location: slot.location || slot.coordinates || { lat: 0, lng: 0 },
+              notes: slot.notes || slot.description || '',
+              cost: slot.cost || 0,
+            }))
+          : undefined;
+
         daysData = [
           {
             day: bodyObj.day as number,
             date: bodyObj.date as string,
-            activities: bodyObj.activities as Array<{
-              time: string;
-              title: string;
-              type: string;
-              duration: number;
-              location: { lat: number; lng: number };
-              notes?: string;
-              cost?: number;
-            }> | undefined,
+            activities,
           },
         ];
       } else {

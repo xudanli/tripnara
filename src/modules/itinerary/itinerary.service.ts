@@ -2070,6 +2070,14 @@ ${dateInstructions}
     }
 
     const day = days[0];
+    
+    // 更新行程的 daysCount（取最大的 day 值）
+    const allDays = await this.itineraryRepository.findDaysByItineraryId(journeyId);
+    const maxDay = Math.max(...allDays.map((d) => d.day));
+    await this.itineraryRepository.updateItinerary(journeyId, {
+      daysCount: maxDay,
+    });
+
     return {
       id: day.id,
       day: day.day,
@@ -2154,6 +2162,15 @@ ${dateInstructions}
     }));
 
     const days = await this.itineraryRepository.createDays(journeyId, daysInput);
+
+    // 更新行程的 daysCount（取最大的 day 值）
+    const maxDay = Math.max(...days.map((d) => d.day));
+    const allDays = await this.itineraryRepository.findDaysByItineraryId(journeyId);
+    const actualDaysCount = Math.max(maxDay, allDays.length);
+    
+    await this.itineraryRepository.updateItinerary(journeyId, {
+      daysCount: actualDaysCount,
+    });
 
     // 返回包含activities的数据
     return days.map((day) => ({
