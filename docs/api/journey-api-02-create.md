@@ -91,6 +91,7 @@
 | `location` | object | 是 | 位置坐标 `{ "lat": number, "lng": number }` | `{ "lat": 63.8808, "lng": -22.4495 }` |
 | `notes` | string | 是 | 活动描述和建议 | `"在蓝湖温泉中放松身心"` |
 | `cost` | number | 是 | 预估费用 | `6000` |
+| `details` | object | 否 | 活动详细信息（JSON对象），包含多语言名称、地址、开放时间、价格详情、推荐信息等 | 见下方说明 |
 
 #### preferences 对象字段（可选）
 
@@ -277,7 +278,22 @@ console.log('创建成功:', result);
             "duration": 180,
             "location": { "lat": 63.8808, "lng": -22.4495 },
             "notes": "在蓝湖温泉中放松身心，体验地热水的温暖",
-            "cost": 6000
+            "cost": 6000,
+            "details": {
+              "name": {
+                "chinese": "蓝湖温泉",
+                "english": "Blue Lagoon"
+              },
+              "address": {
+                "chinese": "冰岛雷克雅未克",
+                "english": "Reykjavik, Iceland"
+              },
+              "openingHours": "每日9:00-22:00",
+              "pricing": {
+                "detail": "成人票：5000冰岛克朗"
+              },
+              "rating": 4.7
+            }
           }
         ]
       }
@@ -317,6 +333,7 @@ console.log('创建成功:', result);
 | `data.days[].activities[].location` | object | 位置坐标 |
 | `data.days[].activities[].notes` | string | 活动描述 |
 | `data.days[].activities[].cost` | number | 预估费用 |
+| `data.days[].activities[].details` | object | 活动详细信息（JSON对象） |
 | `data.tasks` | array | 任务列表（创建时为空） |
 | `data.createdAt` | string | 创建时间（ISO 8601格式） |
 | `data.updatedAt` | string | 更新时间（ISO 8601格式） |
@@ -423,7 +440,8 @@ console.log('创建成功:', result);
 4. **日期格式**：所有日期字段必须使用 `YYYY-MM-DD` 格式
 5. **活动类型**：`activities[].type` 必须是以下值之一：`attraction`、`meal`、`hotel`、`shopping`、`transport`、`ocean`
 6. **坐标格式**：`location` 对象必须包含 `lat` 和 `lng` 两个数字字段
-7. **权限控制**：只能创建当前登录用户自己的行程
+7. **details 字段**：`details` 字段是可选的，用于存储活动的详细信息。所有字段都是可选的，可以包含任意结构。**此字段会被完整保存到数据库的 JSONB 字段中。**
+8. **权限控制**：只能创建当前登录用户自己的行程
 
 ---
 

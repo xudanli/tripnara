@@ -122,9 +122,28 @@
 | `type` | string | 是 | 活动类型：`attraction`（景点）、`meal`（用餐）、`hotel`（酒店）、`shopping`（购物）、`transport`（交通）、`ocean`（海洋活动） |
 | `coordinates` | object | 是 | 位置坐标 `{ "lat": number, "lng": number }` |
 | `notes` | string | 否 | 活动备注 |
-| `details` | object | 否 | 详细信息（不保存到数据库，仅用于前端展示） |
+| `details` | object | 否 | 活动详细信息（JSON对象），包含多语言名称、地址、开放时间、价格详情、推荐信息等，**会被保存到数据库** | 见下方说明 |
 | `cost` | number | 否 | 预估费用 |
 | `duration` | number | 否 | 持续时间（分钟） |
+
+#### details 对象结构（可选）
+
+`details` 字段用于存储活动的详细信息，是一个灵活的 JSON 对象，可以包含以下内容：
+
+| 字段名 | 类型 | 说明 | 示例值 |
+|--------|------|------|--------|
+| `name` | object | 多语言名称 | `{ "chinese": "蓝湖温泉", "english": "Blue Lagoon" }` |
+| `address` | object | 多语言地址 | `{ "chinese": "冰岛雷克雅未克", "english": "Reykjavik, Iceland" }` |
+| `transportation` | string | 交通信息 | `"从市区乘坐巴士约1小时"` |
+| `openingHours` | string | 开放时间 | `"每日9:00-22:00"` |
+| `pricing` | object | 价格详情 | `{ "detail": "成人票：5000冰岛克朗" }` |
+| `rating` | number | 评分 | `4.7` |
+| `recommendations` | object | 推荐信息（游览建议、最佳时间、附近景点等） | `{ "visitTips": "...", "bestTimeToVisit": "..." }` |
+| `contact` | object | 联系方式 | `{ "info": "电话：+354 123 4567" }` |
+| `accessibility` | string | 无障碍设施信息 | `"提供轮椅通道"` |
+| `category` | string | 分类 | `"温泉"` |
+
+**注意**：`details` 字段的结构是灵活的，可以根据需要包含任意字段。所有字段都是可选的。**此字段会被完整保存到数据库的 JSONB 字段中。**
 
 #### tasks 数组中的对象
 
@@ -254,6 +273,7 @@ curl -X PATCH "http://localhost:3000/api/v1/journeys/04d7126d-219f-49ab-b71a-a59
 | `data.days[].activities[].location` | object | 位置坐标 |
 | `data.days[].activities[].notes` | string | 活动备注 |
 | `data.days[].activities[].cost` | number | 预估费用 |
+| `data.days[].activities[].details` | object | 活动详细信息（JSON对象） |
 | `data.createdAt` | string | 创建时间（ISO 8601格式） |
 | `data.updatedAt` | string | 更新时间（ISO 8601格式） |
 
@@ -370,6 +390,7 @@ if (result.success) {
    - 前端的 `timeSlots` 会被转换为后端的 `activities`
    - 前端的 `coordinates` 会被转换为后端的 `location`
    - 前端的 `preferences` 数组会被转换为对象格式
+   - 前端的 `timeSlot.details` 会被转换为 `activity.details`，**完整保存到数据库**
 
 3. **开始日期**：
    - 优先使用传入的 `startDate`
@@ -380,7 +401,7 @@ if (result.success) {
 
 5. **tasks 字段**：当前 `tasks` 字段虽然可以传入，但不会保存到数据库（仅用于兼容前端数据格式）
 
-6. **details 字段**：`timeSlots` 中的 `details` 字段不会保存到数据库，仅用于前端展示
+6. **details 字段**：`timeSlots` 中的 `details` 字段**会被保存到数据库**，用于存储活动的详细信息（多语言名称、地址、开放时间、价格详情、推荐信息等）
 
 7. **时间格式**：`date` 字段使用 `YYYY-MM-DD` 格式，`time` 字段使用 `HH:MM` 格式
 

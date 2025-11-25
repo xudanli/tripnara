@@ -47,7 +47,7 @@
         notes?: string;        // 备注
         duration?: number;      // 持续时间（分钟）
         cost?: number;         // 成本
-        details?: object;      // 详细信息（任意对象）
+        details?: object;      // 详细信息（JSON对象，**会被保存到数据库**），包含多语言名称、地址、开放时间、价格详情、推荐信息等
       }>;
     }>;
     totalCost?: number;        // 总成本（可选）
@@ -107,7 +107,7 @@
 | notes | string | 否 | 备注 |
 | duration | number | 否 | 持续时间（分钟，默认：60） |
 | cost | number | 否 | 成本（默认：0） |
-| details | object | 否 | 详细信息（任意对象） |
+| details | object | 否 | 详细信息（JSON对象，**会被保存到数据库**），包含多语言名称、地址、开放时间、价格详情、推荐信息等 |
 
 #### tasks 数组项（可选）
 
@@ -193,6 +193,7 @@
    - `timeSlot.type` → `activity.type`（如果未提供，默认为 `attraction`）
    - `timeSlot.duration` → `activity.duration`（如果未提供，默认为 60 分钟）
    - `timeSlot.cost` → `activity.cost`（如果未提供，默认为 0）
+   - `timeSlot.details` → `activity.details`（**会被保存到数据库的 JSONB 字段**）
 3. **preferences 转换**：
    - `budget` 字符串映射：`economy` → `low`，`comfort` → `medium`，`luxury` → `high`
    - `travelStyle` 字符串映射：保持不变
@@ -309,6 +310,7 @@ const result = await response.json();
 4. **类型映射**：`type` 字段必须是以下之一：`attraction`、`meal`、`hotel`、`shopping`、`transport`
 5. **任务处理**：目前 `tasks` 数组会被接收但不会保存到数据库，仅用于日志记录。如果需要保存任务，请使用任务管理接口
 6. **开始日期**：如果不提供 `startDate`，系统将使用 `days[0].date` 作为开始日期
+7. **details 字段**：`timeSlots` 中的 `details` 字段**会被保存到数据库**，用于存储活动的详细信息（多语言名称、地址、开放时间、价格详情、推荐信息等）
 
 ## 相关接口
 
