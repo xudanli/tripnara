@@ -131,6 +131,19 @@ export class MediaService {
   ) {
     this.unsplashApiKey = this.configService.get<string>('UNSPLASH_ACCESS_KEY');
     this.pexelsApiKey = this.configService.get<string>('PEXELS_API_KEY');
+    
+    // 调试日志：检查环境变量是否正确加载
+    if (this.unsplashApiKey) {
+      this.logger.log(`Unsplash API key 已加载 (长度: ${this.unsplashApiKey.length})`);
+    } else {
+      this.logger.warn('Unsplash API key 未配置 - 环境变量 UNSPLASH_ACCESS_KEY 未设置或为空');
+    }
+    
+    if (this.pexelsApiKey) {
+      this.logger.log(`Pexels API key 已加载 (长度: ${this.pexelsApiKey.length})`);
+    } else {
+      this.logger.warn('Pexels API key 未配置 - 环境变量 PEXELS_API_KEY 未设置或为空');
+    }
   }
 
   /**
