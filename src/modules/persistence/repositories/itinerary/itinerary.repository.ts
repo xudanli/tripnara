@@ -251,7 +251,7 @@ export class ItineraryRepository {
   }
 
   async deleteItinerary(id: string): Promise<boolean> {
-    const result = await this.itineraryRepository.delete(id);
+    const result = await this.itineraryRepository.delete({ id });
     return (result.affected ?? 0) > 0;
   }
 
@@ -476,7 +476,7 @@ export class ItineraryRepository {
    * 删除指定天数（会级联删除 activities）
    */
   async deleteDay(dayId: string): Promise<boolean> {
-    const result = await this.dayRepository.delete(dayId);
+    const result = await this.dayRepository.delete({ id: dayId });
     return (result.affected ?? 0) > 0;
   }
 
@@ -613,7 +613,7 @@ export class ItineraryRepository {
    * 删除指定活动
    */
   async deleteActivity(activityId: string): Promise<boolean> {
-    const result = await this.activityRepository.delete(activityId);
+    const result = await this.activityRepository.delete({ id: activityId });
     return (result.affected ?? 0) > 0;
   }
 
@@ -875,7 +875,7 @@ export class ItineraryRepository {
    * 删除支出记录
    */
   async deleteExpense(expenseId: string): Promise<boolean> {
-    const result = await this.expenseRepository.delete(expenseId);
+    const result = await this.expenseRepository.delete({ id: expenseId });
     return (result.affected ?? 0) > 0;
   }
 
