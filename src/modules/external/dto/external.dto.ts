@@ -136,3 +136,75 @@ export class AttractionDetailsResponseDto {
   data!: AttractionDetailsDto;
 }
 
+/**
+ * Travel Advisor 位置搜索结果项
+ */
+export class LocationSearchResultItemDto {
+  @ApiProperty({ description: '结果类型', example: 'geos' })
+  result_type!: string;
+
+  @ApiProperty({
+    description: '结果对象',
+    example: {
+      name: '拉萨',
+      coordinates: { latitude: 29.65, longitude: 91.11 },
+    },
+  })
+  result_object!: {
+    name: string;
+    coordinates?: {
+      latitude: number;
+      longitude: number;
+    };
+    [key: string]: unknown;
+  };
+}
+
+/**
+ * Travel Advisor 位置搜索响应
+ */
+export class LocationSearchResponseDto {
+  @ApiProperty({
+    description: '响应数据',
+    type: 'object',
+    properties: {
+      data: {
+        type: 'array',
+        items: { 
+          type: 'object',
+          properties: {
+            result_type: { type: 'string', example: 'geos' },
+            result_object: {
+              type: 'object',
+              properties: {
+                name: { type: 'string', example: '拉萨' },
+                coordinates: {
+                  type: 'object',
+                  properties: {
+                    latitude: { type: 'number', example: 29.65 },
+                    longitude: { type: 'number', example: 91.11 },
+                  },
+                },
+              },
+            },
+          },
+        },
+        description: 'Travel Advisor 位置搜索结果列表',
+      },
+    },
+  })
+  data!: {
+    data?: Array<{
+      result_type: string;
+      result_object: {
+        name: string;
+        coordinates?: {
+          latitude: number;
+          longitude: number;
+        };
+        [key: string]: unknown;
+      };
+    }>;
+  };
+}
+

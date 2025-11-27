@@ -7,7 +7,7 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags, ApiOkResponse, ApiQuery } from '@nestjs/swagger';
 import { ExternalService } from './external.service';
 import {
   EventSearchQueryDto,
@@ -15,6 +15,7 @@ import {
   AttractionDetailsParamDto,
   AttractionDetailsQueryDto,
   AttractionDetailsResponseDto,
+  LocationSearchResponseDto,
 } from './dto/external.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -28,16 +29,24 @@ export class ExternalController {
 
   @Get('events')
   @ApiOperation({ summary: '搜索 Eventbrite 活动' })
+  @ApiOkResponse({ description: '返回 Eventbrite 活动列表', schema: { type: 'object', properties: { data: { type: 'object' } } } })
   async searchEvents(@Query() query: EventSearchQueryDto) {
     const data = await this.externalService.searchEvents(query.location);
     return { data };
   }
 
   @Get('locations')
-  @ApiOperation({ summary: '搜索 Travel Advisor 目的地' })
-  async searchLocations(@Query() query: LocationSearchQueryDto) {
-    const data = await this.externalService.searchLocations(query.query);
-    return { data };
+  @ApiOperation({ 
+    summary: '搜索 Travel Advisor 目的地',
+    description: '根据关键字搜索 Travel Advisor 目的地，返回匹配的地点列表（包含坐标、名称等信息）'
+  })
+  @ApiOkResponse({ 
+    description: '返回 Travel Advisor 目的地列表',
+    type: LocationSearchResponseDto,
+  })
+  async searchLocations(@Query() query: LocationSearchQueryDto): Promise<LocationSearchResponseDto> {
+    const result = await this.externalService.searchLocations(query.query);
+    return { data: result };
   }
 
   @Get('attractions/:id')
