@@ -32,6 +32,18 @@
 
 ---
 
+### 4. 媒体服务 API
+**文档**: [media-api.md](./media-api.md)
+
+- `POST /api/v1/media/search-image` - 搜索图片（代理 Unsplash/Pexels）
+- `POST /api/v1/media/search-video` - 搜索视频
+- `POST /api/v1/media/upload` - 上传媒体（保存URL到数据库）
+- `GET /api/v1/media/:mediaId` - 获取媒体详情
+
+**功能**: 搜索高质量图片和视频资源，支持从 Unsplash 和 Pexels 获取媒体内容。同时支持保存用户上传的媒体URL到数据库。
+
+---
+
 ## 快速开始
 
 ### 1. 认证
@@ -71,6 +83,9 @@ interface ErrorResponse {
 - `GenerateLocationRequest` / `GenerateLocationResponse`
 - `GenerateLocationBatchRequest` / `GenerateLocationBatchResponse`
 - `GenerateTravelSummaryRequest` / `GenerateTravelSummaryResponse`
+- `SearchImageRequest` / `SearchImageResponse`
+- `SearchVideoRequest` / `SearchVideoResponse`
+- `UploadMediaRequest` / `UploadMediaResponse`
 
 ---
 

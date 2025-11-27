@@ -2509,6 +2509,26 @@ ${dateInstructions}
       location: { lat: number; lng: number };
       notes?: string;
       cost?: number;
+      locationDetails?: {
+        chineseName?: string;
+        localName?: string;
+        chineseAddress?: string;
+        localAddress?: string;
+        transportInfo?: string;
+        openingHours?: string;
+        ticketPrice?: string;
+        visitTips?: string;
+        nearbyAttractions?: string;
+        contactInfo?: string;
+        category?: string;
+        rating?: number;
+        visitDuration?: string;
+        bestTimeToVisit?: string;
+        accessibility?: string;
+        dressingTips?: string;
+        culturalTips?: string;
+        bookingInfo?: string;
+      };
     },
     userId?: string,
   ): Promise<ItineraryActivityDto & { id: string }> {
@@ -2525,7 +2545,20 @@ ${dateInstructions}
       }
     }
 
-    const activity = await this.itineraryRepository.createActivity(dayId, dto);
+    // 将 locationDetails 存储到 details 字段中
+    const details = dto.locationDetails ? { locationDetails: dto.locationDetails } : undefined;
+
+    const activity = await this.itineraryRepository.createActivity(dayId, {
+      time: dto.time,
+      title: dto.title,
+      type: dto.type,
+      duration: dto.duration,
+      location: dto.location,
+      notes: dto.notes,
+      cost: dto.cost,
+      details,
+    });
+
     return {
       id: activity.id,
       time: activity.time,
@@ -2559,6 +2592,26 @@ ${dateInstructions}
       location?: { lat: number; lng: number };
       notes?: string;
       cost?: number;
+      locationDetails?: {
+        chineseName?: string;
+        localName?: string;
+        chineseAddress?: string;
+        localAddress?: string;
+        transportInfo?: string;
+        openingHours?: string;
+        ticketPrice?: string;
+        visitTips?: string;
+        nearbyAttractions?: string;
+        contactInfo?: string;
+        category?: string;
+        rating?: number;
+        visitDuration?: string;
+        bestTimeToVisit?: string;
+        accessibility?: string;
+        dressingTips?: string;
+        culturalTips?: string;
+        bookingInfo?: string;
+      };
     },
     userId?: string,
   ): Promise<ItineraryActivityDto & { id: string }> {
@@ -2583,7 +2636,33 @@ ${dateInstructions}
       }
     }
 
-    const updated = await this.itineraryRepository.updateActivity(activityId, dto);
+    // 处理 locationDetails：如果提供了，需要合并到 details 中
+    // 先获取现有活动以获取当前的 details
+    const existingActivity = await this.itineraryRepository['activityRepository'].findOne({
+      where: { id: activityId },
+      select: ['details'],
+    });
+
+    let detailsUpdate: Record<string, unknown> | undefined;
+    if (dto.locationDetails !== undefined) {
+      const existingDetails = (existingActivity?.details as Record<string, unknown>) || {};
+      
+      // 合并 locationDetails
+      detailsUpdate = {
+        ...existingDetails,
+        locationDetails: dto.locationDetails,
+      };
+    } else if (existingActivity?.details) {
+      // 如果没有提供 locationDetails，但存在现有的 details，保持原样
+      detailsUpdate = existingActivity.details as Record<string, unknown>;
+    }
+
+    // 从 dto 中提取 locationDetails，避免传递给 updateActivity
+    const { locationDetails, ...updateDto } = dto;
+    const updated = await this.itineraryRepository.updateActivity(activityId, {
+      ...updateDto,
+      ...(detailsUpdate !== undefined && { details: detailsUpdate }),
+    });
     if (!updated) {
       throw new NotFoundException(`活动不存在: ${activityId}`);
     }

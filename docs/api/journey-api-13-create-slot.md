@@ -33,7 +33,22 @@
   "duration": 120,
   "location": { "lat": 64.1419, "lng": -21.9274 },
   "notes": "提前预订门票",
-  "cost": 1200
+  "cost": 1200,
+  "locationDetails": {
+    "chineseName": "蓝湖温泉",
+    "localName": "Blue Lagoon",
+    "chineseAddress": "Nordurljosavegur 9, 240 Grindavík, Iceland",
+    "localAddress": "Nordurljosavegur 9, 240 Grindavík, Iceland",
+    "transportInfo": "从雷克雅未克出发，约40分钟车程。可乘坐巴士或自驾前往",
+    "openingHours": "全年开放，夏季8:00-22:00，冬季8:00-20:00",
+    "ticketPrice": "基础门票约ISK 8,990（约¥500），包含入场和基础设施使用",
+    "visitTips": "建议提前预订，避开高峰时段。建议游览时长：2-3小时",
+    "rating": 4.5,
+    "visitDuration": "2-3小时",
+    "bestTimeToVisit": "上午或傍晚，避开中午高峰",
+    "nearbyAttractions": "雷克雅未克、黄金圈",
+    "contactInfo": "电话：+354 420 8800，官网：www.bluelagoon.com"
+  }
 }
 ```
 
@@ -48,6 +63,30 @@
 | `location` | object | 是 | 位置坐标 `{ "lat": number, "lng": number }` |
 | `notes` | string | 否 | 活动描述和建议 |
 | `cost` | number | 否 | 预估费用，最小值为 0 |
+| `locationDetails` | object | 否 | 位置详细信息，包含多语言名称、地址、交通、开放时间等（见下方说明） |
+
+#### locationDetails 对象字段（可选）
+
+| 字段名 | 类型 | 必填 | 说明 | 示例值 |
+|--------|------|------|------|--------|
+| `chineseName` | string | 否 | 中文名称 | `"蓝湖温泉"` |
+| `localName` | string | 否 | 当地语言名称 | `"Blue Lagoon"` |
+| `chineseAddress` | string | 否 | 中文地址 | `"Nordurljosavegur 9, 240 Grindavík, Iceland"` |
+| `localAddress` | string | 否 | 当地语言地址 | `"Nordurljosavegur 9, 240 Grindavík, Iceland"` |
+| `transportInfo` | string | 否 | 详细交通信息 | `"从雷克雅未克出发，约40分钟车程"` |
+| `openingHours` | string | 否 | 开放时间 | `"全年开放，夏季8:00-22:00，冬季8:00-20:00"` |
+| `ticketPrice` | string | 否 | 门票价格（详细说明） | `"基础门票约ISK 8,990（约¥500）"` |
+| `visitTips` | string | 否 | 游览建议 | `"建议提前预订，避开高峰时段"` |
+| `nearbyAttractions` | string | 否 | 周边推荐 | `"雷克雅未克、黄金圈"` |
+| `contactInfo` | string | 否 | 联系方式 | `"电话：+354 420 8800"` |
+| `category` | string | 否 | 景点类型 | `"温泉"` |
+| `rating` | number | 否 | 评分（1-5） | `4.5` |
+| `visitDuration` | string | 否 | 建议游览时长 | `"2-3小时"` |
+| `bestTimeToVisit` | string | 否 | 最佳游览时间 | `"上午或傍晚，避开中午高峰"` |
+| `accessibility` | string | 否 | 无障碍设施信息 | `"提供无障碍通道"` |
+| `dressingTips` | string | 否 | 穿搭建议 | `"建议携带泳衣和拖鞋"` |
+| `culturalTips` | string | 否 | 当地文化提示和特殊注意事项 | `"进入温泉前需淋浴"` |
+| `bookingInfo` | string | 否 | 是否需要提前预订 | `"建议提前预订，可通过官网或电话预约"` |
 
 ---
 
@@ -66,7 +105,19 @@ curl -X POST "http://localhost:3000/api/v1/journeys/04d7126d-219f-49ab-b71a-a595
     "duration": 120,
     "location": { "lat": 64.1419, "lng": -21.9274 },
     "notes": "提前预订门票",
-    "cost": 1200
+    "cost": 1200,
+    "locationDetails": {
+      "chineseName": "蓝湖温泉",
+      "localName": "Blue Lagoon",
+      "chineseAddress": "Nordurljosavegur 9, 240 Grindavík, Iceland",
+      "localAddress": "Nordurljosavegur 9, 240 Grindavík, Iceland",
+      "transportInfo": "从雷克雅未克出发，约40分钟车程",
+      "openingHours": "全年开放，夏季8:00-22:00，冬季8:00-20:00",
+      "ticketPrice": "基础门票约ISK 8,990（约¥500）",
+      "visitTips": "建议提前预订，避开高峰时段",
+      "rating": 4.5,
+      "visitDuration": "2-3小时"
+    }
   }'
 ```
 
@@ -88,6 +139,8 @@ curl -X POST "http://localhost:3000/api/v1/journeys/04d7126d-219f-49ab-b71a-a595
   "cost": 1200
 }
 ```
+
+**注意**：位置详细信息存储在活动的 `details` 字段中，可以通过获取活动详情接口获取完整信息。
 
 ### 响应字段说明
 
@@ -171,6 +224,21 @@ const newActivity = {
   location: { lat: 64.1419, lng: -21.9274 },
   notes: '提前预订门票',
   cost: 1200,
+  locationDetails: {
+    chineseName: '蓝湖温泉',
+    localName: 'Blue Lagoon',
+    chineseAddress: 'Nordurljosavegur 9, 240 Grindavík, Iceland',
+    localAddress: 'Nordurljosavegur 9, 240 Grindavík, Iceland',
+    transportInfo: '从雷克雅未克出发，约40分钟车程。可乘坐巴士或自驾前往',
+    openingHours: '全年开放，夏季8:00-22:00，冬季8:00-20:00',
+    ticketPrice: '基础门票约ISK 8,990（约¥500），包含入场和基础设施使用',
+    visitTips: '建议提前预订，避开高峰时段。建议游览时长：2-3小时',
+    rating: 4.5,
+    visitDuration: '2-3小时',
+    bestTimeToVisit: '上午或傍晚，避开中午高峰',
+    nearbyAttractions: '雷克雅未克、黄金圈',
+    contactInfo: '电话：+354 420 8800，官网：www.bluelagoon.com',
+  },
 };
 
 const response = await fetch(`/api/v1/journeys/${journeyId}/days/${dayId}/slots`, {
@@ -209,4 +277,11 @@ console.log('创建成功:', activity);
    - 系统会验证天数是否属于指定的行程
 
 6. **费用**：`cost` 字段为可选，如果提供，必须大于等于 0
+
+7. **位置详细信息**：`locationDetails` 字段为可选，用于存储详细的位置信息：
+   - 包含多语言名称、地址、交通信息、开放时间、门票价格等
+   - 这些信息会存储在活动的 `details` 字段中
+   - 可以通过获取活动详情接口获取完整的位置信息
+   - 建议在创建活动时提供这些信息，以便前端更好地展示活动详情
+   - 这些信息可以通过调用位置信息生成接口（`POST /api/location/generate`）获取
 
