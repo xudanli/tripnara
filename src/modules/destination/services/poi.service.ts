@@ -26,7 +26,7 @@ export class PoiService {
       // 构建搜索查询
       // 如果提供了坐标，优先使用坐标搜索，同时提供 destination 作为上下文
       let searchQuery = dto.query;
-      
+
       if (dto.latitude && dto.longitude) {
         // 使用坐标搜索，结合 destination 和 query 构建查询
         if (dto.destination) {
