@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+// @ts-ignore - nodemailer is a CommonJS module without proper exports
 import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 
@@ -184,4 +185,3 @@ ${data.invitationLink}
     return { subject, html, text };
   }
 }
-
