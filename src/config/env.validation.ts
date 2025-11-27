@@ -95,6 +95,15 @@ const envSchema = z.object({
   FRONTEND_EXTRA_ORIGINS: z.string().optional(),
   JWT_SECRET: z.string().min(1).optional(),
   JWT_EXPIRES_IN: z.string().optional(),
+  // Email configuration
+  EMAIL_ENABLED: z.string().optional().default('false'),
+  EMAIL_FROM: z.string().email().optional().default('noreply@tripmind.com'),
+  EMAIL_FROM_NAME: z.string().optional().default('TripMind'),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().optional().default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_SECURE: z.string().optional().default('false'),
 });
 
 export type EnvSchema = z.infer<typeof envSchema>;

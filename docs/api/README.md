@@ -44,6 +44,19 @@
 
 ---
 
+### 5. 旅伴管理 API
+**文档**: [journey-api-34-members.md](./journey-api-34-members.md)
+
+- `GET /api/v1/journeys/{journeyId}/members` - 获取成员列表
+- `POST /api/v1/journeys/{journeyId}/members/invite` - 邀请成员
+- `POST /api/v1/journeys/{journeyId}/members` - 添加成员
+- `PATCH /api/v1/journeys/{journeyId}/members/{memberId}` - 更新成员信息
+- `DELETE /api/v1/journeys/{journeyId}/members/{memberId}` - 移除成员
+
+**功能**: 实现行程成员（旅伴）的完整管理功能，包括成员的增删改查、邀请成员、权限控制等。支持 owner、admin、member 三种角色，每个角色拥有不同的权限。
+
+---
+
 ## 快速开始
 
 ### 1. 认证

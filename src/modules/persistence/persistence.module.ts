@@ -5,6 +5,7 @@ import { UserPreferenceRepository } from './repositories/user-preference/user-pr
 import { EventbriteConnectionRepository } from './repositories/eventbrite-connection/eventbrite-connection.repository';
 import { ItineraryRepository } from './repositories/itinerary/itinerary.repository';
 import { JourneyTemplateRepository } from './repositories/journey-template/journey-template.repository';
+import { JourneyMemberRepository } from './repositories/journey-member/journey-member.repository';
 
 @Module({
   imports: [TypeOrmModule.forFeature(TYPEORM_ENTITIES)],
@@ -13,12 +14,14 @@ import { JourneyTemplateRepository } from './repositories/journey-template/journ
     EventbriteConnectionRepository,
     ItineraryRepository,
     JourneyTemplateRepository,
+    JourneyMemberRepository,
   ],
   exports: [
     UserPreferenceRepository,
     EventbriteConnectionRepository,
     ItineraryRepository,
     JourneyTemplateRepository,
+    JourneyMemberRepository,
   ],
 })
 export class PersistenceModule {}

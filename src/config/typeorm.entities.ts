@@ -41,6 +41,10 @@ import {
   TemplateDayEntity,
   TemplateTimeSlotEntity,
 } from '../modules/persistence/entities/journey-template.entity';
+import {
+  JourneyMemberEntity,
+  JourneyInvitationEntity,
+} from '../modules/persistence/entities/journey-member.entity';
 
 export const TYPEORM_ENTITIES = [
   UserEntity,
@@ -72,4 +76,6 @@ export const TYPEORM_ENTITIES = [
   JourneyTemplateEntity,
   TemplateDayEntity,
   TemplateTimeSlotEntity,
+  JourneyMemberEntity,
+  JourneyInvitationEntity,
 ];

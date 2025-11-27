@@ -25,6 +25,7 @@ import { InspirationModule } from './modules/inspiration/inspiration.module';
 import { SeekerModule } from './modules/seeker/seeker.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
 import { MediaModule } from './modules/media/media.module';
+import { MemberModule } from './modules/journey-members/member.module';
 
 const resolveEnvFilePaths = (): string[] => {
   const env = process.env.NODE_ENV?.toLowerCase();
@@ -108,6 +109,7 @@ const resolveEnvFilePaths = (): string[] => {
     SeekerModule,
     AlertsModule,
     MediaModule,
+    MemberModule,
   ],
   controllers: [AppController],
   providers: [AppService],
