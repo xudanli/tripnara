@@ -1156,11 +1156,29 @@ export class LocationDetailsDto {
 
   @ApiPropertyOptional({ description: '建议游览时长', example: '2-3小时' })
   @IsOptional()
+  @Transform(({ value }) => {
+    // 如果值是 null 或 undefined，保持原样
+    if (value === null || value === undefined) {
+      return value;
+    }
+    // 如果值是数字或其他类型，转换为字符串
+    return String(value);
+  })
+  @ValidateIf((o) => o.visitDuration !== null && o.visitDuration !== undefined)
   @IsString()
   visitDuration?: string;
 
   @ApiPropertyOptional({ description: '最佳游览时间', example: '上午10点前，晴朗天气' })
   @IsOptional()
+  @Transform(({ value }) => {
+    // 如果值是 null 或 undefined，保持原样
+    if (value === null || value === undefined) {
+      return value;
+    }
+    // 如果值是数字或其他类型，转换为字符串
+    return String(value);
+  })
+  @ValidateIf((o) => o.bestTimeToVisit !== null && o.bestTimeToVisit !== undefined)
   @IsString()
   bestTimeToVisit?: string;
 
