@@ -197,3 +197,105 @@ export class AlertListResponseDto {
   limit!: number;
 }
 
+/**
+ * 更新安全通知请求 DTO（所有字段可选）
+ */
+export class UpdateAlertRequestDto {
+  @ApiPropertyOptional({ description: '通知标题', example: '冰岛火山活动预警（已更新）' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  title?: string;
+
+  @ApiPropertyOptional({ description: '通知内容', example: '近期冰岛火山活动频繁，请游客注意安全...' })
+  @IsOptional()
+  @IsString()
+  content?: string;
+
+  @ApiPropertyOptional({ description: '目的地', example: '冰岛' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  destination?: string;
+
+  @ApiPropertyOptional({ description: '国家代码（ISO 3166-1 alpha-3）', example: 'ISL' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(3)
+  countryCode?: string;
+
+  @ApiPropertyOptional({
+    description: '严重程度',
+    enum: ['low', 'medium', 'high', 'critical'],
+    example: 'critical',
+  })
+  @IsOptional()
+  @IsEnum(['low', 'medium', 'high', 'critical'])
+  severity?: AlertSeverity;
+
+  @ApiPropertyOptional({
+    description: '状态',
+    enum: ['active', 'expired', 'archived'],
+  })
+  @IsOptional()
+  @IsEnum(['active', 'expired', 'archived'])
+  status?: AlertStatus;
+
+  @ApiPropertyOptional({ description: '生效开始日期', example: '2025-01-15T00:00:00.000Z' })
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+
+  @ApiPropertyOptional({ 
+    description: '生效结束日期（设置为 null 表示长期有效）', 
+    example: '2025-03-15T00:00:00.000Z',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsDateString()
+  endDate?: string | null;
+
+  @ApiPropertyOptional({ description: '元数据', example: { source: 'government', region: 'south' } })
+  @IsOptional()
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * 获取单个安全通知响应 DTO
+ */
+export class GetAlertResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({ description: '通知数据', type: AlertDto })
+  data!: AlertDto;
+
+  @ApiPropertyOptional({ description: '消息', example: '获取成功' })
+  message?: string;
+}
+
+/**
+ * 更新安全通知响应 DTO
+ */
+export class UpdateAlertResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({ description: '更新后的通知数据', type: AlertDto })
+  data!: AlertDto;
+
+  @ApiPropertyOptional({ description: '消息', example: '更新成功' })
+  message?: string;
+}
+
+/**
+ * 删除安全通知响应 DTO
+ */
+export class DeleteAlertResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiPropertyOptional({ description: '消息', example: '删除成功' })
+  message?: string;
+}
+

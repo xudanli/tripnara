@@ -13,6 +13,10 @@ import {
   GetAlertsQueryDto,
   AlertListResponseDto,
   AlertDto,
+  UpdateAlertRequestDto,
+  UpdateAlertResponseDto,
+  GetAlertResponseDto,
+  DeleteAlertResponseDto,
 } from './dto/alerts.dto';
 
 @Injectable()
@@ -197,6 +201,127 @@ export class AlertsService {
       total,
       page,
       limit,
+    };
+  }
+
+  /**
+   * 根据 ID 获取单个安全通知
+   */
+  async getAlertById(id: string): Promise<GetAlertResponseDto> {
+    const alert = await this.alertRepository.findOne({
+      where: { id },
+    });
+
+    if (!alert) {
+      throw new NotFoundException('安全提示不存在');
+    }
+
+    return {
+      success: true,
+      data: this.mapToDto(alert),
+      message: '获取成功',
+    };
+  }
+
+  /**
+   * 更新安全通知
+   */
+  async updateAlert(
+    id: string,
+    dto: UpdateAlertRequestDto,
+  ): Promise<UpdateAlertResponseDto> {
+    const alert = await this.alertRepository.findOne({
+      where: { id },
+    });
+
+    if (!alert) {
+      throw new NotFoundException('安全提示不存在');
+    }
+
+    // 验证日期
+    let startDate = alert.startDate;
+    if (dto.startDate) {
+      startDate = new Date(dto.startDate);
+      if (isNaN(startDate.getTime())) {
+        throw new BadRequestException('无效的开始日期');
+      }
+    }
+
+    let endDate: Date | undefined = alert.endDate;
+    if (dto.endDate !== undefined) {
+      if (dto.endDate === null) {
+        endDate = undefined;
+      } else {
+        endDate = new Date(dto.endDate);
+        if (isNaN(endDate.getTime())) {
+          throw new BadRequestException('无效的结束日期');
+        }
+        if (endDate < startDate) {
+          throw new BadRequestException('结束日期不能早于开始日期');
+        }
+      }
+    } else if (dto.startDate) {
+      // 如果只更新了开始日期，需要重新验证结束日期
+      if (alert.endDate && alert.endDate < startDate) {
+        throw new BadRequestException('结束日期不能早于开始日期');
+      }
+    }
+
+    // 更新字段
+    if (dto.title !== undefined) {
+      alert.title = dto.title;
+    }
+    if (dto.content !== undefined) {
+      alert.content = dto.content;
+    }
+    if (dto.destination !== undefined) {
+      alert.destination = dto.destination;
+    }
+    if (dto.countryCode !== undefined) {
+      alert.countryCode = dto.countryCode;
+    }
+    if (dto.severity !== undefined) {
+      alert.severity = dto.severity;
+    }
+    if (dto.status !== undefined) {
+      alert.status = dto.status;
+    }
+    if (dto.startDate !== undefined) {
+      alert.startDate = startDate;
+    }
+    if (dto.endDate !== undefined) {
+      alert.endDate = endDate;
+    }
+    if (dto.metadata !== undefined) {
+      alert.metadata = dto.metadata;
+    }
+
+    const updated = await this.alertRepository.save(alert);
+
+    return {
+      success: true,
+      data: this.mapToDto(updated),
+      message: '更新成功',
+    };
+  }
+
+  /**
+   * 删除安全通知
+   */
+  async deleteAlert(id: string): Promise<DeleteAlertResponseDto> {
+    const alert = await this.alertRepository.findOne({
+      where: { id },
+    });
+
+    if (!alert) {
+      throw new NotFoundException('安全提示不存在');
+    }
+
+    await this.alertRepository.remove(alert);
+
+    return {
+      success: true,
+      message: '删除成功',
     };
   }
 

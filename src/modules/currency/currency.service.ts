@@ -1,5 +1,11 @@
-import { Injectable, Logger, Optional, Inject } from '@nestjs/common';
+import { Injectable, Logger, Optional, Inject, OnModuleInit } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { GeocodeService } from '../destination/services/geocode.service';
+import {
+  CurrencyEntity,
+  CountryCurrencyMappingEntity,
+} from '../persistence/entities/reference.entity';
 
 /**
  * 货币信息接口
@@ -187,35 +193,207 @@ const COUNTRY_NAME_TO_CODE: Record<string, string> = {
   Egypt: 'EG',
 };
 
-/**
- * 从地址中提取国家名称的辅助函数
- */
-function extractCountryFromAddress(address: string): string | null {
-  if (!address) {
-    return null;
-  }
-
-  // 尝试匹配国家名称（中文和英文）
-  const normalized = address.trim();
-  for (const [name, code] of Object.entries(COUNTRY_NAME_TO_CODE)) {
-    if (
-      normalized.includes(name) ||
-      normalized.toLowerCase().includes(name.toLowerCase())
-    ) {
-      return name;
-    }
-  }
-
-  return null;
-}
 
 @Injectable()
-export class CurrencyService {
+export class CurrencyService implements OnModuleInit {
   private readonly logger = new Logger(CurrencyService.name);
+
+  // 内存缓存
+  private currencyCache: Map<string, CurrencyInfo> = new Map();
+  private countryCurrencyMapCache: Map<string, CurrencyInfo> = new Map();
+  private countryNameToCodeCache: Map<string, string> = new Map();
+  private cacheLoaded = false;
 
   constructor(
     @Optional() @Inject(GeocodeService) private readonly geocodeService?: GeocodeService,
+    @InjectRepository(CurrencyEntity)
+    private readonly currencyRepository?: Repository<CurrencyEntity>,
+    @InjectRepository(CountryCurrencyMappingEntity)
+    private readonly mappingRepository?: Repository<CountryCurrencyMappingEntity>,
   ) {}
+
+  /**
+   * 模块初始化时加载缓存
+   */
+  async onModuleInit(): Promise<void> {
+    await this.loadCache();
+  }
+
+  /**
+   * 从数据库加载货币和国家映射数据到缓存
+   */
+  async loadCache(): Promise<void> {
+    try {
+      if (!this.currencyRepository || !this.mappingRepository) {
+        this.logger.warn('货币数据库仓库未配置，使用硬编码数据');
+        this.cacheLoaded = true;
+        return;
+      }
+
+      // 加载货币数据
+      const currencies = await this.currencyRepository.find({
+        where: { isActive: true },
+      });
+
+      for (const currency of currencies) {
+        this.currencyCache.set(currency.code.toUpperCase(), {
+          code: currency.code,
+          symbol: currency.symbol,
+          name: {
+            zh: currency.nameZh,
+            en: currency.nameEn,
+          },
+        });
+      }
+
+      // 加载国家货币映射数据
+      const mappings = await this.mappingRepository.find({
+        where: { isActive: true },
+        relations: [], // 注意：这里不加载 currency 关系，直接使用 currencyCode
+      });
+
+      for (const mapping of mappings) {
+        const currency = this.currencyCache.get(mapping.currencyCode.toUpperCase());
+        if (currency) {
+          this.countryCurrencyMapCache.set(mapping.countryCode.toUpperCase(), currency);
+
+          // 构建国家名称到代码的映射
+          if (mapping.countryNames) {
+            if (mapping.countryNames.zh) {
+              for (const name of mapping.countryNames.zh) {
+                this.countryNameToCodeCache.set(name, mapping.countryCode);
+              }
+            }
+            if (mapping.countryNames.en) {
+              for (const name of mapping.countryNames.en) {
+                this.countryNameToCodeCache.set(name.toLowerCase(), mapping.countryCode);
+              }
+            }
+          }
+        }
+      }
+
+      this.cacheLoaded = true;
+      this.logger.log(
+        `货币缓存加载完成: ${currencies.length} 个货币, ${mappings.length} 个国家映射`,
+      );
+    } catch (error) {
+      this.logger.error('加载货币缓存失败，使用硬编码数据', error);
+      this.cacheLoaded = true; // 即使失败也标记为已加载，使用硬编码数据
+    }
+  }
+
+  /**
+   * 刷新缓存（用于数据更新后）
+   */
+  async refreshCache(): Promise<void> {
+    this.currencyCache.clear();
+    this.countryCurrencyMapCache.clear();
+    this.countryNameToCodeCache.clear();
+    await this.loadCache();
+  }
+
+  /**
+   * 获取货币信息（优先从缓存，如果缓存为空则使用硬编码数据）
+   */
+  private getCurrencyInfo(code: string): CurrencyInfo | null {
+    // 优先使用数据库缓存
+    if (this.cacheLoaded && this.currencyCache.size > 0) {
+      const currency = this.currencyCache.get(code.toUpperCase());
+      if (currency) {
+        return currency;
+      }
+    }
+
+    // 回退到硬编码数据
+    return COUNTRY_CURRENCY_MAP[code.toUpperCase()] || null;
+  }
+
+  /**
+   * 获取国家代码对应的货币（优先从缓存，如果缓存为空则使用硬编码数据）
+   */
+  private getCurrencyByCountryCodeFromCache(countryCode: string): CurrencyInfo | null {
+    // 优先使用数据库缓存
+    if (this.cacheLoaded && this.countryCurrencyMapCache.size > 0) {
+      const currency = this.countryCurrencyMapCache.get(countryCode.toUpperCase());
+      if (currency) {
+        return currency;
+      }
+    }
+
+    // 回退到硬编码数据
+    return COUNTRY_CURRENCY_MAP[countryCode.toUpperCase()] || null;
+  }
+
+  /**
+   * 获取国家名称对应的国家代码（优先从缓存，如果缓存为空则使用硬编码数据）
+   */
+  private getCountryCodeByName(countryName: string): string | null {
+    // 优先使用数据库缓存
+    if (this.cacheLoaded && this.countryNameToCodeCache.size > 0) {
+      // 直接匹配
+      const code = this.countryNameToCodeCache.get(countryName);
+      if (code) {
+        return code;
+      }
+
+      // 不区分大小写匹配
+      const normalized = countryName.trim().toLowerCase();
+      for (const [name, code] of this.countryNameToCodeCache.entries()) {
+        if (name.toLowerCase() === normalized) {
+          return code;
+        }
+      }
+
+      // 包含匹配
+      for (const [name, code] of this.countryNameToCodeCache.entries()) {
+        if (
+          normalized.includes(name.toLowerCase()) ||
+          name.toLowerCase().includes(normalized)
+        ) {
+          return code;
+        }
+      }
+    }
+
+    // 回退到硬编码数据
+    return COUNTRY_NAME_TO_CODE[countryName] || null;
+  }
+
+  /**
+   * 从地址中提取国家名称的辅助函数
+   */
+  private extractCountryFromAddress(address: string): string | null {
+    if (!address) {
+      return null;
+    }
+
+    // 优先使用缓存数据
+    if (this.cacheLoaded && this.countryNameToCodeCache.size > 0) {
+      const normalized = address.trim();
+      for (const [name] of this.countryNameToCodeCache.entries()) {
+        if (
+          normalized.includes(name) ||
+          normalized.toLowerCase().includes(name.toLowerCase())
+        ) {
+          return name;
+        }
+      }
+    }
+
+    // 回退到硬编码数据
+    const normalized = address.trim();
+    for (const [name] of Object.entries(COUNTRY_NAME_TO_CODE)) {
+      if (
+        normalized.includes(name) ||
+        normalized.toLowerCase().includes(name.toLowerCase())
+      ) {
+        return name;
+      }
+    }
+
+    return null;
+  }
 
   /**
    * 根据国家代码获取货币信息
@@ -228,7 +406,7 @@ export class CurrencyService {
     symbol: string;
     name: string;
   } | null {
-    const currency = COUNTRY_CURRENCY_MAP[countryCode.toUpperCase()];
+    const currency = this.getCurrencyByCountryCodeFromCache(countryCode);
     if (!currency) {
       return null;
     }
@@ -251,27 +429,30 @@ export class CurrencyService {
     symbol: string;
     name: string;
   } | null {
-    // 1. 尝试直接匹配
-    const countryCode = COUNTRY_NAME_TO_CODE[countryName];
+    // 1. 尝试从缓存或硬编码数据获取国家代码
+    const countryCode = this.getCountryCodeByName(countryName);
     if (countryCode) {
       return this.getCurrencyByCountryCode(countryCode, language);
     }
 
-    // 2. 尝试不区分大小写匹配
-    const normalized = countryName.trim();
-    for (const [name, code] of Object.entries(COUNTRY_NAME_TO_CODE)) {
-      if (name.toLowerCase() === normalized.toLowerCase()) {
-        return this.getCurrencyByCountryCode(code, language);
+    // 2. 如果缓存中没有，尝试硬编码数据的其他匹配方式
+    if (!this.cacheLoaded || this.countryNameToCodeCache.size === 0) {
+      // 尝试不区分大小写匹配
+      const normalized = countryName.trim();
+      for (const [name, code] of Object.entries(COUNTRY_NAME_TO_CODE)) {
+        if (name.toLowerCase() === normalized.toLowerCase()) {
+          return this.getCurrencyByCountryCode(code, language);
+        }
       }
-    }
 
-    // 3. 尝试包含匹配
-    for (const [name, code] of Object.entries(COUNTRY_NAME_TO_CODE)) {
-      if (
-        normalized.toLowerCase().includes(name.toLowerCase()) ||
-        name.toLowerCase().includes(normalized.toLowerCase())
-      ) {
-        return this.getCurrencyByCountryCode(code, language);
+      // 尝试包含匹配
+      for (const [name, code] of Object.entries(COUNTRY_NAME_TO_CODE)) {
+        if (
+          normalized.toLowerCase().includes(name.toLowerCase()) ||
+          name.toLowerCase().includes(normalized.toLowerCase())
+        ) {
+          return this.getCurrencyByCountryCode(code, language);
+        }
       }
     }
 
@@ -401,7 +582,7 @@ export class CurrencyService {
 
     // 优先级4：从地址中提取国家名称
     if (destination.address) {
-      const countryName = extractCountryFromAddress(destination.address);
+      const countryName = this.extractCountryFromAddress(destination.address);
       if (countryName) {
         const currency = this.getCurrencyByCountryName(countryName, language);
         if (currency) {
@@ -415,7 +596,7 @@ export class CurrencyService {
 
     // 优先级5：从目的地字符串中提取国家信息
     if (destination.destination) {
-      const countryName = extractCountryFromAddress(destination.destination);
+      const countryName = this.extractCountryFromAddress(destination.destination);
       if (countryName) {
         const currency = this.getCurrencyByCountryName(countryName, language);
         if (currency) {

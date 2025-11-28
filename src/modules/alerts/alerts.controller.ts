@@ -2,18 +2,26 @@ import {
   Controller,
   Get,
   Post,
+  Put,
+  Patch,
+  Delete,
   Body,
+  Param,
   Query,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags, ApiQuery } from '@nestjs/swagger';
+import { ApiOperation, ApiTags, ApiQuery, ApiParam, ApiOkResponse } from '@nestjs/swagger';
 import { AlertsService } from './alerts.service';
 import {
   CreateAlertRequestDto,
   CreateAlertResponseDto,
   GetAlertsQueryDto,
   AlertListResponseDto,
+  UpdateAlertRequestDto,
+  UpdateAlertResponseDto,
+  GetAlertResponseDto,
+  DeleteAlertResponseDto,
 } from './dto/alerts.dto';
 
 @ApiTags('Alerts')
@@ -46,10 +54,65 @@ export class AlertsController {
     summary: '创建安全通知',
     description: '创建新的通用旅行安全通知（公开接口，无需认证）',
   })
+  @ApiOkResponse({ type: CreateAlertResponseDto })
   async createAlert(
     @Body() dto: CreateAlertRequestDto,
   ): Promise<CreateAlertResponseDto> {
     return this.alertsService.createAlert(dto);
+  }
+
+  @Get(':id')
+  @ApiOperation({
+    summary: '获取单个安全提示详情',
+    description: '根据 ID 获取单个安全提示的详细信息（公开接口，无需认证）',
+  })
+  @ApiParam({ name: 'id', description: '安全提示 ID' })
+  @ApiOkResponse({ type: GetAlertResponseDto })
+  async getAlertById(
+    @Param('id') id: string,
+  ): Promise<GetAlertResponseDto> {
+    return this.alertsService.getAlertById(id);
+  }
+
+  @Put(':id')
+  @ApiOperation({
+    summary: '更新安全提示',
+    description: '更新指定的安全提示（公开接口，无需认证）',
+  })
+  @ApiParam({ name: 'id', description: '安全提示 ID' })
+  @ApiOkResponse({ type: UpdateAlertResponseDto })
+  async updateAlert(
+    @Param('id') id: string,
+    @Body() dto: UpdateAlertRequestDto,
+  ): Promise<UpdateAlertResponseDto> {
+    return this.alertsService.updateAlert(id, dto);
+  }
+
+  @Patch(':id')
+  @ApiOperation({
+    summary: '更新安全提示（部分更新）',
+    description: '更新指定的安全提示（公开接口，无需认证）',
+  })
+  @ApiParam({ name: 'id', description: '安全提示 ID' })
+  @ApiOkResponse({ type: UpdateAlertResponseDto })
+  async patchAlert(
+    @Param('id') id: string,
+    @Body() dto: UpdateAlertRequestDto,
+  ): Promise<UpdateAlertResponseDto> {
+    return this.alertsService.updateAlert(id, dto);
+  }
+
+  @Delete(':id')
+  @ApiOperation({
+    summary: '删除安全提示',
+    description: '删除指定的安全提示（公开接口，无需认证）',
+  })
+  @ApiParam({ name: 'id', description: '安全提示 ID' })
+  @ApiOkResponse({ type: DeleteAlertResponseDto })
+  async deleteAlert(
+    @Param('id') id: string,
+  ): Promise<DeleteAlertResponseDto> {
+    return this.alertsService.deleteAlert(id);
   }
 }
 

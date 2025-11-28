@@ -213,3 +213,74 @@ export class TravelAlertEntity {
   @UpdateDateColumn({ type: 'timestamptz' })
   updatedAt!: Date;
 }
+
+/**
+ * 货币信息实体
+ */
+@Entity({ name: 'currencies' })
+@Index(['code'], { unique: true })
+export class CurrencyEntity {
+  @PrimaryGeneratedColumn('uuid')
+  id!: string;
+
+  @Column({ type: 'varchar', length: 10, unique: true })
+  code!: string; // 货币代码，如 'CNY', 'USD'
+
+  @Column({ type: 'varchar', length: 20 })
+  symbol!: string; // 货币符号，如 '¥', '$'
+
+  @Column({ type: 'varchar', length: 100 })
+  nameZh!: string; // 中文名称
+
+  @Column({ type: 'varchar', length: 100 })
+  nameEn!: string; // 英文名称
+
+  @Column({ type: 'boolean', default: true })
+  isActive!: boolean; // 是否启用
+
+  @Column({ type: 'jsonb', nullable: true })
+  metadata?: Record<string, unknown>; // 元数据
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt!: Date;
+
+  @UpdateDateColumn({ type: 'timestamptz' })
+  updatedAt!: Date;
+}
+
+/**
+ * 国家货币映射实体
+ */
+@Entity({ name: 'country_currency_mappings' })
+@Index(['countryCode'], { unique: true })
+export class CountryCurrencyMappingEntity {
+  @PrimaryGeneratedColumn('uuid')
+  id!: string;
+
+  @Column({ type: 'varchar', length: 3, unique: true })
+  countryCode!: string; // 国家代码（ISO 3166-1 alpha-2），如 'CN', 'US'
+
+  @Column({ type: 'uuid' })
+  currencyId!: string; // 货币ID（外键）
+
+  @Column({ type: 'varchar', length: 10 })
+  currencyCode!: string; // 货币代码（冗余字段，便于查询）
+
+  @Column({ type: 'jsonb', nullable: true })
+  countryNames?: {
+    zh?: string[];
+    en?: string[];
+  }; // 国家名称映射（支持多个名称）
+
+  @Column({ type: 'boolean', default: true })
+  isActive!: boolean; // 是否启用
+
+  @Column({ type: 'jsonb', nullable: true })
+  metadata?: Record<string, unknown>; // 元数据
+
+  @CreateDateColumn({ type: 'timestamptz' })
+  createdAt!: Date;
+
+  @UpdateDateColumn({ type: 'timestamptz' })
+  updatedAt!: Date;
+}

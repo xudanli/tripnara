@@ -87,12 +87,43 @@
 
 ---
 
-### 8. 通用安全提示 API（公开接口）
-**文档**: [journey-api-38-public-safety-notice.md](./journey-api-38-public-safety-notice.md)
+### 8. 货币和国家代码管理 API（后台管理）
+**文档**: [journey-api-42-currency-admin.md](./journey-api-42-currency-admin.md)
 
+- `POST /api/v1/admin/currency/currencies` - 创建货币
+- `GET /api/v1/admin/currency/currencies` - 获取货币列表
+- `GET /api/v1/admin/currency/currencies/:id` - 获取货币详情
+- `PUT /api/v1/admin/currency/currencies/:id` - 更新货币
+- `PATCH /api/v1/admin/currency/currencies/:id` - 更新货币（部分更新）
+- `DELETE /api/v1/admin/currency/currencies/:id` - 删除货币
+- `POST /api/v1/admin/currency/country-mappings` - 创建国家货币映射
+- `GET /api/v1/admin/currency/country-mappings` - 获取国家货币映射列表
+- `GET /api/v1/admin/currency/country-mappings/:id` - 获取国家货币映射详情
+- `PUT /api/v1/admin/currency/country-mappings/:id` - 更新国家货币映射
+- `PATCH /api/v1/admin/currency/country-mappings/:id` - 更新国家货币映射（部分更新）
+- `DELETE /api/v1/admin/currency/country-mappings/:id` - 删除国家货币映射
+
+**功能**: 完整的货币和国家代码管理功能，包括货币信息的增删改查、国家代码与货币的映射管理等。所有数据存储在数据库中，支持动态管理。
+
+---
+
+### 9. 通用安全提示 API（公开接口）
+**文档**: 
+- [journey-api-28-create-alert.md](./journey-api-28-create-alert.md) - 创建安全提示
+- [journey-api-39-get-alert.md](./journey-api-39-get-alert.md) - 获取单个安全提示详情
+- [journey-api-40-update-alert.md](./journey-api-40-update-alert.md) - 更新安全提示
+- [journey-api-41-delete-alert.md](./journey-api-41-delete-alert.md) - 删除安全提示
+- [journey-api-38-public-safety-notice.md](./journey-api-38-public-safety-notice.md) - 生成通用安全提示
+
+- `GET /api/v1/alerts` - 获取安全提示列表（支持筛选和分页）
+- `POST /api/v1/alerts` - 创建安全提示（无需认证）
+- `GET /api/v1/alerts/:id` - 获取单个安全提示详情（无需认证）
+- `PUT /api/v1/alerts/:id` - 更新安全提示（无需认证）
+- `PATCH /api/v1/alerts/:id` - 更新安全提示（部分更新，无需认证）
+- `DELETE /api/v1/alerts/:id` - 删除安全提示（无需认证）
 - `POST /api/v1/journeys/safety-notice/public` - 生成通用安全提示（无需认证）
 
-**功能**: 根据目的地生成通用安全提示，无需认证。支持缓存机制，相同目的地和语言的请求会返回缓存结果。适用于行程规划阶段提前获取目的地安全信息。
+**功能**: 完整的旅行安全提示管理功能，包括创建、查询、更新、删除等操作。所有接口都是公开接口，无需认证。支持按目的地、国家代码、严重程度、状态等条件筛选。生成通用安全提示接口支持缓存机制，相同目的地和语言的请求会返回缓存结果。
 
 ---
 
