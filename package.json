@@ -32,7 +32,9 @@
     "generate:country-mappings": "ts-node --transpile-only scripts/generate-country-mappings.ts",
     "import:country-mappings": "ts-node --transpile-only scripts/import-country-mappings.ts",
     "generate:all-currencies": "ts-node --transpile-only scripts/generate-all-currencies.ts",
-    "import:all-currencies": "ts-node --transpile-only scripts/import-all-currencies.ts"
+    "import:all-currencies": "ts-node --transpile-only scripts/import-all-currencies.ts",
+    "generate:countries": "ts-node --transpile-only scripts/generate-countries.ts",
+    "import:countries": "ts-node --transpile-only scripts/import-countries.ts"
   },
   "dependencies": {
     "@nestjs/axios": "^4.0.1",

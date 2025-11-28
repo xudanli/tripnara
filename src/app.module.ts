@@ -27,6 +27,7 @@ import { AlertsModule } from './modules/alerts/alerts.module';
 import { MediaModule } from './modules/media/media.module';
 import { MemberModule } from './modules/journey-members/member.module';
 import { CurrencyModule } from './modules/currency/currency.module';
+import { CountryModule } from './modules/country/country.module';
 
 const resolveEnvFilePaths = (): string[] => {
   const env = process.env.NODE_ENV?.toLowerCase();
@@ -112,6 +113,7 @@ const resolveEnvFilePaths = (): string[] => {
     MediaModule,
     MemberModule,
     CurrencyModule,
+    CountryModule,
   ],
   controllers: [AppController],
   providers: [AppService],
