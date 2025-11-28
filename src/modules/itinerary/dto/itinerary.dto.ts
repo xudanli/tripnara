@@ -1859,6 +1859,31 @@ export class GenerateSafetyNoticeRequestDto {
 }
 
 /**
+ * 通用安全提示请求 DTO（无需认证）
+ */
+export class GeneratePublicSafetyNoticeRequestDto {
+  @ApiProperty({ description: '目的地', example: '冰岛' })
+  @IsString()
+  @IsNotEmpty()
+  destination!: string;
+
+  @ApiPropertyOptional({ description: '行程摘要（可选，用于更精准的安全提示）', example: '5天冰岛之旅，包含极光观赏、蓝湖温泉等' })
+  @IsOptional()
+  @IsString()
+  summary?: string;
+
+  @ApiPropertyOptional({ description: '语言代码', example: 'zh-CN', default: 'zh-CN' })
+  @IsOptional()
+  @IsString()
+  lang?: string;
+
+  @ApiPropertyOptional({ description: '是否强制刷新（忽略缓存）', example: false, default: false })
+  @IsOptional()
+  @IsBoolean()
+  forceRefresh?: boolean;
+}
+
+/**
  * 安全提示响应 DTO
  */
 export class SafetyNoticeDto {

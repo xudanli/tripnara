@@ -68,6 +68,15 @@
 
 ---
 
+### 7. 通用安全提示 API（公开接口）
+**文档**: [journey-api-38-public-safety-notice.md](./journey-api-38-public-safety-notice.md)
+
+- `POST /api/v1/journeys/safety-notice/public` - 生成通用安全提示（无需认证）
+
+**功能**: 根据目的地生成通用安全提示，无需认证。支持缓存机制，相同目的地和语言的请求会返回缓存结果。适用于行程规划阶段提前获取目的地安全信息。
+
+---
+
 ### 7. 后端迁移指南 ⚠️ **重要**
 **文档**: [backend-migration-guide.md](./backend-migration-guide.md)
 

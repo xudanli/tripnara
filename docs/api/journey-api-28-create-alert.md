@@ -4,9 +4,9 @@
 
 **接口路径：** `POST /api/v1/alerts`
 
-**接口描述：** 创建新的通用旅行安全通知（后台）
+**接口描述：** 创建新的通用旅行安全通知（公开接口，无需认证）
 
-**认证：** 需要 JWT Token（Bearer Token）
+**认证：** 不需要（公开接口）
 
 **Content-Type：** `application/json`
 
@@ -55,7 +55,6 @@
 
 ```bash
 curl -X POST "http://localhost:3000/api/v1/alerts" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "title": "冰岛火山活动预警",
@@ -152,16 +151,6 @@ curl -X POST "http://localhost:3000/api/v1/alerts" \
 }
 ```
 
-### 401 Unauthorized
-
-```json
-{
-  "statusCode": 401,
-  "message": "Unauthorized",
-  "error": "Unauthorized"
-}
-```
-
 ---
 
 ## 使用示例
@@ -187,7 +176,6 @@ const newAlert = {
 const response = await fetch('/api/v1/alerts', {
   method: 'POST',
   headers: {
-    Authorization: `Bearer ${token}`,
     'Content-Type': 'application/json',
   },
   body: JSON.stringify(newAlert),
@@ -203,9 +191,10 @@ if (result.success) {
 
 ## 注意事项
 
-1. **权限控制**：
-   - 当前实现中需要 JWT Token，但未严格验证管理员权限
-   - 未来可能需要添加管理员权限验证
+1. **公开接口**：
+   - 此接口是公开接口，无需认证即可调用
+   - 任何人都可以创建安全通知
+   - 建议在生产环境中添加速率限制或其他保护措施
 
 2. **日期验证**：
    - `startDate` 和 `endDate` 必须是有效的 ISO 8601 格式日期

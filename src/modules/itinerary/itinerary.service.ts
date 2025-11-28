@@ -70,6 +70,7 @@ import {
   CreatePreparationProfileRequestDto,
   CreatePreparationProfileResponseDto,
   GenerateSafetyNoticeRequestDto,
+  GeneratePublicSafetyNoticeRequestDto,
   GenerateSafetyNoticeResponseDto,
   GetSafetyNoticeResponseDto,
   SafetyNoticeDto,
@@ -1420,7 +1421,7 @@ ${dateInstructions}
       days: daysWithTimeSlots,
       hasDays: daysWithTimeSlots.length > 0,
     };
-  }
+      }
 
   // 辅助方法：实体转 DTO（保留用于向后兼容）
   private entityToDetailDto(entity: ItineraryEntity): ItineraryDetailDto {
@@ -3352,6 +3353,83 @@ ${dateInstructions}
         updatedAt: saved.updatedAt.toISOString(),
       },
       message: '创建成功',
+    };
+  }
+
+  /**
+   * 生成通用安全提示（无需认证）
+   */
+  async generatePublicSafetyNotice(
+    dto: GeneratePublicSafetyNoticeRequestDto,
+  ): Promise<GenerateSafetyNoticeResponseDto> {
+    const destination = dto.destination || '未知目的地';
+    const summary = dto.summary || '';
+    const lang = dto.lang || 'zh-CN';
+    const forceRefresh = dto.forceRefresh || false;
+
+    // 构建缓存键
+    const cacheKey = this.buildSafetyNoticeCacheKey(destination, lang, summary);
+
+    // 如果不强制刷新，先检查缓存
+    if (!forceRefresh) {
+      const cached = await this.safetyNoticeCacheRepository.findOne({
+        where: { cacheKey },
+      });
+
+      if (cached) {
+        // 检查缓存是否过期（7天）
+        const cacheAge = Date.now() - cached.updatedAt.getTime();
+        const cacheTTL = 7 * 24 * 60 * 60 * 1000; // 7天
+
+        if (cacheAge < cacheTTL) {
+          return {
+            success: true,
+            data: {
+              noticeText: cached.noticeText,
+              lang: cached.lang,
+              fromCache: true,
+              generatedAt: cached.updatedAt.toISOString(),
+            },
+            message: '安全提示（来自缓存）',
+          };
+        }
+      }
+    }
+
+    // 生成新的安全提示
+    const noticeText = await this.generateSafetyNoticeWithAI(destination, summary, lang);
+
+    // 保存或更新缓存
+    let cacheEntity = await this.safetyNoticeCacheRepository.findOne({
+      where: { cacheKey },
+    });
+
+    if (cacheEntity) {
+      cacheEntity.noticeText = noticeText;
+      cacheEntity.lang = lang;
+      await this.safetyNoticeCacheRepository.save(cacheEntity);
+    } else {
+      cacheEntity = this.safetyNoticeCacheRepository.create({
+        cacheKey,
+        noticeText,
+        lang,
+        metadata: {
+          destination,
+          summary,
+        },
+      });
+      await this.safetyNoticeCacheRepository.save(cacheEntity);
+    }
+
+    return {
+      success: true,
+      data: {
+        noticeText,
+        lang,
+        fromCache: false,
+        generatedAt: new Date().toISOString(),
+      },
+      message: '安全提示生成成功',
     };
   }
 

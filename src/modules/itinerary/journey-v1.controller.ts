@@ -57,6 +57,7 @@ import {
   CreatePreparationProfileRequestDto,
   CreatePreparationProfileResponseDto,
   GenerateSafetyNoticeRequestDto,
+  GeneratePublicSafetyNoticeRequestDto,
   GenerateSafetyNoticeResponseDto,
   GetSafetyNoticeResponseDto,
   CreateExpenseDto,
@@ -782,6 +783,22 @@ export class JourneyV1Controller {
     @Body() dto: CreatePreparationProfileRequestDto,
   ): Promise<CreatePreparationProfileResponseDto> {
     return this.itineraryService.createPreparationProfile(dto);
+  }
+
+  @Post('safety-notice/public')
+  @ApiOperation({
+    summary: '生成通用安全提示（公开接口）',
+    description: '根据目的地生成安全提示，无需认证。支持缓存，相同目的地和语言的请求会返回缓存结果。',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '安全提示生成成功',
+    type: GenerateSafetyNoticeResponseDto,
+  })
+  async generatePublicSafetyNotice(
+    @Body() dto: GeneratePublicSafetyNoticeRequestDto,
+  ): Promise<GenerateSafetyNoticeResponseDto> {
+    return this.itineraryService.generatePublicSafetyNotice(dto);
   }
 
   @Post(':journeyId/safety-notice')

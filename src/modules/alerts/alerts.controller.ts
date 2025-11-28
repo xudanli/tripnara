@@ -4,13 +4,10 @@ import {
   Post,
   Body,
   Query,
-  UseGuards,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags, ApiQuery } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { ApiOperation, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { AlertsService } from './alerts.service';
 import {
   CreateAlertRequestDto,
@@ -47,15 +44,12 @@ export class AlertsController {
   @Post()
   @ApiOperation({
     summary: '创建安全通知',
-    description: '创建新的通用旅行安全通知（后台）',
+    description: '创建新的通用旅行安全通知（公开接口，无需认证）',
   })
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
   async createAlert(
     @Body() dto: CreateAlertRequestDto,
-    @CurrentUser() user: { userId: string },
   ): Promise<CreateAlertResponseDto> {
-    return this.alertsService.createAlert(dto, user.userId);
+    return this.alertsService.createAlert(dto);
   }
 }
 
