@@ -638,13 +638,28 @@ ${dateInstructions}
     userId?: string,
   ): Promise<CreateItineraryResponseDto> {
     try {
+      // 详细日志：记录接收到的数据
+      this.logger.debug(
+        `创建行程请求: destination=${dto.destination}, days=${dto.days}, data=${JSON.stringify(dto.data ? { daysCount: dto.data.days?.length, hasDays: !!dto.data.days } : null)}`,
+      );
+
       // 验证必要字段
       if (!dto.data || !Array.isArray(dto.data.days)) {
-        throw new BadRequestException('行程数据格式不正确：缺少 days 数组');
+        this.logger.warn(
+          `行程数据格式不正确: data=${JSON.stringify(dto.data)}, 建议使用 /api/v1/journeys/from-frontend-data 接口`,
+        );
+        throw new BadRequestException(
+          '行程数据格式不正确：缺少 days 数组。如果使用前端数据格式，请使用 /api/v1/journeys/from-frontend-data 接口',
+        );
       }
 
       if (!dto.data.days.length) {
-        throw new BadRequestException('行程数据不能为空：至少需要一天的行程');
+        this.logger.warn(
+          `行程数据为空: destination=${dto.destination}, days=${dto.days}, data.days.length=${dto.data.days.length}`,
+        );
+        throw new BadRequestException(
+          '行程数据不能为空：至少需要一天的行程。请确保 data.days 数组包含至少一天的行程数据',
+        );
       }
 
       // 安全地解析日期

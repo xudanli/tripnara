@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional, Inject } from '@nestjs/common';
+import { GeocodeService } from '../destination/services/geocode.service';
 
 /**
  * 货币信息接口
@@ -212,6 +213,10 @@ function extractCountryFromAddress(address: string): string | null {
 export class CurrencyService {
   private readonly logger = new Logger(CurrencyService.name);
 
+  constructor(
+    @Optional() @Inject(GeocodeService) private readonly geocodeService?: GeocodeService,
+  ) {}
+
   /**
    * 根据国家代码获取货币信息
    */
@@ -275,7 +280,6 @@ export class CurrencyService {
 
   /**
    * 根据坐标获取货币信息（使用地理编码API）
-   * 注意：这里需要集成地理编码服务，暂时使用目的地名称推断
    */
   async getCurrencyByCoordinates(
     lat: number,
@@ -287,15 +291,49 @@ export class CurrencyService {
     name: string;
   } | null> {
     try {
-      // TODO: 使用地理编码API获取国家信息
-      // 这里可以使用Google Geocoding API、OpenCage API等
-      // 暂时返回 null，后续可以集成地理编码服务
+      // 如果没有地理编码服务，返回 null
+      if (!this.geocodeService) {
+        this.logger.debug(
+          `根据坐标获取货币: lat=${lat}, lng=${lng} (地理编码服务未配置)`,
+        );
+        return null;
+      }
+
+      // 使用反向地理编码获取国家信息
+      const geocodeResult = await this.geocodeService.reverseGeocode({
+        lat,
+        lng,
+        language: language === 'zh' ? 'zh-CN' : 'en',
+        limit: 1,
+      });
+
+      // 从地理编码结果中获取国家代码
+      const countryCode = geocodeResult.data.countryCode;
+      if (!countryCode) {
+        this.logger.debug(
+          `根据坐标获取货币: lat=${lat}, lng=${lng} (未找到国家代码)`,
+        );
+        return null;
+      }
+
+      // 根据国家代码获取货币
+      const currency = this.getCurrencyByCountryCode(countryCode, language);
+      if (currency) {
+        this.logger.debug(
+          `根据坐标获取货币: lat=${lat}, lng=${lng} -> 国家代码: ${countryCode} -> 货币: ${currency.code}`,
+        );
+        return currency;
+      }
+
       this.logger.debug(
-        `根据坐标获取货币: lat=${lat}, lng=${lng} (暂未实现)`,
+        `根据坐标获取货币: lat=${lat}, lng=${lng} -> 国家代码: ${countryCode} (未找到对应货币)`,
       );
       return null;
     } catch (error) {
-      this.logger.error('根据坐标获取货币失败:', error);
+      this.logger.warn(
+        `根据坐标获取货币失败: lat=${lat}, lng=${lng}`,
+        error instanceof Error ? error.message : error,
+      );
       return null;
     }
   }

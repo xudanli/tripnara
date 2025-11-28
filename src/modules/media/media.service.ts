@@ -132,17 +132,20 @@ export class MediaService {
     this.unsplashApiKey = this.configService.get<string>('UNSPLASH_ACCESS_KEY');
     this.pexelsApiKey = this.configService.get<string>('PEXELS_API_KEY');
     
-    // 调试日志：检查环境变量是否正确加载
-    if (this.unsplashApiKey) {
-      this.logger.log(`Unsplash API key 已加载 (长度: ${this.unsplashApiKey.length})`);
-    } else {
-      this.logger.warn('Unsplash API key 未配置 - 环境变量 UNSPLASH_ACCESS_KEY 未设置或为空');
-    }
-    
-    if (this.pexelsApiKey) {
-      this.logger.log(`Pexels API key 已加载 (长度: ${this.pexelsApiKey.length})`);
-    } else {
-      this.logger.warn('Pexels API key 未配置 - 环境变量 PEXELS_API_KEY 未设置或为空');
+    // 仅在开发环境显示配置状态
+    const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
+    if (nodeEnv === 'development') {
+      if (this.unsplashApiKey) {
+        this.logger.debug(`Unsplash API key 已配置`);
+      } else {
+        this.logger.debug('Unsplash API key 未配置（可选）- 如需使用图片搜索功能，请设置环境变量 UNSPLASH_ACCESS_KEY');
+      }
+      
+      if (this.pexelsApiKey) {
+        this.logger.debug(`Pexels API key 已配置`);
+      } else {
+        this.logger.debug('Pexels API key 未配置（可选）- 如需使用图片/视频搜索功能，请设置环境变量 PEXELS_API_KEY');
+      }
     }
   }
 
@@ -165,7 +168,7 @@ export class MediaService {
           );
           images.push(...unsplashImages);
         } else {
-          this.logger.warn('Unsplash API key 未配置');
+          this.logger.debug('Unsplash API key 未配置，跳过 Unsplash 搜索');
         }
       }
 
@@ -175,13 +178,13 @@ export class MediaService {
           const pexelsImages = await this.searchPexels(dto.query, limit);
           images.push(...pexelsImages);
         } else {
-          this.logger.warn('Pexels API key 未配置');
+          this.logger.debug('Pexels API key 未配置，跳过 Pexels 搜索');
         }
       }
 
       // 如果都没有配置，返回空结果
       if (images.length === 0) {
-        this.logger.warn('图片搜索 API 未配置，返回空结果');
+        this.logger.debug('图片搜索 API 未配置，返回空结果。如需使用此功能，请配置 UNSPLASH_ACCESS_KEY 或 PEXELS_API_KEY');
         return {
           data: [],
           total: 0,
@@ -220,7 +223,7 @@ export class MediaService {
             total: videos.length,
           };
         } else {
-          this.logger.warn('Pexels API key 未配置');
+          this.logger.debug('Pexels API key 未配置，无法搜索视频。如需使用此功能，请设置环境变量 PEXELS_API_KEY');
         }
       }
 
