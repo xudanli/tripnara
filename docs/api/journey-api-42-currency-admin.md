@@ -220,6 +220,109 @@
 
 ## 二、国家货币映射管理
 
+### 0. 批量创建国家货币映射（推荐）
+
+**接口路径**: `POST /api/v1/admin/currency/country-mappings/batch`
+
+**接口描述**: 批量创建国家代码与货币的映射关系，支持一次导入多个映射。这是导入大量数据的高效方式。
+
+**请求体**:
+
+```json
+{
+  "mappings": [
+    {
+      "countryCode": "CN",
+      "currencyId": "货币ID（UUID）",
+      "countryNames": {
+        "zh": ["中国", "中华人民共和国"],
+        "en": ["China", "PRC"]
+      },
+      "isActive": true
+    },
+    {
+      "countryCode": "US",
+      "currencyId": "货币ID（UUID）",
+      "countryNames": {
+        "zh": ["美国"],
+        "en": ["United States", "USA"]
+      },
+      "isActive": true
+    },
+    {
+      "countryCode": "GB",
+      "currencyId": "货币ID（UUID）",
+      "countryNames": {
+        "zh": ["英国"],
+        "en": ["United Kingdom", "UK"]
+      },
+      "isActive": true
+    }
+  ]
+}
+```
+
+**字段说明**:
+
+| 字段名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| `mappings` | array | 是 | 映射列表（最多建议 100 条） |
+| `mappings[].countryCode` | string | 是 | 国家代码（ISO 3166-1 alpha-2） |
+| `mappings[].currencyId` | string | 是 | 货币ID（UUID） |
+| `mappings[].countryNames` | object | 否 | 国家名称映射 |
+| `mappings[].isActive` | boolean | 否 | 是否启用（默认：true） |
+| `mappings[].metadata` | object | 否 | 元数据 |
+
+**响应示例**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "created": 3,
+    "skipped": 0,
+    "failed": 0,
+    "errors": [],
+    "data": [
+      {
+        "id": "uuid",
+        "countryCode": "CN",
+        "currencyId": "uuid",
+        "currencyCode": "CNY",
+        "countryNames": {
+          "zh": ["中国", "中华人民共和国"],
+          "en": ["China", "PRC"]
+        },
+        "isActive": true,
+        "createdAt": "2025-01-29T00:00:00.000Z",
+        "updatedAt": "2025-01-29T00:00:00.000Z"
+      }
+    ]
+  },
+  "message": "批量导入完成: 成功 3 个, 跳过 0 个, 失败 0 个"
+}
+```
+
+**响应字段说明**:
+
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| `data.created` | number | 成功创建的数量 |
+| `data.skipped` | number | 跳过的数量（已存在） |
+| `data.failed` | number | 失败的数量 |
+| `data.errors` | array | 失败详情列表 |
+| `data.errors[].countryCode` | string | 失败的国家代码 |
+| `data.errors[].error` | string | 错误信息 |
+| `data.data` | array | 成功创建的映射列表 |
+
+**注意事项**:
+- 批量导入会自动跳过已存在的映射（基于国家代码）
+- 如果货币ID不存在，该映射会失败，但不会影响其他映射
+- 建议每次批量导入不超过 100 条，以提高性能
+- 批量导入会自动刷新 CurrencyService 缓存
+
+---
+
 ### 1. 创建国家货币映射
 
 **接口路径**: `POST /api/v1/admin/currency/country-mappings`
@@ -493,7 +596,7 @@ curl -X POST "http://localhost:3000/api/v1/admin/currency/currencies" \
     "nameEn": "CNY"
   }'
 
-# 2. 创建国家货币映射
+# 2. 创建单个国家货币映射
 curl -X POST "http://localhost:3000/api/v1/admin/currency/country-mappings" \
   -H "Content-Type: application/json" \
   -d '{
@@ -504,5 +607,78 @@ curl -X POST "http://localhost:3000/api/v1/admin/currency/country-mappings" \
       "en": ["China", "PRC"]
     }
   }'
+
+# 3. 批量创建国家货币映射（推荐）
+curl -X POST "http://localhost:3000/api/v1/admin/currency/country-mappings/batch" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mappings": [
+      {
+        "countryCode": "CN",
+        "currencyId": "货币ID-1",
+        "countryNames": {
+          "zh": ["中国"],
+          "en": ["China"]
+        }
+      },
+      {
+        "countryCode": "US",
+        "currencyId": "货币ID-2",
+        "countryNames": {
+          "zh": ["美国"],
+          "en": ["United States", "USA"]
+        }
+      },
+      {
+        "countryCode": "GB",
+        "currencyId": "货币ID-3",
+        "countryNames": {
+          "zh": ["英国"],
+          "en": ["United Kingdom", "UK"]
+        }
+      }
+    ]
+  }'
+```
+
+### 批量导入示例（JavaScript/TypeScript）
+
+```typescript
+// 准备批量导入数据
+const mappings = [
+  {
+    countryCode: 'CN',
+    currencyId: 'cny-currency-id',
+    countryNames: {
+      zh: ['中国', '中华人民共和国'],
+      en: ['China', 'PRC'],
+    },
+  },
+  {
+    countryCode: 'US',
+    currencyId: 'usd-currency-id',
+    countryNames: {
+      zh: ['美国'],
+      en: ['United States', 'USA'],
+    },
+  },
+  // ... 更多映射
+];
+
+// 调用批量导入接口
+const response = await fetch('/api/v1/admin/currency/country-mappings/batch', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ mappings }),
+});
+
+const result = await response.json();
+console.log(`成功: ${result.data.created}, 跳过: ${result.data.skipped}, 失败: ${result.data.failed}`);
+
+if (result.data.errors.length > 0) {
+  console.error('失败详情:', result.data.errors);
+}
 ```
 

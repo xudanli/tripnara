@@ -97,6 +97,7 @@
 - `PATCH /api/v1/admin/currency/currencies/:id` - 更新货币（部分更新）
 - `DELETE /api/v1/admin/currency/currencies/:id` - 删除货币
 - `POST /api/v1/admin/currency/country-mappings` - 创建国家货币映射
+- `POST /api/v1/admin/currency/country-mappings/batch` - 批量创建国家货币映射（推荐）
 - `GET /api/v1/admin/currency/country-mappings` - 获取国家货币映射列表
 - `GET /api/v1/admin/currency/country-mappings/:id` - 获取国家货币映射详情
 - `PUT /api/v1/admin/currency/country-mappings/:id` - 更新国家货币映射

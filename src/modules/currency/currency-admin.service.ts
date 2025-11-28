@@ -22,6 +22,10 @@ import {
   CountryCurrencyMappingResponseDto,
   CurrencyListResponseDto,
   CountryCurrencyMappingListResponseDto,
+  BatchCreateCountryCurrencyMappingRequestDto,
+  BatchCreateCountryCurrencyMappingResponseDto,
+  BatchCreateResultDto,
+  BatchCreateCountryCurrencyMappingByCodeRequestDto,
 } from './dto/currency-admin.dto';
 import { CurrencyService } from './currency.service';
 
@@ -311,9 +315,7 @@ export class CurrencyAdminService {
   ): Promise<CountryCurrencyMappingListResponseDto> {
     const skip = (page - 1) * limit;
 
-    const queryBuilder = this.mappingRepository
-      .createQueryBuilder('mapping')
-      .leftJoinAndSelect('mapping.currencyId', 'currency');
+    const queryBuilder = this.mappingRepository.createQueryBuilder('mapping');
 
     if (search) {
       queryBuilder.where(
@@ -323,7 +325,11 @@ export class CurrencyAdminService {
     }
 
     if (isActive !== undefined) {
-      queryBuilder.andWhere('mapping.isActive = :isActive', { isActive });
+      if (search) {
+        queryBuilder.andWhere('mapping.isActive = :isActive', { isActive });
+      } else {
+        queryBuilder.where('mapping.isActive = :isActive', { isActive });
+      }
     }
 
     const total = await queryBuilder.getCount();
@@ -466,6 +472,252 @@ export class CurrencyAdminService {
     return {
       success: true,
       message: '删除成功',
+    };
+  }
+
+  /**
+   * 批量创建国家货币映射
+   */
+  async batchCreateCountryCurrencyMappings(
+    dto: BatchCreateCountryCurrencyMappingRequestDto,
+  ): Promise<BatchCreateCountryCurrencyMappingResponseDto> {
+    const result: BatchCreateResultDto = {
+      created: 0,
+      skipped: 0,
+      failed: 0,
+      errors: [],
+      data: [],
+    };
+
+    if (!dto.mappings || dto.mappings.length === 0) {
+      return {
+        success: true,
+        data: result,
+        message: '没有需要导入的数据',
+      };
+    }
+
+    // 预先加载所有货币，避免重复查询
+    const currencyIds = Array.from(
+      new Set(dto.mappings.map((m) => m.currencyId)),
+    );
+
+    const currencies = await this.currencyRepository.find({
+      where: currencyIds.map((id) => ({ id })),
+    });
+
+    const currencyMap = new Map(currencies.map((c) => [c.id, c]));
+
+    // 批量检查已存在的映射（优化查询性能）
+    const countryCodes = dto.mappings.map((m) => m.countryCode.toUpperCase());
+    const existingMappings = await this.mappingRepository.find({
+      where: countryCodes.map((code) => ({ countryCode: code })),
+    });
+    const existingCountryCodes = new Set(
+      existingMappings.map((m) => m.countryCode),
+    );
+
+    // 批量处理
+    const mappingsToCreate: CountryCurrencyMappingEntity[] = [];
+
+    for (const mappingDto of dto.mappings) {
+      try {
+        const countryCode = mappingDto.countryCode.toUpperCase();
+
+        // 检查国家代码是否已存在
+        if (existingCountryCodes.has(countryCode)) {
+          result.skipped++;
+          this.logger.debug(`跳过已存在的映射: ${countryCode}`);
+          continue;
+        }
+
+        // 验证货币是否存在
+        const currency = currencyMap.get(mappingDto.currencyId);
+        if (!currency) {
+          result.failed++;
+          result.errors.push({
+            countryCode,
+            error: `货币不存在 (currencyId: ${mappingDto.currencyId})`,
+          });
+          continue;
+        }
+
+        // 创建新映射（先不保存，批量保存）
+        const mapping = this.mappingRepository.create({
+          countryCode,
+          currencyId: mappingDto.currencyId,
+          currencyCode: currency.code,
+          countryNames: mappingDto.countryNames,
+          isActive: mappingDto.isActive ?? true,
+          metadata: mappingDto.metadata,
+        });
+
+        mappingsToCreate.push(mapping);
+      } catch (error) {
+        result.failed++;
+        const errorMessage =
+          error instanceof Error ? error.message : '未知错误';
+        result.errors.push({
+          countryCode: mappingDto.countryCode.toUpperCase(),
+          error: errorMessage,
+        });
+        this.logger.error(
+          `批量创建映射失败: ${mappingDto.countryCode}`,
+          error,
+        );
+      }
+    }
+
+    // 批量保存
+    if (mappingsToCreate.length > 0) {
+      const saved = await this.mappingRepository.save(mappingsToCreate);
+      result.data = saved.map((m) => this.mapMappingToDto(m));
+      result.created = saved.length;
+    }
+
+    // 如果有成功创建的记录，刷新缓存
+    if (result.created > 0 && this.currencyService) {
+      await this.currencyService.refreshCache().catch((err) => {
+        this.logger.warn('刷新货币缓存失败', err);
+      });
+    }
+
+    return {
+      success: true,
+      data: result,
+      message: `批量导入完成: 成功 ${result.created} 个, 跳过 ${result.skipped} 个, 失败 ${result.failed} 个`,
+    };
+  }
+
+  /**
+   * 批量创建国家货币映射（通过货币代码，更便于导入）
+   */
+  async batchCreateCountryCurrencyMappingsByCode(
+    dto: BatchCreateCountryCurrencyMappingByCodeRequestDto,
+  ): Promise<BatchCreateCountryCurrencyMappingResponseDto> {
+    const result: BatchCreateResultDto = {
+      created: 0,
+      skipped: 0,
+      failed: 0,
+      errors: [],
+      data: [],
+    };
+
+    if (!dto.mappings || dto.mappings.length === 0) {
+      return {
+        success: true,
+        data: result,
+        message: '没有需要导入的数据',
+      };
+    }
+
+    // 收集所有唯一的货币代码
+    const currencyCodes = Array.from(
+      new Set(dto.mappings.map((m) => m.currencyCode.toUpperCase())),
+    );
+
+    // 预先加载所有货币（通过货币代码）
+    const currencies = await this.currencyRepository.find({
+      where: currencyCodes.map((code) => ({ code })),
+    });
+
+    const currencyMapByCode = new Map(
+      currencies.map((c) => [c.code.toUpperCase(), c]),
+    );
+
+    // 检查缺失的货币
+    const missingCurrencies: string[] = [];
+    for (const code of currencyCodes) {
+      if (!currencyMapByCode.has(code)) {
+        missingCurrencies.push(code);
+      }
+    }
+
+    if (missingCurrencies.length > 0) {
+      this.logger.warn(
+        `以下货币不存在，将跳过相关映射: ${missingCurrencies.join(', ')}`,
+      );
+    }
+
+    // 批量检查已存在的映射
+    const countryCodes = dto.mappings.map((m) => m.countryCode.toUpperCase());
+    const existingMappings = await this.mappingRepository.find({
+      where: countryCodes.map((code) => ({ countryCode: code })),
+    });
+    const existingCountryCodes = new Set(
+      existingMappings.map((m) => m.countryCode),
+    );
+
+    // 批量处理
+    const mappingsToCreate: CountryCurrencyMappingEntity[] = [];
+
+    for (const mappingDto of dto.mappings) {
+      try {
+        const countryCode = mappingDto.countryCode.toUpperCase();
+        const currencyCode = mappingDto.currencyCode.toUpperCase();
+
+        // 检查国家代码是否已存在
+        if (existingCountryCodes.has(countryCode)) {
+          result.skipped++;
+          this.logger.debug(`跳过已存在的映射: ${countryCode}`);
+          continue;
+        }
+
+        // 验证货币是否存在
+        const currency = currencyMapByCode.get(currencyCode);
+        if (!currency) {
+          result.failed++;
+          result.errors.push({
+            countryCode,
+            error: `货币不存在 (currencyCode: ${currencyCode})`,
+          });
+          continue;
+        }
+
+        // 创建新映射
+        const mapping = this.mappingRepository.create({
+          countryCode,
+          currencyId: currency.id,
+          currencyCode: currency.code,
+          countryNames: mappingDto.countryNames,
+          isActive: mappingDto.isActive ?? true,
+          metadata: mappingDto.metadata,
+        });
+
+        mappingsToCreate.push(mapping);
+      } catch (error) {
+        result.failed++;
+        const errorMessage =
+          error instanceof Error ? error.message : '未知错误';
+        result.errors.push({
+          countryCode: mappingDto.countryCode.toUpperCase(),
+          error: errorMessage,
+        });
+        this.logger.error(
+          `批量创建映射失败: ${mappingDto.countryCode}`,
+          error,
+        );
+      }
+    }
+
+    // 批量保存
+    if (mappingsToCreate.length > 0) {
+      const saved = await this.mappingRepository.save(mappingsToCreate);
+      result.data = saved.map((m) => this.mapMappingToDto(m));
+      result.created = saved.length;
+    }
+
+    // 如果有成功创建的记录，刷新缓存
+    if (result.created > 0 && this.currencyService) {
+      await this.currencyService.refreshCache().catch((err) => {
+        this.logger.warn('刷新货币缓存失败', err);
+      });
+    }
+
+    return {
+      success: true,
+      data: result,
+      message: `批量导入完成: 成功 ${result.created} 个, 跳过 ${result.skipped} 个, 失败 ${result.failed} 个`,
     };
   }
 

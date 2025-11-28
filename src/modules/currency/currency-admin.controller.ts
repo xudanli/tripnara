@@ -29,6 +29,9 @@ import {
   CountryCurrencyMappingResponseDto,
   CountryCurrencyMappingListResponseDto,
   CurrencyAdminResponseDto,
+  BatchCreateCountryCurrencyMappingRequestDto,
+  BatchCreateCountryCurrencyMappingResponseDto,
+  BatchCreateCountryCurrencyMappingByCodeRequestDto,
 } from './dto/currency-admin.dto';
 
 @ApiTags('Currency Admin')
@@ -215,6 +218,30 @@ export class CurrencyAdminController {
     @Param('id') id: string,
   ): Promise<CurrencyAdminResponseDto> {
     return this.adminService.deleteCountryCurrencyMapping(id);
+  }
+
+  @Post('country-mappings/batch')
+  @ApiOperation({
+    summary: '批量创建国家货币映射（通过货币ID）',
+    description: '批量创建国家代码与货币的映射关系，需要提供货币ID',
+  })
+  @ApiOkResponse({ type: BatchCreateCountryCurrencyMappingResponseDto })
+  async batchCreateCountryCurrencyMappings(
+    @Body() dto: BatchCreateCountryCurrencyMappingRequestDto,
+  ): Promise<BatchCreateCountryCurrencyMappingResponseDto> {
+    return this.adminService.batchCreateCountryCurrencyMappings(dto);
+  }
+
+  @Post('country-mappings/batch-by-code')
+  @ApiOperation({
+    summary: '批量创建国家货币映射（通过货币代码，推荐）',
+    description: '批量创建国家代码与货币的映射关系，使用货币代码而非货币ID，更便于导入',
+  })
+  @ApiOkResponse({ type: BatchCreateCountryCurrencyMappingResponseDto })
+  async batchCreateCountryCurrencyMappingsByCode(
+    @Body() dto: BatchCreateCountryCurrencyMappingByCodeRequestDto,
+  ): Promise<BatchCreateCountryCurrencyMappingResponseDto> {
+    return this.adminService.batchCreateCountryCurrencyMappingsByCode(dto);
   }
 }
 

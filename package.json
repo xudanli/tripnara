@@ -27,7 +27,12 @@
     "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d typeorm.config.ts",
     "migration:run": "npm run typeorm -- migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",
-    "migration:generate": "npm run typeorm -- migration:generate"
+    "migration:generate": "npm run typeorm -- migration:generate",
+    "seed:currency": "ts-node --transpile-only scripts/seed-currency-data.ts",
+    "generate:country-mappings": "ts-node --transpile-only scripts/generate-country-mappings.ts",
+    "import:country-mappings": "ts-node --transpile-only scripts/import-country-mappings.ts",
+    "generate:all-currencies": "ts-node --transpile-only scripts/generate-all-currencies.ts",
+    "import:all-currencies": "ts-node --transpile-only scripts/import-all-currencies.ts"
   },
   "dependencies": {
     "@nestjs/axios": "^4.0.1",

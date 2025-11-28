@@ -295,3 +295,110 @@ export class CountryCurrencyMappingListResponseDto {
   limit!: number;
 }
 
+/**
+ * 批量创建国家货币映射请求 DTO（通过货币ID）
+ */
+export class BatchCreateCountryCurrencyMappingRequestDto {
+  @ApiProperty({
+    description: '国家货币映射列表',
+    type: [CreateCountryCurrencyMappingRequestDto],
+    example: [
+      {
+        countryCode: 'CN',
+        currencyId: 'uuid',
+        countryNames: {
+          zh: ['中国', '中华人民共和国'],
+          en: ['China', 'PRC'],
+        },
+      },
+    ],
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateCountryCurrencyMappingRequestDto)
+  mappings!: CreateCountryCurrencyMappingRequestDto[];
+}
+
+/**
+ * 批量创建结果 DTO
+ */
+export class BatchCreateResultDto {
+  @ApiProperty({ description: '成功创建的数量', example: 10 })
+  created!: number;
+
+  @ApiProperty({ description: '跳过的数量（已存在）', example: 2 })
+  skipped!: number;
+
+  @ApiProperty({ description: '失败的数量', example: 1 })
+  failed!: number;
+
+  @ApiProperty({
+    description: '失败详情',
+    type: [Object],
+    example: [{ countryCode: 'XX', error: '货币不存在' }],
+  })
+  errors!: Array<{ countryCode: string; error: string }>;
+
+  @ApiProperty({
+    description: '创建成功的映射列表',
+    type: [CountryCurrencyMappingResponseDto],
+  })
+  data!: CountryCurrencyMappingResponseDto[];
+}
+
+/**
+ * 批量创建响应 DTO
+ */
+export class BatchCreateCountryCurrencyMappingResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({ description: '批量创建结果', type: BatchCreateResultDto })
+  data!: BatchCreateResultDto;
+
+  @ApiPropertyOptional({ description: '消息', example: '批量导入完成' })
+  message?: string;
+}
+
+/**
+ * 批量创建国家货币映射请求 DTO（通过货币代码，推荐）
+ * 此格式更便于导入，无需提前获取货币ID
+ */
+export class BatchCreateCountryCurrencyMappingByCodeRequestDto {
+  @ApiProperty({
+    description: '国家货币映射列表（使用货币代码）',
+    type: [Object],
+    example: [
+      {
+        countryCode: 'CN',
+        currencyCode: 'CNY',
+        countryNames: {
+          zh: ['中国', '中华人民共和国'],
+          en: ['China', 'PRC'],
+        },
+        isActive: true,
+      },
+      {
+        countryCode: 'US',
+        currencyCode: 'USD',
+        countryNames: {
+          zh: ['美国'],
+          en: ['United States', 'USA'],
+        },
+        isActive: true,
+      },
+    ],
+  })
+  @IsArray()
+  mappings!: Array<{
+    countryCode: string;
+    currencyCode: string;
+    countryNames?: {
+      zh?: string[];
+      en?: string[];
+    };
+    isActive?: boolean;
+    metadata?: Record<string, unknown>;
+  }>;
+}
+
