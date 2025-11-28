@@ -45,15 +45,18 @@
 ---
 
 ### 5. 旅伴管理 API
-**文档**: [journey-api-34-members.md](./journey-api-34-members.md)
+**文档**: 
+- [journey-api-34-members.md](./journey-api-34-members.md) - 成员管理
+- [journey-api-37-verify-invitation.md](./journey-api-37-verify-invitation.md) - 验证邀请
 
 - `GET /api/v1/journeys/{journeyId}/members` - 获取成员列表
 - `POST /api/v1/journeys/{journeyId}/members/invite` - 邀请成员
 - `POST /api/v1/journeys/{journeyId}/members` - 添加成员
 - `PATCH /api/v1/journeys/{journeyId}/members/{memberId}` - 更新成员信息
 - `DELETE /api/v1/journeys/{journeyId}/members/{memberId}` - 移除成员
+- `GET /api/v1/journeys/invitations/{invitationId}` - 验证邀请（公开接口，无需认证）
 
-**功能**: 实现行程成员（旅伴）的完整管理功能，包括成员的增删改查、邀请成员、权限控制等。支持 owner、admin、member 三种角色，每个角色拥有不同的权限。
+**功能**: 实现行程成员（旅伴）的完整管理功能，包括成员的增删改查、邀请成员、权限控制等。支持 owner、admin、member 三种角色，每个角色拥有不同的权限。验证邀请接口用于验证邀请链接的有效性，无需认证。
 
 ---
 
@@ -68,7 +71,23 @@
 
 ---
 
-### 7. 通用安全提示 API（公开接口）
+### 7. 预算管理 API
+**文档**: 
+- [journey-api-33-get-expenses.md](./journey-api-33-get-expenses.md) - 获取支出列表
+- [journey-api-34-create-expense.md](./journey-api-34-create-expense.md) - 创建支出
+- [journey-api-35-update-expense.md](./journey-api-35-update-expense.md) - 更新支出
+- [journey-api-36-delete-expense.md](./journey-api-36-delete-expense.md) - 删除支出
+
+- `GET /api/v1/journeys/{journeyId}/expenses` - 获取支出列表
+- `POST /api/v1/journeys/{journeyId}/expenses` - 创建支出
+- `PATCH /api/v1/journeys/{journeyId}/expenses/{expenseId}` - 更新支出
+- `DELETE /api/v1/journeys/{journeyId}/expenses/{expenseId}` - 删除支出
+
+**功能**: 完整的预算管理功能，支持记录的增删改查、按分类/日期/付款人筛选、分摊管理（不分摊/平均分摊/自定义分摊）等。
+
+---
+
+### 8. 通用安全提示 API（公开接口）
 **文档**: [journey-api-38-public-safety-notice.md](./journey-api-38-public-safety-notice.md)
 
 - `POST /api/v1/journeys/safety-notice/public` - 生成通用安全提示（无需认证）

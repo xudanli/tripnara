@@ -209,3 +209,60 @@ export class DeleteMemberResponseDto {
   message!: string;
 }
 
+/**
+ * 邀请人信息 DTO
+ */
+export class InviterInfoDto {
+  @ApiProperty({ description: '邀请人ID', example: 'user_001' })
+  id!: string;
+
+  @ApiProperty({ description: '邀请人名称', example: '张三' })
+  name!: string;
+
+  @ApiPropertyOptional({ description: '邀请人邮箱', example: 'zhangsan@example.com' })
+  email?: string;
+}
+
+/**
+ * 邀请详情 DTO
+ */
+export class InvitationDetailDto {
+  @ApiProperty({ description: '邀请ID', example: 'inv_123456' })
+  invitationId!: string;
+
+  @ApiProperty({ description: '行程ID', example: 'journey_001' })
+  journeyId!: string;
+
+  @ApiProperty({ description: '被邀请人邮箱', example: 'newmember@example.com' })
+  email!: string;
+
+  @ApiProperty({ description: '角色', enum: ['member', 'admin'], example: 'member' })
+  role!: 'member' | 'admin';
+
+  @ApiPropertyOptional({ description: '行程名称', example: '冰岛之旅' })
+  journeyName?: string;
+
+  @ApiPropertyOptional({ description: '邀请消息', example: '欢迎加入我们的冰岛之旅！' })
+  message?: string;
+
+  @ApiProperty({ description: '邀请状态', enum: ['pending', 'accepted', 'expired', 'cancelled'], example: 'pending' })
+  status!: 'pending' | 'accepted' | 'expired' | 'cancelled';
+
+  @ApiProperty({ description: '过期时间', example: '2025-12-02T10:00:00.000Z' })
+  expiresAt!: string;
+
+  @ApiPropertyOptional({ description: '邀请人信息', type: InviterInfoDto })
+  invitedBy?: InviterInfoDto;
+}
+
+/**
+ * 验证邀请响应 DTO
+ */
+export class VerifyInvitationResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({ description: '邀请详情', type: InvitationDetailDto })
+  data!: InvitationDetailDto;
+}
+

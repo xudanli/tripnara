@@ -23,6 +23,9 @@ import {
   UpdateMemberRequestDto,
   UpdateMemberResponseDto,
   DeleteMemberResponseDto,
+  VerifyInvitationResponseDto,
+  InvitationDetailDto,
+  InviterInfoDto,
   MemberRole,
 } from './dto/member.dto';
 
@@ -442,6 +445,76 @@ export class MemberService {
       userId: member.userId || null,
       createdAt: member.createdAt.toISOString(),
       updatedAt: member.updatedAt.toISOString(),
+    };
+  }
+
+  /**
+   * 验证邀请
+   * 用于验证邀请链接的有效性，获取邀请信息（公开接口，无需认证）
+   */
+  async verifyInvitation(
+    invitationId: string,
+  ): Promise<VerifyInvitationResponseDto> {
+    // 验证邀请ID格式
+    if (!invitationId || invitationId.trim().length === 0) {
+      throw new BadRequestException('邀请ID无效');
+    }
+
+    // 查找邀请
+    const invitation = await this.memberRepository.findInvitationById(
+      invitationId,
+    );
+    if (!invitation) {
+      throw new NotFoundException('邀请不存在或已过期');
+    }
+
+    // 检查邀请是否已过期
+    const now = new Date();
+    if (invitation.expiresAt < now && invitation.status === 'pending') {
+      // 自动标记为过期
+      await this.memberRepository.updateInvitationStatus(
+        invitationId,
+        'expired',
+      );
+      invitation.status = 'expired';
+    }
+
+    // 如果邀请已过期或已取消，返回错误
+    if (invitation.status === 'expired' || invitation.status === 'cancelled') {
+      throw new NotFoundException('邀请不存在或已过期');
+    }
+
+    // 获取行程信息
+    const journey = invitation.journey;
+    if (!journey) {
+      throw new NotFoundException('行程不存在');
+    }
+
+    // 获取邀请人信息
+    const inviter = invitation.inviter;
+    let invitedByInfo: InviterInfoDto | undefined;
+
+    if (inviter) {
+      invitedByInfo = {
+        id: inviter.id,
+        name: inviter.nickname || inviter.email || '未知用户',
+        email: inviter.email,
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        invitationId: invitation.id,
+        journeyId: invitation.journeyId,
+        email: invitation.email,
+        role: invitation.role,
+        journeyName: journey.destination, // 使用目的地作为行程名称
+        message: invitation.message,
+        status: invitation.status,
+        expiresAt: invitation.expiresAt.toISOString(),
+        invitedBy: invitedByInfo,
+      },
     };
   }
 }

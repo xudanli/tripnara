@@ -877,10 +877,27 @@ export class JourneyV1Controller {
   @Patch(':journeyId/expenses/:expenseId')
   @ApiOperation({
     summary: '更新支出',
-    description: '更新指定的支出记录',
+    description: '更新指定的支出记录，所有字段可选，只传入需要更新的字段',
   })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @ApiResponse({
+    status: 200,
+    description: '支出更新成功',
+    type: UpdateExpenseResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: '请求参数错误（如金额验证失败、分摊验证失败）',
+  })
+  @ApiResponse({
+    status: 403,
+    description: '无权修改此行程的支出',
+  })
+  @ApiResponse({
+    status: 404,
+    description: '支出不存在或不属于此行程',
+  })
   async updateExpense(
     @Param('journeyId') journeyId: string,
     @Param('expenseId') expenseId: string,
@@ -893,10 +910,23 @@ export class JourneyV1Controller {
   @Delete(':journeyId/expenses/:expenseId')
   @ApiOperation({
     summary: '删除支出',
-    description: '删除指定的支出记录',
+    description: '删除指定的支出记录（删除操作不可逆）',
   })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @ApiResponse({
+    status: 200,
+    description: '支出删除成功',
+    type: DeleteExpenseResponseDto,
+  })
+  @ApiResponse({
+    status: 403,
+    description: '无权删除此行程的支出',
+  })
+  @ApiResponse({
+    status: 404,
+    description: '支出不存在或不属于此行程',
+  })
   async deleteExpense(
     @Param('journeyId') journeyId: string,
     @Param('expenseId') expenseId: string,

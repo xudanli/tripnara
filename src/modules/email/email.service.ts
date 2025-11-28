@@ -179,7 +179,7 @@ ${data.invitationLink}
 
 此邀请将在 ${expiryDate} 过期。
 
-此邮件由 TripMind 自动发送，请勿回复。
+此邮件由 TripNara 自动发送，请勿回复。
     `.trim();
 
     return { subject, html, text };

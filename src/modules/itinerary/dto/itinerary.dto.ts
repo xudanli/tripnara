@@ -17,6 +17,12 @@ import {
   IsBoolean,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
+import {
+  IsTimeFormat,
+  IsDateFormat,
+  IsValidCoordinates,
+  IsFutureDate,
+} from '../../../utils/validators';
 
 export class ItineraryPreferencesDto {
   @ApiPropertyOptional({
@@ -51,6 +57,7 @@ export class ItineraryPreferencesDto {
 export class ItineraryActivityDto {
   @ApiProperty({ description: '活动时间', example: '09:00' })
   @IsString()
+  @IsTimeFormat({ message: '时间格式必须是 HH:mm，例如: 09:00' })
   time!: string;
 
   @ApiProperty({ description: '活动标题', example: '铁力士峰云端漫步' })
@@ -67,6 +74,8 @@ export class ItineraryActivityDto {
 
   @ApiProperty({ description: '持续时间（分钟）', example: 120 })
   @IsNumber()
+  @Min(1, { message: '持续时间至少为 1 分钟' })
+  @Max(1440, { message: '持续时间不能超过 1440 分钟（24小时）' })
   duration!: number;
 
   @ApiProperty({
@@ -82,6 +91,7 @@ export class ItineraryActivityDto {
 
   @ApiProperty({ description: '预估费用', example: 400 })
   @IsNumber()
+  @Min(0, { message: '费用不能为负数' })
   cost!: number;
 
   @ApiPropertyOptional({ description: '详细信息（JSON对象）', example: { name: { chinese: '...', english: '...' } } })
@@ -93,10 +103,13 @@ export class ItineraryActivityDto {
 export class ItineraryDayDto {
   @ApiProperty({ description: '第几天', example: 1 })
   @IsNumber()
+  @Min(1, { message: '天数必须大于 0' })
+  @Max(365, { message: '天数不能超过 365' })
   day!: number;
 
   @ApiProperty({ description: '日期', example: '2024-06-01' })
   @IsString()
+  @IsDateFormat({ message: '日期格式必须是 YYYY-MM-DD，例如: 2024-06-01' })
   date!: string;
 
   @ApiProperty({

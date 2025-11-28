@@ -5,6 +5,7 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
+import { ErrorHandler } from '../../utils/errorHandler';
 import { LlmService } from '../llm/llm.service';
 import { PreferencesService } from '../preferences/preferences.service';
 import { ItineraryRepository } from '../persistence/repositories/itinerary/itinerary.repository';
@@ -501,10 +502,7 @@ ${dateInstructions}
   ): Promise<number> {
     // 检查所有权（如果提供了 userId）
     if (userId) {
-      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-      if (!isOwner) {
-        throw new ForbiddenException('无权修改此行程');
-      }
+      await this.ensureOwnership(journeyId, userId, '修改');
     }
 
     return await this.recalculateAndUpdateTotalCost(journeyId);
@@ -655,11 +653,15 @@ ${dateInstructions}
       }
 
       if (!dto.data.days.length) {
-        this.logger.warn(
-          `行程数据为空: destination=${dto.destination}, days=${dto.days}, data.days.length=${dto.data.days.length}`,
-        );
-        throw new BadRequestException(
+        this.logger.warn('Empty itinerary data', {
+          destination: dto.destination,
+          days: dto.days,
+          daysCount: dto.data.days.length,
+          userId,
+        });
+        throw ErrorHandler.badRequest(
           '行程数据不能为空：至少需要一天的行程。请确保 data.days 数组包含至少一天的行程数据',
+          { destination: dto.destination, userId, daysCount: dto.data.days.length },
         );
       }
 
@@ -676,9 +678,12 @@ ${dateInstructions}
       };
 
     const totalActivities = dto.data.days.reduce((sum, d) => sum + (d.activities?.length || 0), 0);
-    this.logger.log(
-      `Creating itinerary with ${dto.data.days.length} days, total activities: ${totalActivities}`,
-    );
+    this.logger.log('Creating itinerary', {
+      userId,
+      destination: dto.destination,
+      daysCount: dto.data.days.length,
+      totalActivities,
+    });
     
     // 详细日志：记录每个 day 的信息
     dto.data.days.forEach((day, index) => {
@@ -704,6 +709,31 @@ ${dateInstructions}
     // 使用 CostCalculator 自动计算总费用
     const calculatedTotalCost = CostCalculator.calculateTotalCost(itineraryDataForCalculation);
 
+    // 自动推断货币并存储到数据库
+    let currency: { code: string; symbol: string; name: string } | undefined;
+    try {
+      // 尝试从第一个活动的坐标推断货币
+      const firstActivity = dto.data.days[0]?.activities?.[0];
+      if (firstActivity?.location) {
+        currency = await this.currencyService.inferCurrency({
+          destination: dto.destination,
+          coordinates: firstActivity.location,
+        });
+      } else {
+        // 如果没有坐标，使用目的地名称推断
+        currency = await this.currencyService.inferCurrency({
+          destination: dto.destination,
+        });
+      }
+    } catch (error) {
+      this.logger.warn('推断货币失败，使用默认货币:', error);
+      currency = {
+        code: 'CNY',
+        symbol: '¥',
+        name: '人民币',
+      };
+    }
+
     const itinerary = await this.itineraryRepository.createItinerary({
       userId,
       destination: dto.destination,
@@ -711,6 +741,8 @@ ${dateInstructions}
       daysCount: dto.days,
       summary: fixedSummary,
       totalCost: calculatedTotalCost, // 使用计算出的总费用
+      currency: currency.code, // 存储货币代码
+      currencyInfo: currency, // 存储货币详细信息
       preferences: dto.preferences as Record<string, unknown>,
       status: dto.status || 'draft',
       daysData: dto.data.days.map((day, index) => ({
@@ -755,16 +787,11 @@ ${dateInstructions}
         error instanceof Error ? error.stack : error,
       );
       
-      // 如果是已知的 BadRequestException，直接抛出
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-      
-      // 其他错误转换为更友好的错误信息
-      const errorMessage =
-        error instanceof Error ? error.message : '创建行程失败';
-      throw new BadRequestException(
-        `创建行程时发生错误: ${errorMessage}`,
+      // 使用统一的错误处理工具
+      throw ErrorHandler.wrapError(
+        error as Error,
+        '创建行程',
+        { userId, destination: dto.destination },
       );
     }
   }
@@ -806,12 +833,12 @@ ${dateInstructions}
     const itinerary = await this.itineraryRepository.findById(id);
 
     if (!itinerary) {
-      throw new NotFoundException(`行程不存在: ${id}`);
+      throw ErrorHandler.notFound('行程', id, { userId });
     }
 
     // 检查所有权
     if (itinerary.userId !== userId) {
-      throw new ForbiddenException('无权访问此行程');
+      throw ErrorHandler.forbidden('访问', '此行程', { journeyId: id, userId });
     }
 
     // 返回前端格式（使用 timeSlots），减少前端数据转换工作
@@ -834,6 +861,12 @@ ${dateInstructions}
       }
     }
 
+    // 获取当前行程信息，用于判断是否需要重新推断货币
+    const currentItinerary = await this.itineraryRepository.findById(id);
+    if (!currentItinerary) {
+      throw new NotFoundException(`行程不存在: ${id}`);
+    }
+
     const updateData: any = {};
     if (dto.destination !== undefined) updateData.destination = dto.destination;
     if (dto.startDate !== undefined)
@@ -854,18 +887,33 @@ ${dateInstructions}
     if (dto.preferences !== undefined) updateData.preferences = dto.preferences;
     if (dto.status !== undefined) updateData.status = dto.status;
 
-    const itinerary = await this.itineraryRepository.updateItinerary(
+    // 如果目的地改变，重新推断货币（性能优化：只在必要时推断）
+    if (dto.destination && dto.destination !== currentItinerary.destination) {
+      try {
+        const currency = await this.currencyService.inferCurrency({
+          destination: dto.destination,
+        });
+        updateData.currency = currency.code;
+        updateData.currencyInfo = currency;
+      } catch (error) {
+        this.logger.warn('更新行程时推断货币失败:', error);
+      }
+    }
+
+    // 更新行程（如果 updateItinerary 返回 null，说明行程不存在）
+    const updatedItinerary = await this.itineraryRepository.updateItinerary(
       id,
       updateData,
     );
 
-    if (!itinerary) {
+    if (!updatedItinerary) {
       throw new NotFoundException(`行程不存在: ${id}`);
     }
 
+    // 复用已查询的实体，避免重复查询（性能优化）
     return {
       success: true,
-      data: this.entityToDetailDto(itinerary),
+      data: this.entityToDetailDto(updatedItinerary),
     };
   }
 
@@ -1006,19 +1054,54 @@ ${dateInstructions}
     // 使用 CostCalculator 自动计算总费用
     const calculatedTotalCost = CostCalculator.calculateTotalCost(itineraryDataForCalculation);
 
+    // 获取当前行程信息，用于判断是否需要重新推断货币
+    const currentItinerary = await this.itineraryRepository.findById(id);
+    const needsCurrencyUpdate = currentItinerary && 
+      itineraryData.destination && 
+      itineraryData.destination !== currentItinerary.destination;
+
+    // 如果目的地改变，重新推断货币（性能优化：只在必要时推断）
+    let currency: { code: string; symbol: string; name: string } | undefined;
+    if (needsCurrencyUpdate) {
+      try {
+        // 尝试从第一个活动的坐标推断货币
+        const firstActivity = convertDays()[0]?.activities?.[0];
+        if (firstActivity?.location) {
+          currency = await this.currencyService.inferCurrency({
+            destination: itineraryData.destination,
+            coordinates: firstActivity.location,
+          });
+        } else {
+          currency = await this.currencyService.inferCurrency({
+            destination: itineraryData.destination,
+          });
+        }
+      } catch (error) {
+        this.logger.warn('更新行程时推断货币失败:', error);
+      }
+    }
+
     // 更新行程（包括 days 和 activities）
-    const itinerary = await this.itineraryRepository.updateItineraryWithDays(
-      id,
-      {
+    const updateData: any = {
         destination: itineraryData.destination,
         startDate: finalStartDate,
         daysCount: itineraryData.duration,
-        summary: fixedSummary,
-        totalCost: calculatedTotalCost, // 使用计算出的总费用
+      summary: fixedSummary,
+      totalCost: calculatedTotalCost, // 使用计算出的总费用
         preferences:
           Object.keys(preferences).length > 0 ? preferences : undefined,
         daysData: convertDays(),
-      },
+    };
+
+    // 如果推断出货币，添加到更新数据中
+    if (currency) {
+      updateData.currency = currency.code;
+      updateData.currencyInfo = currency;
+    }
+
+    const itinerary = await this.itineraryRepository.updateItineraryWithDays(
+      id,
+      updateData,
     );
 
     if (!itinerary) {
@@ -1038,10 +1121,7 @@ ${dateInstructions}
   ): Promise<DeleteItineraryResponseDto> {
     // 检查所有权（如果提供了 userId）
     if (userId) {
-      const isOwner = await this.itineraryRepository.checkOwnership(id, userId);
-      if (!isOwner) {
-        throw new ForbiddenException('无权删除此行程');
-      }
+      await this.ensureOwnership(id, userId, '删除');
     }
 
     const deleted = await this.itineraryRepository.deleteItinerary(id);
@@ -1064,10 +1144,7 @@ ${dateInstructions}
     userId: string,
   ): Promise<CloneJourneyResponseDto> {
     // 检查所有权
-    const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-    if (!isOwner) {
-      throw new ForbiddenException('无权复制此行程');
-    }
+    await this.ensureOwnership(journeyId, userId, '复制');
 
     // 获取原行程
     const original = await this.getItineraryById(journeyId, userId);
@@ -1129,10 +1206,7 @@ ${dateInstructions}
     dto: ShareJourneyRequestDto,
   ): Promise<ShareJourneyResponseDto> {
     // 检查所有权
-    const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-    if (!isOwner) {
-      throw new ForbiddenException('无权分享此行程');
-    }
+    await this.ensureOwnership(journeyId, userId, '分享');
 
     // 检查行程是否存在
     const itinerary = await this.itineraryRepository.findById(journeyId);
@@ -1173,10 +1247,7 @@ ${dateInstructions}
     dto: ExportJourneyRequestDto,
   ): Promise<ExportJourneyResponseDto> {
     // 检查所有权
-    const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-    if (!isOwner) {
-      throw new ForbiddenException('无权导出行程');
-    }
+    await this.ensureOwnership(journeyId, userId, '导出');
 
     // 获取行程详情
     const itinerary = await this.getItineraryById(journeyId, userId);
@@ -1277,10 +1348,7 @@ ${dateInstructions}
     dto: ResetJourneyRequestDto,
   ): Promise<ResetJourneyResponseDto> {
     // 检查所有权
-    const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-    if (!isOwner) {
-      throw new ForbiddenException('无权重置此行程');
-    }
+    await this.ensureOwnership(journeyId, userId, '重置');
 
     // 获取原行程
     const itinerary = await this.itineraryRepository.findById(journeyId);
@@ -1323,22 +1391,39 @@ ${dateInstructions}
   }
 
   /**
+   * 提取公共的实体验证和转换逻辑
+   */
+  private validateAndTransformEntity(entity: ItineraryEntity) {
+    const daysArray = Array.isArray(entity.days) ? entity.days : [];
+    const totalCost = DataValidator.fixNumber(entity.totalCost, 0, 0);
+    const summary = DataValidator.fixString(entity.summary, '');
+    const startDate = DataValidator.fixDate(entity.startDate as Date | string);
+    
+    return { daysArray, totalCost, summary, startDate };
+  }
+
+  /**
+   * 统一的权限检查方法（减少代码重复）
+   */
+  private async ensureOwnership(
+    journeyId: string,
+    userId: string,
+    action: string = '访问',
+  ): Promise<void> {
+    const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
+    if (!isOwner) {
+      throw new ForbiddenException(`无权${action}此行程`);
+    }
+  }
+
+  /**
    * 将实体转换为前端格式 DTO（使用 timeSlots）
    * 统一使用前端期望的格式，减少前端数据转换工作
    */
   private async entityToDetailWithTimeSlotsDto(
     entity: ItineraryEntity,
   ): Promise<ItineraryDetailWithTimeSlotsDto> {
-    const daysArray = Array.isArray(entity.days) ? entity.days : [];
-    
-    // 使用 DataValidator 修复总费用
-    const totalCost = DataValidator.fixNumber(entity.totalCost, 0, 0);
-
-    // 使用 DataValidator 修复摘要
-    const summary = DataValidator.fixString(entity.summary, '');
-
-    // 使用 DataValidator 修复开始日期
-    const startDate = DataValidator.fixDate(entity.startDate as Date | string);
+    const { daysArray, totalCost, summary, startDate } = this.validateAndTransformEntity(entity);
 
     // 转换为前端格式（使用 timeSlots）
     // 先将实体活动转换为 DTO 格式，再转换为 timeSlots
@@ -1372,31 +1457,50 @@ ${dateInstructions}
       },
     );
 
-    // 推断货币（异步操作，但这里同步返回，货币信息会在后续查询时补充）
-    // 为了性能，这里先返回，货币信息可以在需要时通过单独接口获取
-    // 或者可以在保存行程时存储货币信息到数据库
+    // 优先使用存储的货币信息，如果没有则推断（性能优化）
     let currency: { code: string; symbol: string; name: string } | undefined;
-    try {
-      // 尝试从第一个活动的坐标推断货币
-      const firstActivity = daysWithTimeSlots[0]?.timeSlots?.[0];
-      if (firstActivity?.coordinates) {
-        currency = await this.currencyService.inferCurrency({
-          destination: entity.destination,
-          coordinates: firstActivity.coordinates,
-        });
+    if (entity.currencyInfo) {
+      // 使用存储的货币信息（性能优化：避免每次查询都推断）
+      currency = entity.currencyInfo as { code: string; symbol: string; name: string };
+    } else if (entity.currency) {
+      // 如果只有货币代码，尝试获取完整信息
+      const currencyInfo = this.currencyService.getCurrencyByCountryCode(entity.currency, 'zh');
+      if (currencyInfo) {
+        currency = currencyInfo;
       } else {
-        // 如果没有坐标，使用目的地名称推断
-        currency = await this.currencyService.inferCurrency({
-          destination: entity.destination,
-        });
+        // 如果无法获取，使用默认货币
+        currency = {
+          code: entity.currency,
+          symbol: '¥',
+          name: '人民币',
+        };
       }
-    } catch (error) {
-      this.logger.warn('推断货币失败，使用默认货币:', error);
-      currency = {
-        code: 'CNY',
-        symbol: '¥',
-        name: '人民币',
-      };
+    } else {
+      // 如果没有存储的货币信息，则推断（向后兼容）
+      try {
+        const firstActivity = daysWithTimeSlots[0]?.timeSlots?.[0];
+        if (firstActivity?.coordinates) {
+          currency = await this.currencyService.inferCurrency({
+            destination: entity.destination,
+            coordinates: firstActivity.coordinates,
+          });
+        } else {
+          currency = await this.currencyService.inferCurrency({
+            destination: entity.destination,
+          });
+        }
+        // 异步更新数据库中的货币信息（不阻塞响应）
+        this.updateCurrencyInfoAsync(entity.id, currency).catch((error) => {
+          this.logger.warn(`异步更新货币信息失败: ${entity.id}`, error);
+        });
+      } catch (error) {
+        this.logger.warn('推断货币失败，使用默认货币:', error);
+        currency = {
+          code: 'CNY',
+          symbol: '¥',
+          name: '人民币',
+        };
+      }
     }
 
     return {
@@ -1425,18 +1529,7 @@ ${dateInstructions}
 
   // 辅助方法：实体转 DTO（保留用于向后兼容）
   private entityToDetailDto(entity: ItineraryEntity): ItineraryDetailDto {
-    const daysArray = Array.isArray(entity.days) ? entity.days : [];
-    
-    // 使用 DataValidator 修复总费用
-    const totalCost = DataValidator.fixNumber(entity.totalCost, 0, 0);
-
-    // 使用 DataValidator 修复摘要
-    const summary = DataValidator.fixString(entity.summary, '');
-
-    // 使用 DataValidator 修复开始日期
-    const startDate = DataValidator.fixDate(
-      entity.startDate as Date | string,
-    );
+    const { daysArray, totalCost, summary, startDate } = this.validateAndTransformEntity(entity);
 
     // 确保days字段始终是数组，并使用 DataValidator 修复每个字段
     const daysMapped = daysArray.map((day, index) => ({
@@ -2250,10 +2343,7 @@ ${dateInstructions}
     try {
     // 检查所有权
     if (userId) {
-      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-      if (!isOwner) {
-        throw new ForbiddenException('无权访问此行程');
-      }
+      await this.ensureOwnership(journeyId, userId, '访问');
     }
 
     const formatDayDate = (date: Date | string): string => {
@@ -2333,10 +2423,7 @@ ${dateInstructions}
   ): Promise<ItineraryDayDto & { id: string }> {
     // 检查所有权
     if (userId) {
-      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-      if (!isOwner) {
-        throw new ForbiddenException('无权修改此行程');
-      }
+      await this.ensureOwnership(journeyId, userId, '修改');
     }
 
     const formatDayDate = (date: Date | string): string => {
@@ -2430,10 +2517,7 @@ ${dateInstructions}
   ): Promise<Array<ItineraryDayDto & { id: string }>> {
     // 检查所有权
     if (userId) {
-      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-      if (!isOwner) {
-        throw new ForbiddenException('无权修改此行程');
-      }
+      await this.ensureOwnership(journeyId, userId, '修改');
     }
 
     const formatDayDate = (date: Date | string): string => {
@@ -2553,10 +2637,7 @@ ${dateInstructions}
   ): Promise<ItineraryDayDto & { id: string }> {
     // 检查所有权
     if (userId) {
-      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-      if (!isOwner) {
-        throw new ForbiddenException('无权修改此行程');
-      }
+      await this.ensureOwnership(journeyId, userId, '修改');
 
       const dayOwnership = await this.itineraryRepository.checkDayOwnership(dayId, journeyId);
       if (!dayOwnership) {
@@ -2614,10 +2695,7 @@ ${dateInstructions}
   ): Promise<{ success: boolean; message?: string }> {
     // 检查所有权
     if (userId) {
-      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-      if (!isOwner) {
-        throw new ForbiddenException('无权修改此行程');
-      }
+      await this.ensureOwnership(journeyId, userId, '修改');
 
       const dayOwnership = await this.itineraryRepository.checkDayOwnership(dayId, journeyId);
       if (!dayOwnership) {
@@ -2646,10 +2724,7 @@ ${dateInstructions}
   ): Promise<Array<ItineraryActivityDto & { id: string }>> {
     // 检查所有权
     if (userId) {
-      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-      if (!isOwner) {
-        throw new ForbiddenException('无权访问此行程');
-      }
+      await this.ensureOwnership(journeyId, userId, '访问');
 
       const dayOwnership = await this.itineraryRepository.checkDayOwnership(dayId, journeyId);
       if (!dayOwnership) {
@@ -2690,10 +2765,7 @@ ${dateInstructions}
   }> {
     // 检查所有权
     if (userId) {
-      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-      if (!isOwner) {
-        throw new ForbiddenException('无权访问此行程');
-      }
+      await this.ensureOwnership(journeyId, userId, '访问');
 
       // 如果指定了 dayIds，验证这些天数是否属于此行程
       if (dayIds && dayIds.length > 0) {
@@ -2779,10 +2851,7 @@ ${dateInstructions}
   ): Promise<ItineraryActivityDto & { id: string }> {
     // 检查所有权
     if (userId) {
-      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-      if (!isOwner) {
-        throw new ForbiddenException('无权修改此行程');
-      }
+      await this.ensureOwnership(journeyId, userId, '修改');
 
       const dayOwnership = await this.itineraryRepository.checkDayOwnership(dayId, journeyId);
       if (!dayOwnership) {
@@ -2873,10 +2942,7 @@ ${dateInstructions}
   ): Promise<ItineraryActivityDto & { id: string }> {
     // 检查所有权
     if (userId) {
-      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-      if (!isOwner) {
-        throw new ForbiddenException('无权修改此行程');
-      }
+      await this.ensureOwnership(journeyId, userId, '修改');
 
       const dayOwnership = await this.itineraryRepository.checkDayOwnership(dayId, journeyId);
       if (!dayOwnership) {
@@ -2984,10 +3050,7 @@ ${dateInstructions}
   ): Promise<{ success: boolean; message?: string }> {
     // 检查所有权
     if (userId) {
-      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-      if (!isOwner) {
-        throw new ForbiddenException('无权修改此行程');
-      }
+      await this.ensureOwnership(journeyId, userId, '修改');
 
       const dayOwnership = await this.itineraryRepository.checkDayOwnership(dayId, journeyId);
       if (!dayOwnership) {
@@ -3028,10 +3091,7 @@ ${dateInstructions}
   ): Promise<Array<ItineraryActivityDto & { id: string }>> {
     // 检查所有权
     if (userId) {
-      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-      if (!isOwner) {
-        throw new ForbiddenException('无权修改此行程');
-      }
+      await this.ensureOwnership(journeyId, userId, '修改');
 
       const dayOwnership = await this.itineraryRepository.checkDayOwnership(dayId, journeyId);
       if (!dayOwnership) {
@@ -3441,13 +3501,12 @@ ${dateInstructions}
     userId: string,
     dto: GenerateSafetyNoticeRequestDto,
   ): Promise<GenerateSafetyNoticeResponseDto> {
-    // 验证行程存在且属于用户
+    // 验证行程存在且属于用户（优化：先检查所有权，再查询）
+    await this.ensureOwnership(journeyId, userId, '访问');
+    
     const itinerary = await this.itineraryRepository.findById(journeyId);
     if (!itinerary) {
       throw new NotFoundException(`行程不存在: ${journeyId}`);
-    }
-    if (itinerary.userId !== userId) {
-      throw new ForbiddenException('无权访问此行程');
     }
 
     const lang = dto.lang || 'zh-CN';
@@ -3537,13 +3596,12 @@ ${dateInstructions}
     journeyId: string,
     userId: string,
   ): Promise<GetSafetyNoticeResponseDto> {
-    // 验证行程存在且属于用户
+    // 验证行程存在且属于用户（优化：先检查所有权，再查询）
+    await this.ensureOwnership(journeyId, userId, '访问');
+    
     const itinerary = await this.itineraryRepository.findById(journeyId);
     if (!itinerary) {
       throw new NotFoundException(`行程不存在: ${journeyId}`);
-    }
-    if (itinerary.userId !== userId) {
-      throw new ForbiddenException('无权访问此行程');
     }
 
     // 从行程中获取安全提示
@@ -3589,6 +3647,24 @@ ${dateInstructions}
       .digest('hex')
       .substring(0, 8);
     return `safety:${destination}:${lang}:${summaryHash}`;
+  }
+
+  /**
+   * 异步更新行程的货币信息（不阻塞响应）
+   */
+  private async updateCurrencyInfoAsync(
+    itineraryId: string,
+    currency: { code: string; symbol: string; name: string },
+  ): Promise<void> {
+    try {
+      await this.itineraryRepository.updateItinerary(itineraryId, {
+        currency: currency.code,
+        currencyInfo: currency,
+      });
+      this.logger.debug(`已更新行程 ${itineraryId} 的货币信息: ${currency.code}`);
+    } catch (error) {
+      this.logger.warn(`更新行程 ${itineraryId} 的货币信息失败:`, error);
+    }
   }
 
   /**
@@ -3651,10 +3727,7 @@ ${dateInstructions}
     },
   ): Promise<GetExpenseListResponseDto> {
     // 检查所有权
-    const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-    if (!isOwner) {
-      throw new ForbiddenException('无权访问此行程的支出');
-    }
+    await this.ensureOwnership(journeyId, userId, '访问此行程的支出');
 
     // 转换日期字符串为 Date 对象
     const startDate = filters?.startDate ? new Date(filters.startDate) : undefined;
@@ -3695,10 +3768,7 @@ ${dateInstructions}
     userId: string,
   ): Promise<CreateExpenseResponseDto> {
     // 检查所有权
-    const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-    if (!isOwner) {
-      throw new ForbiddenException('无权为此行程添加支出');
-    }
+    await this.ensureOwnership(journeyId, userId, '为此行程添加支出');
 
     // 验证自定义分摊详情
     if (dto.splitType === 'custom' && (!dto.splitDetails || Object.keys(dto.splitDetails).length === 0)) {
@@ -3754,10 +3824,7 @@ ${dateInstructions}
     userId: string,
   ): Promise<UpdateExpenseResponseDto> {
     // 检查行程所有权
-    const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-    if (!isOwner) {
-      throw new ForbiddenException('无权修改此行程的支出');
-    }
+    await this.ensureOwnership(journeyId, userId, '修改此行程的支出');
 
     // 检查支出是否属于该行程
     const expenseOwnership = await this.itineraryRepository.checkExpenseOwnership(
@@ -3817,10 +3884,7 @@ ${dateInstructions}
     userId: string,
   ): Promise<DeleteExpenseResponseDto> {
     // 检查行程所有权
-    const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-    if (!isOwner) {
-      throw new ForbiddenException('无权删除此行程的支出');
-    }
+    await this.ensureOwnership(journeyId, userId, '删除此行程的支出');
 
     // 检查支出是否属于该行程
     const expenseOwnership = await this.itineraryRepository.checkExpenseOwnership(

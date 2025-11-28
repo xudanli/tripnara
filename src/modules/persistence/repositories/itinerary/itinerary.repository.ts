@@ -19,6 +19,12 @@ type CreateItineraryInput = {
   daysCount: number;
   summary?: string;
   totalCost?: number;
+  currency?: string;
+  currencyInfo?: {
+    code: string;
+    symbol: string;
+    name: string;
+  };
   preferences?: Record<string, unknown>;
   status?: 'draft' | 'published' | 'archived';
   daysData: Array<{
@@ -45,6 +51,8 @@ type UpdateItineraryInput = Partial<
     | 'daysCount'
     | 'summary'
     | 'totalCost'
+    | 'currency'
+    | 'currencyInfo'
     | 'preferences'
     | 'status'
   >
@@ -71,6 +79,8 @@ export class ItineraryRepository {
       daysCount: input.daysCount,
       summary: input.summary,
       totalCost: input.totalCost,
+      currency: input.currency,
+      currencyInfo: input.currencyInfo,
       preferences: input.preferences,
       status: input.status || 'draft',
     });
@@ -89,6 +99,19 @@ export class ItineraryRepository {
       return result;
     }
     
+    // 批量创建活动（性能优化：减少数据库往返次数）
+    const allActivities: Array<{
+      dayId: string;
+      time: string;
+      title: string;
+      type: 'attraction' | 'meal' | 'hotel' | 'shopping' | 'transport' | 'ocean';
+      duration: number;
+      location: { lat: number; lng: number };
+      notes?: string;
+      cost?: number;
+      details?: Record<string, unknown>;
+    }> = [];
+
     for (const dayData of input.daysData) {
       if (!dayData.activities) {
         dayData.activities = [];
@@ -102,9 +125,9 @@ export class ItineraryRepository {
       const savedDay = await this.dayRepository.save(day);
       console.log(`[ItineraryRepository] Created day ${savedDay.day} (id: ${savedDay.id}) with ${dayData.activities.length} activities`);
 
-      // 创建活动
+      // 收集活动数据（不立即保存）
       for (const activityData of dayData.activities) {
-        const activity = this.activityRepository.create({
+        allActivities.push({
           dayId: savedDay.id,
           time: activityData.time,
           title: activityData.title,
@@ -115,8 +138,16 @@ export class ItineraryRepository {
           cost: activityData.cost,
           details: activityData.details,
         });
-        await this.activityRepository.save(activity);
       }
+    }
+
+    // 批量保存所有活动（性能优化）
+    if (allActivities.length > 0) {
+      const activityEntities = allActivities.map((activityData) =>
+        this.activityRepository.create(activityData),
+      );
+      await this.activityRepository.save(activityEntities);
+      console.log(`[ItineraryRepository] Batch saved ${activityEntities.length} activities`);
     }
 
     // 重新查询以获取完整关联数据
@@ -239,6 +270,12 @@ export class ItineraryRepository {
     if (input.totalCost !== undefined) {
       updateData.totalCost = input.totalCost;
     }
+    if (input.currency !== undefined) {
+      updateData.currency = input.currency;
+    }
+    if (input.currencyInfo !== undefined) {
+      updateData.currencyInfo = input.currencyInfo;
+    }
     if (input.preferences !== undefined) {
       updateData.preferences = input.preferences;
     }
@@ -277,6 +314,12 @@ export class ItineraryRepository {
       daysCount?: number;
       summary?: string;
       totalCost?: number;
+      currency?: string;
+      currencyInfo?: {
+        code: string;
+        symbol: string;
+        name: string;
+      };
       preferences?: Record<string, unknown>;
       status?: 'draft' | 'published' | 'archived';
       daysData?: Array<{
@@ -302,6 +345,8 @@ export class ItineraryRepository {
     if (input.daysCount !== undefined) updateData.daysCount = input.daysCount;
     if (input.summary !== undefined) updateData.summary = input.summary;
     if (input.totalCost !== undefined) updateData.totalCost = input.totalCost;
+    if (input.currency !== undefined) updateData.currency = input.currency;
+    if (input.currencyInfo !== undefined) updateData.currencyInfo = input.currencyInfo;
     if (input.preferences !== undefined) updateData.preferences = input.preferences;
     if (input.status !== undefined) updateData.status = input.status;
 
@@ -314,7 +359,20 @@ export class ItineraryRepository {
       // 先删除现有的 days（级联删除 activities）
       await this.dayRepository.delete({ itineraryId: id });
 
-      // 创建新的 days 和 activities
+      // 批量创建活动（性能优化：减少数据库往返次数）
+      const allActivities: Array<{
+        dayId: string;
+        time: string;
+        title: string;
+        type: 'attraction' | 'meal' | 'hotel' | 'shopping' | 'transport' | 'ocean';
+        duration: number;
+        location: { lat: number; lng: number };
+        notes?: string;
+        cost?: number;
+        details?: Record<string, unknown>;
+      }> = [];
+
+      // 创建新的 days 和收集活动数据
       for (const dayData of input.daysData) {
         const day = this.dayRepository.create({
           itineraryId: id,
@@ -323,9 +381,9 @@ export class ItineraryRepository {
         });
         const savedDay = await this.dayRepository.save(day);
 
-        // 创建活动
+        // 收集活动数据（不立即保存）
         for (const activityData of dayData.activities) {
-          const activity = this.activityRepository.create({
+          allActivities.push({
             dayId: savedDay.id,
             time: activityData.time,
             title: activityData.title,
@@ -336,8 +394,15 @@ export class ItineraryRepository {
             cost: activityData.cost,
             details: activityData.details,
           });
-          await this.activityRepository.save(activity);
         }
+      }
+
+      // 批量保存所有活动（性能优化）
+      if (allActivities.length > 0) {
+        const activityEntities = allActivities.map((activityData) =>
+          this.activityRepository.create(activityData),
+        );
+        await this.activityRepository.save(activityEntities);
       }
     }
 

@@ -42,6 +42,16 @@ export class ItineraryEntity {
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   totalCost?: number;
 
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  currency?: string; // 货币代码，如 'CHF'
+
+  @Column({ type: 'jsonb', nullable: true })
+  currencyInfo?: {
+    code: string;
+    symbol: string;
+    name: string;
+  }; // 货币详细信息
+
   @Column({ type: 'jsonb', nullable: true })
   preferences?: Record<string, unknown>;
 
