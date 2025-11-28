@@ -14,6 +14,9 @@ import { Repository } from 'typeorm';
 import { PreparationProfileEntity } from '../persistence/entities/reference.entity';
 import { AiSafetyNoticeCacheEntity } from '../persistence/entities/ai-log.entity';
 import * as crypto from 'crypto';
+import { DataValidator } from '../../utils/dataValidator';
+import { CostCalculator } from '../../utils/costCalculator';
+import { CurrencyService } from '../currency/currency.service';
 import {
   GenerateItineraryRequestDto,
   GenerateItineraryResponseDto,
@@ -27,11 +30,13 @@ import {
   ItineraryDetailResponseDto,
   ItineraryListItemDto,
   ItineraryDetailDto,
+  ItineraryDetailWithTimeSlotsDto,
   CreateItineraryFromFrontendDataDto,
   UpdateItineraryFromFrontendDataDto,
   ItineraryTimeSlotDto,
   ItineraryActivityDto,
   ItineraryDayDto,
+  ItineraryDayWithTimeSlotsDto,
   CreateItineraryTemplateDto,
   CreateItineraryTemplateResponseDto,
   ItineraryDataWithTimeSlotsDto,
@@ -114,6 +119,7 @@ export class ItineraryService {
     private readonly preferencesService: PreferencesService,
     private readonly itineraryRepository: ItineraryRepository,
     private readonly templateRepository: JourneyTemplateRepository,
+    private readonly currencyService: CurrencyService,
     @InjectRepository(PreparationProfileEntity)
     private readonly preparationProfileRepository: Repository<PreparationProfileEntity>,
     @InjectRepository(AiSafetyNoticeCacheEntity)
@@ -219,9 +225,29 @@ export class ItineraryService {
       // 验证和转换响应
       const itineraryData = this.validateAndTransformResponse(aiResponse);
 
+      // 自动推断货币
+      const currency = await this.currencyService.inferCurrency({
+        destination: dto.destination,
+        // 如果有坐标信息，也可以传入（从第一个活动的坐标推断）
+        coordinates:
+          itineraryData.days?.[0]?.activities?.[0]?.location
+            ? {
+                lat: itineraryData.days[0].activities[0].location.lat,
+                lng: itineraryData.days[0].activities[0].location.lng,
+              }
+            : undefined,
+      });
+
+      // 为行程数据添加货币信息
+      const itineraryDataWithCurrency = {
+        ...itineraryData,
+        currency: currency.code,
+        currencyInfo: currency,
+      };
+
       return {
         success: true,
-        data: itineraryData,
+        data: itineraryDataWithCurrency,
         generatedAt: new Date().toISOString(),
       };
     } catch (error) {
@@ -462,6 +488,58 @@ ${dateInstructions}
     return { lat: 64.9631, lng: -19.0208 };
   }
 
+  /**
+   * 重新计算并更新行程总费用（公共方法，供接口调用）
+   * @param journeyId 行程ID
+   * @param userId 用户ID（用于权限检查）
+   * @returns 新的总费用
+   */
+  async recalculateJourneyTotalCost(
+    journeyId: string,
+    userId?: string,
+  ): Promise<number> {
+    // 检查所有权（如果提供了 userId）
+    if (userId) {
+      const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
+      if (!isOwner) {
+        throw new ForbiddenException('无权修改此行程');
+      }
+    }
+
+    return await this.recalculateAndUpdateTotalCost(journeyId);
+  }
+
+  /**
+   * 重新计算并更新行程总费用（内部方法）
+   * @param journeyId 行程ID
+   * @returns 新的总费用
+   */
+  private async recalculateAndUpdateTotalCost(journeyId: string): Promise<number> {
+    // 获取完整的行程数据（包含 days 和 activities）
+    const itinerary = await this.itineraryRepository.findById(journeyId);
+    if (!itinerary) {
+      this.logger.warn(`行程不存在，无法重新计算总费用: ${journeyId}`);
+      return 0;
+    }
+
+    // 转换为 DTO 格式以便计算
+    const itineraryDto = this.entityToDetailDto(itinerary);
+    
+    // 计算总费用
+    const newTotalCost = CostCalculator.calculateTotalCost(itineraryDto);
+
+    // 更新数据库中的总费用
+    await this.itineraryRepository.updateItineraryWithDays(journeyId, {
+      totalCost: newTotalCost,
+    });
+
+    this.logger.debug(
+      `重新计算行程 ${journeyId} 的总费用: ${newTotalCost}`,
+    );
+
+    return newTotalCost;
+  }
+
   private validateAndTransformResponse(
     aiResponse: AiItineraryResponse,
   ): ItineraryDataDto {
@@ -470,32 +548,11 @@ ${dateInstructions}
       throw new Error('AI响应缺少days字段或格式不正确');
     }
 
-    // 验证并转换 totalCost：支持数字、字符串或默认值
-    let totalCost: number;
-    if (typeof aiResponse.totalCost === 'number') {
-      totalCost = aiResponse.totalCost;
-    } else if (typeof aiResponse.totalCost === 'string') {
-      const parsed = parseFloat(aiResponse.totalCost);
-      if (!isNaN(parsed)) {
-        totalCost = parsed;
-      } else {
-        this.logger.warn(
-          `AI响应totalCost字段无法转换为数字: ${aiResponse.totalCost}，使用默认值0`,
-        );
-        totalCost = 0;
-      }
-    } else {
-      this.logger.warn(
-        `AI响应totalCost字段缺失或格式不正确，使用默认值0`,
-      );
-      totalCost = 0;
-    }
+    // 验证并修复 totalCost：使用 DataValidator 确保始终是数字类型
+    const totalCost = DataValidator.fixNumber(aiResponse.totalCost, 0, 0);
 
-    // 验证 summary：允许缺失时使用默认值
-    const summary =
-      typeof aiResponse.summary === 'string' && aiResponse.summary.trim()
-        ? aiResponse.summary
-        : '';
+    // 验证并修复 summary：使用 DataValidator 确保始终是字符串类型
+    const summary = DataValidator.fixString(aiResponse.summary, '');
 
     // 验证并转换每一天的数据
     const validatedDays = aiResponse.days.map((day, index) => {
@@ -509,9 +566,15 @@ ${dateInstructions}
         throw new Error(`第${day.day}天的activities字段格式不正确`);
       }
 
+      // 修复日期格式
+      const fixedDate = DataValidator.fixDate(day.date);
+      
+      // 修复天数：确保是正整数，从1开始
+      const fixedDay = DataValidator.fixNumber(day.day, index + 1, 1);
+
       return {
-        day: day.day,
-        date: day.date,
+        day: fixedDay,
+        date: fixedDate,
         activities: day.activities.map((act, actIndex) => {
           // 验证必要字段
           if (!act.time || !act.title || !act.type) {
@@ -531,28 +594,40 @@ ${dateInstructions}
             location = this.getDefaultLocation();
           }
 
+          // 使用 DataValidator 修复所有字段
       return {
-          time: act.time,
-          title: act.title,
-          type: act.type as
+            time: DataValidator.fixTime(act.time, '09:00'),
+            title: DataValidator.fixString(act.title, '未命名活动'),
+            type: DataValidator.fixActivityType(act.type, 'attraction') as
             | 'attraction'
             | 'meal'
             | 'hotel'
             | 'shopping'
-            | 'transport',
-          duration: act.duration || 60,
+              | 'transport'
+              | 'ocean',
+            duration: DataValidator.fixNumber(act.duration, 60, 1), // 至少1分钟
             location,
-          notes: act.notes || '',
-          cost: act.cost || 0,
+            notes: DataValidator.fixString(act.notes, ''),
+            cost: DataValidator.fixNumber(act.cost, 0, 0),
           details: (act as any).details,
           };
         }),
       };
     });
 
-    return {
+    // 构建行程数据对象
+    const itineraryData: ItineraryDataDto = {
       days: validatedDays,
       totalCost,
+      summary,
+    };
+
+    // 自动计算总费用（覆盖 AI 返回的值，确保准确性）
+    const calculatedTotalCost = CostCalculator.calculateTotalCost(itineraryData);
+    
+    return {
+      days: validatedDays,
+      totalCost: calculatedTotalCost > 0 ? calculatedTotalCost : totalCost, // 如果计算出的费用为0，保留AI返回的值
       summary,
     };
   }
@@ -596,26 +671,49 @@ ${dateInstructions}
       );
     });
 
+    // 使用 DataValidator 修复总费用和摘要
+    const fixedSummary = DataValidator.fixString(dto.data.summary, '');
+
+    // 准备行程数据用于计算总费用
+    const itineraryDataForCalculation = {
+      days: dto.data.days.map((day) => ({
+        activities: (day.activities || []).map((act) => ({
+          cost: DataValidator.fixNumber(act.cost, 0, 0),
+          details: act.details,
+          estimatedCost: (act as any).estimatedCost,
+        })),
+      })),
+    };
+
+    // 使用 CostCalculator 自动计算总费用
+    const calculatedTotalCost = CostCalculator.calculateTotalCost(itineraryDataForCalculation);
+
     const itinerary = await this.itineraryRepository.createItinerary({
       userId,
       destination: dto.destination,
         startDate: parseDate(dto.startDate),
       daysCount: dto.days,
-        summary: dto.data.summary || '',
-        totalCost: dto.data.totalCost ?? 0,
+      summary: fixedSummary,
+      totalCost: calculatedTotalCost, // 使用计算出的总费用
       preferences: dto.preferences as Record<string, unknown>,
       status: dto.status || 'draft',
-      daysData: dto.data.days.map((day) => ({
-        day: day.day,
-          date: parseDate(day.date),
+      daysData: dto.data.days.map((day, index) => ({
+        day: DataValidator.fixNumber(day.day, index + 1, 1), // 天数从1开始
+        date: parseDate(DataValidator.fixDate(day.date)), // 先修复日期格式，再解析
           activities: (day.activities || []).map((act) => ({
-            time: act.time || '09:00',
-            title: act.title || '',
-            type: act.type || 'attraction',
-            duration: act.duration || 60,
+          time: DataValidator.fixTime(act.time, '09:00'),
+          title: DataValidator.fixString(act.title, '未命名活动'),
+          type: DataValidator.fixActivityType(act.type, 'attraction') as
+            | 'attraction'
+            | 'meal'
+            | 'hotel'
+            | 'shopping'
+            | 'transport'
+            | 'ocean',
+          duration: DataValidator.fixNumber(act.duration, 60, 1), // 至少1分钟
             location: act.location || { lat: 0, lng: 0 },
-          notes: act.notes || '',
-            cost: act.cost ?? 0,
+          notes: DataValidator.fixString(act.notes, ''),
+          cost: DataValidator.fixNumber(act.cost, 0, 0),
           details: act.details,
         })),
       })),
@@ -625,14 +723,15 @@ ${dateInstructions}
       `Created itinerary ${itinerary.id} with ${itinerary.days?.length || 0} days (expected ${dto.data.days.length})`,
     );
 
-    const detailDto = this.entityToDetailDto(itinerary);
+    // 返回前端格式（使用 timeSlots），减少前端数据转换工作
+    const detailDto = await this.entityToDetailWithTimeSlotsDto(itinerary);
     this.logger.log(
       `Returning itinerary detail with ${detailDto.days?.length || 0} days in DTO`,
     );
 
     return {
       success: true,
-      data: detailDto,
+      data: detailDto as any, // 使用前端格式
     };
     } catch (error) {
       this.logger.error(
@@ -699,9 +798,10 @@ ${dateInstructions}
       throw new ForbiddenException('无权访问此行程');
     }
 
+    // 返回前端格式（使用 timeSlots），减少前端数据转换工作
     return {
       success: true,
-      data: this.entityToDetailDto(itinerary),
+      data: (await this.entityToDetailWithTimeSlotsDto(itinerary)) as any,
     };
   }
 
@@ -772,28 +872,34 @@ ${dateInstructions}
 
     const { itineraryData, startDate } = dto;
 
-    // 转换 timeSlots 为 activities
+    // 转换 timeSlots 为 activities，使用 DataValidator 修复数据格式
     const convertTimeSlotToActivity = (
       timeSlot: ItineraryTimeSlotDto,
     ): ItineraryActivityDto => {
       return {
-        time: timeSlot.time,
-        title: timeSlot.title || timeSlot.activity || '',
-        type: (timeSlot.type || 'attraction') as
+        time: DataValidator.fixTime(timeSlot.time, '09:00'),
+        title: DataValidator.fixString(
+          timeSlot.title || timeSlot.activity,
+          '未命名活动',
+        ),
+        type: DataValidator.fixActivityType(
+          timeSlot.type,
+          'attraction',
+        ) as
           | 'attraction'
           | 'meal'
           | 'hotel'
           | 'shopping'
           | 'transport'
           | 'ocean',
-        duration: timeSlot.duration || 60,
+        duration: DataValidator.fixNumber(timeSlot.duration, 60, 1), // 至少1分钟
         location: timeSlot.coordinates || { lat: 0, lng: 0 },
-        notes: timeSlot.notes || '',
-        cost: timeSlot.cost || 0,
+        notes: DataValidator.fixString(timeSlot.notes, ''),
+        cost: DataValidator.fixNumber(timeSlot.cost, 0, 0),
       };
     };
 
-    // 转换 days（包含 timeSlots）为 days（包含 activities）
+    // 转换 days（包含 timeSlots）为 days（包含 activities），使用 DataValidator 修复数据格式
     const convertDays = (): Array<{
       day: number;
       date: Date;
@@ -807,11 +913,17 @@ ${dateInstructions}
         cost?: number;
       }>;
     }> => {
-      return itineraryData.days.map((day) => ({
-        day: day.day,
-        date: new Date(day.date),
+      return itineraryData.days.map((day, index) => {
+        // 修复日期：先转换为字符串验证格式，再转换为Date对象
+        const fixedDateStr = DataValidator.fixDate(day.date);
+        const fixedDate = new Date(fixedDateStr);
+        
+        return {
+          day: DataValidator.fixNumber(day.day, index + 1, 1), // 天数从1开始
+          date: fixedDate,
         activities: day.timeSlots.map(convertTimeSlotToActivity),
-      }));
+        };
+      });
     };
 
     // 确定开始日期：优先使用传入的 startDate，否则使用第一天的日期
@@ -861,6 +973,23 @@ ${dateInstructions}
         styleMap[itineraryData.travelStyle.toLowerCase()] || 'moderate';
     }
 
+    // 使用 DataValidator 修复摘要
+    const fixedSummary = DataValidator.fixString(itineraryData.summary, '');
+
+    // 准备行程数据用于计算总费用
+    const itineraryDataForCalculation = {
+      days: convertDays().map((day) => ({
+        activities: day.activities.map((act) => ({
+          cost: act.cost,
+          details: (act as any).details,
+          estimatedCost: (act as any).estimatedCost,
+        })),
+      })),
+    };
+
+    // 使用 CostCalculator 自动计算总费用
+    const calculatedTotalCost = CostCalculator.calculateTotalCost(itineraryDataForCalculation);
+
     // 更新行程（包括 days 和 activities）
     const itinerary = await this.itineraryRepository.updateItineraryWithDays(
       id,
@@ -868,8 +997,8 @@ ${dateInstructions}
         destination: itineraryData.destination,
         startDate: finalStartDate,
         daysCount: itineraryData.duration,
-        summary: itineraryData.summary || '',
-        totalCost: itineraryData.totalCost ?? 0,
+        summary: fixedSummary,
+        totalCost: calculatedTotalCost, // 使用计算出的总费用
         preferences:
           Object.keys(preferences).length > 0 ? preferences : undefined,
         daysData: convertDays(),
@@ -880,9 +1009,10 @@ ${dateInstructions}
       throw new NotFoundException(`行程不存在: ${id}`);
     }
 
+    // 返回前端格式（使用 timeSlots）
     return {
       success: true,
-      data: this.entityToDetailDto(itinerary),
+      data: (await this.entityToDetailWithTimeSlotsDto(itinerary)) as any,
     };
   }
 
@@ -1176,62 +1306,134 @@ ${dateInstructions}
     };
   }
 
-  // 辅助方法：实体转 DTO
+  /**
+   * 将实体转换为前端格式 DTO（使用 timeSlots）
+   * 统一使用前端期望的格式，减少前端数据转换工作
+   */
+  private async entityToDetailWithTimeSlotsDto(
+    entity: ItineraryEntity,
+  ): Promise<ItineraryDetailWithTimeSlotsDto> {
+    const daysArray = Array.isArray(entity.days) ? entity.days : [];
+    
+    // 使用 DataValidator 修复总费用
+    const totalCost = DataValidator.fixNumber(entity.totalCost, 0, 0);
+
+    // 使用 DataValidator 修复摘要
+    const summary = DataValidator.fixString(entity.summary, '');
+
+    // 使用 DataValidator 修复开始日期
+    const startDate = DataValidator.fixDate(entity.startDate as Date | string);
+
+    // 转换为前端格式（使用 timeSlots）
+    // 先将实体活动转换为 DTO 格式，再转换为 timeSlots
+    const daysWithTimeSlots: ItineraryDayWithTimeSlotsDto[] = daysArray.map(
+      (day, index) => {
+        // 将实体活动转换为 DTO 格式
+        const activitiesDto: ItineraryActivityDto[] = (day.activities || []).map(
+          (act) => ({
+            time: DataValidator.fixTime(act.time, '09:00'),
+            title: DataValidator.fixString(act.title, '未命名活动'),
+            type: DataValidator.fixActivityType(act.type, 'attraction') as
+              | 'attraction'
+              | 'meal'
+              | 'hotel'
+              | 'shopping'
+              | 'transport'
+              | 'ocean',
+            duration: DataValidator.fixNumber(act.duration, 60, 1),
+            location: act.location as { lat: number; lng: number },
+            notes: DataValidator.fixString(act.notes, ''),
+            cost: DataValidator.fixNumber(act.cost, 0, 0),
+            details: act.details,
+          }),
+        );
+
+        return {
+          day: DataValidator.fixNumber(day.day, index + 1, 1), // 天数从1开始
+          date: DataValidator.fixDate(day.date as Date | string),
+          timeSlots: this.convertActivitiesToTimeSlots(activitiesDto),
+        };
+      },
+    );
+
+    // 推断货币（异步操作，但这里同步返回，货币信息会在后续查询时补充）
+    // 为了性能，这里先返回，货币信息可以在需要时通过单独接口获取
+    // 或者可以在保存行程时存储货币信息到数据库
+    let currency: { code: string; symbol: string; name: string } | undefined;
+    try {
+      // 尝试从第一个活动的坐标推断货币
+      const firstActivity = daysWithTimeSlots[0]?.timeSlots?.[0];
+      if (firstActivity?.coordinates) {
+        currency = await this.currencyService.inferCurrency({
+          destination: entity.destination,
+          coordinates: firstActivity.coordinates,
+        });
+      } else {
+        // 如果没有坐标，使用目的地名称推断
+        currency = await this.currencyService.inferCurrency({
+          destination: entity.destination,
+        });
+      }
+    } catch (error) {
+      this.logger.warn('推断货币失败，使用默认货币:', error);
+      currency = {
+        code: 'CNY',
+        symbol: '¥',
+        name: '人民币',
+      };
+    }
+
+    return {
+      id: entity.id,
+      destination: entity.destination,
+      startDate,
+      daysCount: daysArray.length,
+      summary,
+      totalCost,
+      currency: currency?.code,
+      currencyInfo: currency,
+      preferences: entity.preferences as any,
+      status: entity.status,
+      createdAt:
+        entity.createdAt instanceof Date
+          ? entity.createdAt.toISOString()
+          : new Date(entity.createdAt).toISOString(),
+      updatedAt:
+        entity.updatedAt instanceof Date
+          ? entity.updatedAt.toISOString()
+          : new Date(entity.updatedAt).toISOString(),
+      days: daysWithTimeSlots,
+      hasDays: daysWithTimeSlots.length > 0,
+    };
+  }
+
+  // 辅助方法：实体转 DTO（保留用于向后兼容）
   private entityToDetailDto(entity: ItineraryEntity): ItineraryDetailDto {
     const daysArray = Array.isArray(entity.days) ? entity.days : [];
     
-    // 处理 startDate：可能是 Date 对象或字符串
-    const formatDate = (date: Date | string): string => {
-      if (date instanceof Date) {
-        return date.toISOString().split('T')[0];
-      }
-      if (typeof date === 'string') {
-        // 如果是字符串，尝试解析或直接返回（假设格式正确）
-        try {
-          const parsedDate = new Date(date);
-          if (!isNaN(parsedDate.getTime())) {
-            return parsedDate.toISOString().split('T')[0];
-          }
-        } catch {
-          // 如果解析失败，返回原字符串（假设已经是 YYYY-MM-DD 格式）
-          return date;
-        }
-        return date;
-      }
-      return '';
-    };
+    // 使用 DataValidator 修复总费用
+    const totalCost = DataValidator.fixNumber(entity.totalCost, 0, 0);
 
-    // 处理 day.date：可能是 Date 对象或字符串
-    const formatDayDate = (date: Date | string): string => {
-      if (date instanceof Date) {
-        return date.toISOString().split('T')[0];
-      }
-      if (typeof date === 'string') {
-        try {
-          const parsedDate = new Date(date);
-          if (!isNaN(parsedDate.getTime())) {
-            return parsedDate.toISOString().split('T')[0];
-          }
-        } catch {
-          return date;
-        }
-        return date;
-      }
-      return '';
-    };
+    // 使用 DataValidator 修复摘要
+    const summary = DataValidator.fixString(entity.summary, '');
 
-    // 确保days字段始终是数组
-    const daysMapped = daysArray.map((day) => ({
-      day: day.day,
-      date: formatDayDate(day.date as Date | string),
+    // 使用 DataValidator 修复开始日期
+    const startDate = DataValidator.fixDate(
+      entity.startDate as Date | string,
+    );
+
+    // 确保days字段始终是数组，并使用 DataValidator 修复每个字段
+    const daysMapped = daysArray.map((day, index) => ({
+      day: DataValidator.fixNumber(day.day, index + 1, 1), // 天数从1开始
+      date: DataValidator.fixDate(day.date as Date | string),
       activities: (day.activities || []).map((act) => ({
-        time: act.time,
-        title: act.title,
-        type: act.type as any,
-        duration: act.duration,
+        time: DataValidator.fixTime(act.time, '09:00'),
+        title: DataValidator.fixString(act.title, '未命名活动'),
+        type: DataValidator.fixActivityType(act.type, 'attraction') as any,
+        duration: DataValidator.fixNumber(act.duration, 60, 1), // 至少1分钟
         location: act.location as { lat: number; lng: number },
-        notes: act.notes || '',
-        cost: act.cost ? Number(act.cost) : 0,
+        notes: DataValidator.fixString(act.notes, ''),
+        cost: DataValidator.fixNumber(act.cost, 0, 0),
         details: act.details,
       })),
     }));
@@ -1239,16 +1441,18 @@ ${dateInstructions}
     return {
       id: entity.id,
       destination: entity.destination,
-      startDate: formatDate(entity.startDate as Date | string),
+      startDate,
       daysCount: daysArray.length, // 天数数量
-      summary: entity.summary || '',
-      totalCost: entity.totalCost ? Number(entity.totalCost) : 0,
+      summary,
+      totalCost,
       preferences: entity.preferences as any,
       status: entity.status,
-      createdAt: entity.createdAt instanceof Date 
+      createdAt:
+        entity.createdAt instanceof Date
         ? entity.createdAt.toISOString() 
         : new Date(entity.createdAt).toISOString(),
-      updatedAt: entity.updatedAt instanceof Date 
+      updatedAt:
+        entity.updatedAt instanceof Date
         ? entity.updatedAt.toISOString() 
         : new Date(entity.updatedAt).toISOString(),
       days: daysMapped,
@@ -1257,32 +1461,18 @@ ${dateInstructions}
   }
 
   private entityToListItemDto(entity: ItineraryEntity): ItineraryListItemDto {
-    // 处理 startDate：可能是 Date 对象或字符串
-    const formatDate = (date: Date | string): string => {
-      if (date instanceof Date) {
-        return date.toISOString().split('T')[0];
-      }
-      if (typeof date === 'string') {
-        try {
-          const parsedDate = new Date(date);
-          if (!isNaN(parsedDate.getTime())) {
-            return parsedDate.toISOString().split('T')[0];
-          }
-        } catch {
-          return date;
-        }
-        return date;
-      }
-      return '';
-    };
+    // 使用 DataValidator 修复所有字段
+    const startDate = DataValidator.fixDate(entity.startDate as Date | string);
+    const summary = DataValidator.fixString(entity.summary, '');
+    const totalCost = DataValidator.fixNumber(entity.totalCost, 0, 0);
 
     return {
       id: entity.id,
       destination: entity.destination,
-      startDate: formatDate(entity.startDate as Date | string),
+      startDate,
       days: entity.daysCount,
-      summary: entity.summary,
-      totalCost: entity.totalCost ? Number(entity.totalCost) : undefined,
+      summary,
+      totalCost: totalCost > 0 ? totalCost : undefined, // 如果为0，返回undefined以保持向后兼容
       status: entity.status,
       createdAt:
         entity.createdAt instanceof Date
@@ -1303,42 +1493,57 @@ ${dateInstructions}
   ): CreateItineraryRequestDto {
     const { itineraryData, tasks, startDate } = dto;
 
-    // 转换 timeSlots 为 activities
+    // 转换 timeSlots 为 activities，使用 DataValidator 修复数据格式
     const convertTimeSlotToActivity = (
       timeSlot: ItineraryTimeSlotDto,
     ): ItineraryActivityDto => {
       return {
-        time: timeSlot.time,
-        title: timeSlot.title || timeSlot.activity || '',
-        type: timeSlot.type || 'attraction',
-        duration: timeSlot.duration || 60,
+        time: DataValidator.fixTime(timeSlot.time, '09:00'),
+        title: DataValidator.fixString(
+          timeSlot.title || timeSlot.activity,
+          '未命名活动',
+        ),
+        type: DataValidator.fixActivityType(
+          timeSlot.type,
+          'attraction',
+        ) as
+          | 'attraction'
+          | 'meal'
+          | 'hotel'
+          | 'shopping'
+          | 'transport'
+          | 'ocean',
+        duration: DataValidator.fixNumber(timeSlot.duration, 60, 1), // 至少1分钟
         location: timeSlot.coordinates || { lat: 0, lng: 0 },
-        notes: timeSlot.notes || '',
-        cost: timeSlot.cost || 0,
+        notes: DataValidator.fixString(timeSlot.notes, ''),
+        cost: DataValidator.fixNumber(timeSlot.cost, 0, 0),
         details: timeSlot.details,
       };
     };
 
-    // 转换 days（包含 timeSlots）为 days（包含 activities）
+    // 转换 days（包含 timeSlots）为 days（包含 activities），使用 DataValidator 修复数据格式
     const convertDays = (): ItineraryDayDto[] => {
       if (!itineraryData.days || !Array.isArray(itineraryData.days)) {
         this.logger.warn(`Invalid days data: ${JSON.stringify(itineraryData.days)}`);
         return [];
       }
       
-      return itineraryData.days.map((day) => {
+      return itineraryData.days.map((day, index) => {
         const timeSlots = day.timeSlots || [];
         this.logger.debug(`Converting day ${day.day} with ${timeSlots.length} timeSlots`);
         return {
-        day: day.day,
-        date: day.date,
+          day: DataValidator.fixNumber(day.day, index + 1, 1), // 天数从1开始
+          date: DataValidator.fixDate(day.date),
           activities: timeSlots.map(convertTimeSlotToActivity),
         };
       });
     };
 
     // 确定开始日期：优先使用传入的 startDate，否则使用第一天的日期
-    const finalStartDate = startDate || itineraryData.days[0]?.date;
+    // 使用 DataValidator 修复日期格式
+    const finalStartDate = DataValidator.fixDate(
+      startDate || itineraryData.days[0]?.date,
+    );
 
     if (!finalStartDate) {
       throw new BadRequestException('缺少开始日期：请提供 startDate 或确保 days 数组的第一天包含 date 字段');
@@ -1391,6 +1596,10 @@ ${dateInstructions}
       `Converted ${convertedDays.length} days from frontend data. Total activities: ${convertedDays.reduce((sum, d) => sum + (d.activities?.length || 0), 0)}`,
     );
 
+    // 使用 DataValidator 修复总费用和摘要
+    const fixedTotalCost = DataValidator.fixNumber(itineraryData.totalCost, 0, 0);
+    const fixedSummary = DataValidator.fixString(itineraryData.summary, '');
+
     // 构建 CreateItineraryRequestDto
     const createRequest: CreateItineraryRequestDto = {
       destination: itineraryData.destination,
@@ -1398,8 +1607,8 @@ ${dateInstructions}
       days: itineraryData.duration,
       data: {
         days: convertedDays,
-        totalCost: itineraryData.totalCost || 0,
-        summary: itineraryData.summary || '',
+        totalCost: fixedTotalCost,
+        summary: fixedSummary,
       },
       preferences: Object.keys(preferences).length > 0 ? preferences : undefined,
       status: 'draft',
@@ -1598,22 +1807,42 @@ ${dateInstructions}
   }
 
   /**
-   * 将 activities 转换为 timeSlots 格式
+   * 将 activities 转换为 timeSlots 格式（统一前端格式）
+   * 使用 DataValidator 确保所有字段格式正确
    */
   private convertActivitiesToTimeSlots(
     activities: ItineraryActivityDto[],
   ): ItineraryTimeSlotDto[] {
-    return activities.map((act) => ({
-      time: act.time,
-      title: act.title,
-      activity: act.title,
-      type: act.type,
-      coordinates: act.location,
-      notes: act.notes || '',
-      duration: act.duration,
-      cost: act.cost || 0,
-      details: act.details,
-    }));
+    return activities.map((act) => {
+      // 使用 DataValidator 修复所有字段
+      const fixedTitle = DataValidator.fixString(act.title, '未命名活动');
+      const fixedNotes = DataValidator.fixString(act.notes, '');
+      
+      // 构建 details 对象（包含 notes 和 description，用于前端兼容）
+      const details: Record<string, unknown> = {
+        notes: fixedNotes,
+        description: fixedNotes,
+        ...(act.details || {}),
+      };
+
+      return {
+        time: DataValidator.fixTime(act.time, '09:00'),
+        title: fixedTitle,
+        activity: fixedTitle, // 与 title 相同，保留以兼容前端
+        type: DataValidator.fixActivityType(act.type, 'attraction') as
+          | 'attraction'
+          | 'meal'
+          | 'hotel'
+          | 'shopping'
+          | 'transport'
+          | 'ocean',
+        coordinates: act.location || null, // 统一使用 coordinates 而不是 location
+        notes: fixedNotes,
+        duration: DataValidator.fixNumber(act.duration, 60, 1), // 至少1分钟
+        cost: DataValidator.fixNumber(act.cost, 0, 0),
+        details,
+      };
+    });
   }
 
   /**
@@ -2548,32 +2777,43 @@ ${dateInstructions}
     // 将 locationDetails 存储到 details 字段中
     const details = dto.locationDetails ? { locationDetails: dto.locationDetails } : undefined;
 
+    // 使用 DataValidator 修复创建数据格式
     const activity = await this.itineraryRepository.createActivity(dayId, {
-      time: dto.time,
-      title: dto.title,
-      type: dto.type,
-      duration: dto.duration,
-      location: dto.location,
-      notes: dto.notes,
-      cost: dto.cost,
-      details,
-    });
-
-    return {
-      id: activity.id,
-      time: activity.time,
-      title: activity.title,
-      type: activity.type as
+      time: DataValidator.fixTime(dto.time, '09:00'),
+      title: DataValidator.fixString(dto.title, '未命名活动'),
+      type: DataValidator.fixActivityType(dto.type, 'attraction') as
         | 'attraction'
         | 'meal'
         | 'hotel'
         | 'shopping'
         | 'transport'
         | 'ocean',
-      duration: activity.duration,
+      duration: DataValidator.fixNumber(dto.duration, 60, 1), // 至少1分钟
+      location: dto.location,
+      notes: DataValidator.fixString(dto.notes, ''),
+      cost: DataValidator.fixNumber(dto.cost, 0, 0),
+      details,
+    });
+
+    // 重新计算并更新总费用
+    await this.recalculateAndUpdateTotalCost(journeyId);
+
+    // 使用 DataValidator 修复返回数据格式
+    return {
+      id: activity.id,
+      time: DataValidator.fixTime(activity.time, '09:00'),
+      title: DataValidator.fixString(activity.title, '未命名活动'),
+      type: DataValidator.fixActivityType(activity.type, 'attraction') as
+        | 'attraction'
+        | 'meal'
+        | 'hotel'
+        | 'shopping'
+        | 'transport'
+        | 'ocean',
+      duration: DataValidator.fixNumber(activity.duration, 60, 1),
       location: activity.location as { lat: number; lng: number },
-      notes: activity.notes || '',
-      cost: activity.cost || 0,
+      notes: DataValidator.fixString(activity.notes, ''),
+      cost: DataValidator.fixNumber(activity.cost, 0, 0),
     };
   }
 
@@ -2659,29 +2899,61 @@ ${dateInstructions}
 
     // 从 dto 中提取 locationDetails，避免传递给 updateActivity
     const { locationDetails, ...updateDto } = dto;
+    
+    // 使用 DataValidator 修复更新数据格式
+    const validatedUpdateDto: any = {};
+    if (updateDto.time !== undefined) {
+      validatedUpdateDto.time = DataValidator.fixTime(updateDto.time, '09:00');
+    }
+    if (updateDto.title !== undefined) {
+      validatedUpdateDto.title = DataValidator.fixString(updateDto.title, '未命名活动');
+    }
+    if (updateDto.type !== undefined) {
+      validatedUpdateDto.type = DataValidator.fixActivityType(updateDto.type, 'attraction');
+    }
+    if (updateDto.duration !== undefined) {
+      validatedUpdateDto.duration = DataValidator.fixNumber(updateDto.duration, 60, 1);
+    }
+    if (updateDto.location !== undefined) {
+      validatedUpdateDto.location = updateDto.location;
+    }
+    if (updateDto.notes !== undefined) {
+      validatedUpdateDto.notes = DataValidator.fixString(updateDto.notes, '');
+    }
+    if (updateDto.cost !== undefined) {
+      validatedUpdateDto.cost = DataValidator.fixNumber(updateDto.cost, 0, 0);
+    }
+
     const updated = await this.itineraryRepository.updateActivity(activityId, {
-      ...updateDto,
+      ...validatedUpdateDto,
       ...(detailsUpdate !== undefined && { details: detailsUpdate }),
     });
     if (!updated) {
       throw new NotFoundException(`活动不存在: ${activityId}`);
     }
 
+    // 如果更新了费用相关字段，重新计算并更新总费用
+    // 检查 cost 或 locationDetails（可能包含 pricing 信息）
+    if (updateDto.cost !== undefined || dto.locationDetails !== undefined) {
+      await this.recalculateAndUpdateTotalCost(journeyId);
+    }
+
+    // 使用 DataValidator 修复返回数据格式
     return {
       id: updated.id,
-      time: updated.time,
-      title: updated.title,
-      type: updated.type as
+      time: DataValidator.fixTime(updated.time, '09:00'),
+      title: DataValidator.fixString(updated.title, '未命名活动'),
+      type: DataValidator.fixActivityType(updated.type, 'attraction') as
         | 'attraction'
         | 'meal'
         | 'hotel'
         | 'shopping'
         | 'transport'
         | 'ocean',
-      duration: updated.duration,
+      duration: DataValidator.fixNumber(updated.duration, 60, 1),
       location: updated.location as { lat: number; lng: number },
-      notes: updated.notes || '',
-      cost: updated.cost || 0,
+      notes: DataValidator.fixString(updated.notes, ''),
+      cost: DataValidator.fixNumber(updated.cost, 0, 0),
     };
   }
 
@@ -2719,6 +2991,9 @@ ${dateInstructions}
     if (!deleted) {
       throw new NotFoundException(`活动不存在: ${activityId}`);
     }
+
+    // 重新计算并更新总费用
+    await this.recalculateAndUpdateTotalCost(journeyId);
 
     return {
       success: true,

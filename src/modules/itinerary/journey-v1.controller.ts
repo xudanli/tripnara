@@ -67,6 +67,7 @@ import {
   DeleteExpenseResponseDto,
   BatchGetActivitiesRequestDto,
   BatchActivitiesResponseDto,
+  RecalculateTotalCostResponseDto,
 } from './dto/itinerary.dto';
 
 @ApiTags('Journey V1')
@@ -204,6 +205,40 @@ export class JourneyV1Controller {
     @CurrentUser() user: { userId: string },
   ): Promise<DeleteItineraryResponseDto> {
     return this.itineraryService.deleteItinerary(journeyId, user.userId);
+  }
+
+  @Post(':journeyId/recalculate-cost')
+  @ApiOperation({
+    summary: '重新计算行程总费用',
+    description: '根据所有活动的费用重新计算并更新行程的总费用',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiResponse({
+    status: 200,
+    description: '重新计算成功',
+    type: RecalculateTotalCostResponseDto,
+  })
+  async recalculateJourneyTotalCost(
+    @Param('journeyId') journeyId: string,
+    @CurrentUser() user: { userId: string },
+  ): Promise<RecalculateTotalCostResponseDto> {
+    // 获取当前总费用（用于返回）
+    const itinerary = await this.itineraryService.getItineraryById(journeyId, user.userId);
+    const previousTotalCost = itinerary.data.totalCost;
+
+    // 重新计算总费用
+    const newTotalCost = await this.itineraryService.recalculateJourneyTotalCost(
+      journeyId,
+      user.userId,
+    );
+
+    return {
+      success: true,
+      journeyId,
+      totalCost: newTotalCost,
+      previousTotalCost,
+    };
   }
 
   // ========== 天数管理接口 ==========

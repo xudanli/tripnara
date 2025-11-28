@@ -57,6 +57,36 @@
 
 ---
 
+### 6. 货币服务 API
+**文档**: [backend-migration-guide.md](./backend-migration-guide.md)
+
+- `GET /api/v1/currency/infer` - 推断货币信息
+- `GET /api/v1/currency/:countryCode` - 根据国家代码获取货币信息
+- `POST /api/v1/journeys/:journeyId/recalculate-cost` - 重新计算行程总费用
+
+**功能**: 自动推断货币信息，支持根据国家代码、国家名称、坐标等推断。所有行程接口现在自动包含货币信息。
+
+---
+
+### 7. 后端迁移指南 ⚠️ **重要**
+**文档**: [backend-migration-guide.md](./backend-migration-guide.md)
+
+**功能**: 说明后端已完成的数据格式验证、总费用计算、数据转换统一和货币推断功能，以及前端需要做的相应调整。
+
+**关键变更：**
+- ✅ 后端自动验证和修复数据格式
+- ✅ 后端自动计算总费用
+- ✅ 后端返回统一的前端格式（timeSlots, coordinates）
+- ✅ 后端自动推断货币信息
+
+**前端影响：**
+- 可以移除数据验证和修复代码
+- 可以移除费用计算逻辑
+- 可以移除数据转换代码
+- 可以移除货币推断逻辑
+
+---
+
 ## 快速开始
 
 ### 1. 认证

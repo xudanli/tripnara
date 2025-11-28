@@ -26,6 +26,7 @@ import { SeekerModule } from './modules/seeker/seeker.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
 import { MediaModule } from './modules/media/media.module';
 import { MemberModule } from './modules/journey-members/member.module';
+import { CurrencyModule } from './modules/currency/currency.module';
 
 const resolveEnvFilePaths = (): string[] => {
   const env = process.env.NODE_ENV?.toLowerCase();
@@ -110,6 +111,7 @@ const resolveEnvFilePaths = (): string[] => {
     AlertsModule,
     MediaModule,
     MemberModule,
+    CurrencyModule,
   ],
   controllers: [AppController],
   providers: [AppService],

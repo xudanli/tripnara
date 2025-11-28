@@ -6,6 +6,7 @@ import { ItineraryService } from './itinerary.service';
 import { LlmModule } from '../llm/llm.module';
 import { PreferencesModule } from '../preferences/preferences.module';
 import { PersistenceModule } from '../persistence/persistence.module';
+import { CurrencyModule } from '../currency/currency.module';
 import { PreparationProfileEntity } from '../persistence/entities/reference.entity';
 import { AiSafetyNoticeCacheEntity } from '../persistence/entities/ai-log.entity';
 
@@ -14,6 +15,7 @@ import { AiSafetyNoticeCacheEntity } from '../persistence/entities/ai-log.entity
     LlmModule,
     PreferencesModule,
     PersistenceModule,
+    CurrencyModule,
     TypeOrmModule.forFeature([PreparationProfileEntity, AiSafetyNoticeCacheEntity]),
   ],
   controllers: [ItineraryV1Controller, JourneyV1Controller],

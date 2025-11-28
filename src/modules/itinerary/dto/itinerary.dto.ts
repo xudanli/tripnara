@@ -165,6 +165,23 @@ export class ItineraryDataDto {
   @ApiProperty({ description: '行程摘要', example: '行程摘要' })
   @IsString()
   summary!: string;
+
+  @ApiPropertyOptional({ description: '货币代码', example: 'CHF' })
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  @ApiPropertyOptional({
+    description: '货币详细信息',
+    example: { code: 'CHF', symbol: 'CHF', name: '瑞士法郎' },
+  })
+  @IsOptional()
+  @IsObject()
+  currencyInfo?: {
+    code: string;
+    symbol: string;
+    name: string;
+  };
 }
 
 export class GenerateItineraryResponseDto {
@@ -389,6 +406,7 @@ export class ItineraryDetailDto {
   updatedAt!: string;
 }
 
+
 export class ItineraryListResponseDto {
   @ApiProperty({ description: '是否成功', example: true })
   success!: boolean;
@@ -520,6 +538,75 @@ export class ItineraryDayWithTimeSlotsDto {
   @ValidateNested({ each: true })
   @Type(() => ItineraryTimeSlotDto)
   timeSlots!: ItineraryTimeSlotDto[];
+}
+
+/**
+ * 行程详情 DTO（前端格式，使用 timeSlots）
+ * 统一使用前端期望的格式，减少前端数据转换工作
+ */
+export class ItineraryDetailWithTimeSlotsDto {
+  @ApiProperty({ description: '行程ID', example: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ description: '目的地', example: '瑞士琉森' })
+  destination!: string;
+
+  @ApiProperty({ description: '旅行开始日期', example: '2024-06-01' })
+  startDate!: string;
+
+  @ApiProperty({ description: '旅行天数', example: 5 })
+  daysCount!: number;
+
+  @ApiProperty({ description: '行程摘要', example: '行程摘要' })
+  summary!: string;
+
+  @ApiProperty({ description: '总费用', example: 8000 })
+  totalCost!: number;
+
+  @ApiPropertyOptional({ description: '货币代码', example: 'CHF' })
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  @ApiPropertyOptional({
+    description: '货币详细信息',
+    example: { code: 'CHF', symbol: 'CHF', name: '瑞士法郎' },
+  })
+  @IsOptional()
+  @IsObject()
+  currencyInfo?: {
+    code: string;
+    symbol: string;
+    name: string;
+  };
+
+  @ApiProperty({ description: '行程天数详情（使用 timeSlots）', type: [ItineraryDayWithTimeSlotsDto] })
+  days!: ItineraryDayWithTimeSlotsDto[];
+
+  @ApiPropertyOptional({
+    description: '是否有天数数据（辅助字段，用于前端判断）',
+    example: true,
+  })
+  hasDays?: boolean;
+
+  @ApiPropertyOptional({
+    description: '用户偏好',
+    type: ItineraryPreferencesDto,
+  })
+  preferences?: ItineraryPreferencesDto;
+
+  @ApiProperty({
+    description: '状态',
+    enum: ['draft', 'published', 'archived'],
+    example: 'draft',
+  })
+  status!: 'draft' | 'published' | 'archived';
+
+  @ApiProperty({ description: '创建时间', example: '2024-01-01T00:00:00Z' })
+  createdAt!: string;
+
+  @ApiProperty({ description: '更新时间', example: '2024-01-01T00:00:00Z' })
+  updatedAt!: string;
 }
 
 export class ItineraryDataWithTimeSlotsDto {
@@ -2072,5 +2159,22 @@ export class BatchActivitiesResponseDto {
 
   @ApiProperty({ description: '总活动数量', example: 10 })
   totalCount!: number;
+}
+
+/**
+ * 重新计算总费用响应 DTO
+ */
+export class RecalculateTotalCostResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({ description: '行程ID', example: 'uuid' })
+  journeyId!: string;
+
+  @ApiProperty({ description: '新的总费用', example: 8000 })
+  totalCost!: number;
+
+  @ApiPropertyOptional({ description: '之前的总费用', example: 7500 })
+  previousTotalCost?: number;
 }
 
