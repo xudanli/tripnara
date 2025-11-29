@@ -120,8 +120,16 @@ interface RecommendDestinationsResponse {
       [location: string]: {
         country?: string;
         description?: string;
-        highlights?: string[];
+        highlights?: string[];      // 亮点列表
         bestSeason?: string;
+        coverImage?: string;        // 目的地封面图片URL
+        budget?: {                  // 预算信息
+          low?: number;             // 经济型预算（每人每天，人民币）
+          medium?: number;          // 舒适型预算（每人每天，人民币）
+          high?: number;            // 豪华型预算（每人每天，人民币）
+          currency?: string;        // 货币代码（默认CNY）
+          description?: string;      // 预算说明文字
+        };
       };
     };
     reasoning?: string;              // 推荐理由
@@ -156,7 +164,15 @@ curl -X POST "http://localhost:3000/api/inspiration/recommend-destinations" \
         "country": "Iceland",
         "description": "冰岛是追求宁静和自然美景的理想目的地",
         "highlights": ["极光", "温泉", "冰川"],
-        "bestSeason": "全年，夏季最佳"
+        "bestSeason": "全年，夏季最佳",
+        "coverImage": "https://images.unsplash.com/photo-1539650116574-75c0c6d73a6e",
+        "budget": {
+          "low": 800,
+          "medium": 1500,
+          "high": 3000,
+          "currency": "CNY",
+          "description": "预算范围：经济型800-1000元/天，舒适型1500-2000元/天，豪华型3000-4000元/天"
+        }
       }
     },
     "reasoning": "这些目的地符合您对安静、放松的需求，拥有丰富的自然景观和疗愈环境"

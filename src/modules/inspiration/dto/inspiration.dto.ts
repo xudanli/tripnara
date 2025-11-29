@@ -230,6 +230,34 @@ export class LocationDetailDto {
   @IsOptional()
   @IsString()
   bestSeason?: string;
+
+  @ApiPropertyOptional({
+    description: '目的地封面图片URL',
+    example: 'https://images.unsplash.com/photo-1234567890',
+  })
+  @IsOptional()
+  @IsString()
+  coverImage?: string;
+
+  @ApiPropertyOptional({
+    description: '预算信息（每人每天，单位：人民币）',
+    example: {
+      low: 500,
+      medium: 1000,
+      high: 2000,
+      currency: 'CNY',
+      description: '预算范围：经济型500-800元/天，舒适型1000-1500元/天，豪华型2000-3000元/天',
+    },
+  })
+  @IsOptional()
+  @IsObject()
+  budget?: {
+    low?: number;
+    medium?: number;
+    high?: number;
+    currency?: string;
+    description?: string;
+  };
 }
 
 export class RecommendDestinationsDataDto {
@@ -251,6 +279,14 @@ export class RecommendDestinationsDataDto {
         description: '冰岛是追求宁静和自然美景的理想目的地',
         highlights: ['极光', '温泉', '冰川'],
         bestSeason: '全年，夏季最佳',
+        coverImage: 'https://images.unsplash.com/photo-1234567890',
+        budget: {
+          low: 800,
+          medium: 1500,
+          high: 3000,
+          currency: 'CNY',
+          description: '预算范围：经济型800-1000元/天，舒适型1500-2000元/天，豪华型3000-4000元/天',
+        },
       },
     },
   })

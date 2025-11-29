@@ -30,6 +30,14 @@ interface AiRecommendDestinationsResponse {
     description?: string;
     highlights?: string[];
     bestSeason?: string;
+    coverImage?: string;
+    budget?: {
+      low?: number;
+      medium?: number;
+      high?: number;
+      currency?: string;
+      description?: string;
+    };
   }>;
   reasoning?: string;
 }
@@ -158,10 +166,23 @@ export class InspirationService {
 2. 用户所在国家、国籍、签证情况
 3. 目的地的特色和亮点
 4. 最佳旅行季节
+5. 目的地的预算水平
+6. 目的地的代表性图片
 
 请以JSON格式返回结果，包含以下字段：
 - locations: 推荐的目的地列表（8-12个）
-- locationDetails: 可选，目的地详情对象，key为目的地名称
+- locationDetails: 可选，目的地详情对象，key为目的地名称，每个目的地包含：
+  * country: 国家名称
+  * description: 目的地描述（50-100字）
+  * highlights: 亮点列表（3-5个，如：极光、温泉、冰川）
+  * bestSeason: 最佳旅行季节
+  * coverImage: 目的地封面图片URL（使用Unsplash或Pexels的图片URL，格式：https://images.unsplash.com/photo-xxx 或 https://images.pexels.com/photos/xxx）
+  * budget: 预算信息对象，包含：
+    - low: 经济型预算（每人每天，人民币）
+    - medium: 舒适型预算（每人每天，人民币）
+    - high: 豪华型预算（每人每天，人民币）
+    - currency: 货币代码（默认CNY）
+    - description: 预算说明文字
 - reasoning: 推荐理由`;
 
       let userMessage = `用户输入：${dto.input}
