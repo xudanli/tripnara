@@ -54,6 +54,59 @@ export class ItineraryPreferencesDto {
   travelStyle?: 'relaxed' | 'moderate' | 'intensive';
 }
 
+export class IntentDataDto {
+  @ApiProperty({
+    description: '意图类型',
+    example: 'photography_exploration',
+    enum: [
+      'photography_exploration',
+      'cultural_exchange',
+      'emotional_healing',
+      'mind_healing',
+      'extreme_exploration',
+      'urban_creation',
+    ],
+  })
+  @IsString()
+  intentType!: string;
+
+  @ApiProperty({
+    description: '提取的关键词列表',
+    example: ['安静', '放松', '自然'],
+    type: [String],
+  })
+  @IsArray()
+  @IsString({ each: true })
+  keywords!: string[];
+
+  @ApiProperty({
+    description: '情感倾向',
+    example: 'calm',
+    enum: ['calm', 'active', 'romantic', 'adventurous', 'peaceful'],
+  })
+  @IsString()
+  emotionTone!: string;
+
+  @ApiProperty({
+    description: '意图描述',
+    example: '用户希望寻找一个安静的地方进行放松和情感疗愈',
+  })
+  @IsString()
+  description!: string;
+
+  @ApiPropertyOptional({
+    description: '置信度（0-1）',
+    example: 0.85,
+    minimum: 0,
+    maximum: 1,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  confidence?: number;
+}
+
 export class ItineraryActivityDto {
   @ApiProperty({ description: '活动时间', example: '09:00' })
   @IsString()
@@ -162,6 +215,22 @@ export class GenerateItineraryRequestDto {
   @ApiProperty({ description: '旅行开始日期', example: '2024-06-01' })
   @IsDateString()
   startDate!: string;
+
+  @ApiPropertyOptional({
+    description: '意图识别数据（可选，用于优化行程生成）',
+    type: IntentDataDto,
+    example: {
+      intentType: 'photography_exploration',
+      keywords: ['摄影', '自然风光', '日出'],
+      emotionTone: 'calm',
+      description: '用户希望进行摄影探索，寻找自然美景',
+      confidence: 0.85,
+    },
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => IntentDataDto)
+  intent?: IntentDataDto;
 }
 
 export class ItineraryDataDto {

@@ -165,6 +165,7 @@ export class ItineraryService {
         preferenceGuidance,
         dateInstructions,
         dto.startDate,
+        dto.intent,
       );
 
       // 记录提示词长度（用于调试）
@@ -353,15 +354,37 @@ export class ItineraryService {
     preferenceGuidance: string,
     dateInstructions: string,
     startDate: string,
+    intent?: {
+      intentType: string;
+      keywords: string[];
+      emotionTone: string;
+      description: string;
+      confidence?: number;
+    },
   ): string {
-    return `你是一个专业的旅行规划师和创意文案师。请为以下需求生成详细且富有吸引力的旅行行程：
+    let prompt = `你是一个专业的旅行规划师和创意文案师。请为以下需求生成详细且富有吸引力的旅行行程：
 
 目的地：${destination}
 天数：${days}天
 用户偏好：${preferenceText}
 偏好具体要求：${preferenceGuidance}
 
-${dateInstructions}
+${dateInstructions}`;
+
+    // 如果提供了意图信息，添加到提示词中
+    if (intent) {
+      prompt += `\n\n用户意图信息：
+用户意图类型：${intent.intentType}
+关键词：${intent.keywords.join('、')}
+情感倾向：${intent.emotionTone}
+意图描述：${intent.description}`;
+      if (intent.confidence !== undefined) {
+        prompt += `\n意图识别置信度：${(intent.confidence * 100).toFixed(0)}%`;
+      }
+      prompt += `\n\n请根据用户的意图类型和关键词，优化行程安排和活动推荐。`;
+    }
+
+    prompt += `
 
 请按照以下格式返回JSON数据：
 
@@ -404,6 +427,8 @@ ${dateInstructions}
 7. 请务必严格按照JSON格式返回，不要添加任何额外的文字说明
 
 注意：请确保返回完整的JSON数据，包含所有${days}天的行程安排。`;
+
+    return prompt;
   }
 
   /**

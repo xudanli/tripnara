@@ -25,6 +25,13 @@
     "interests": ["自然风光", "户外活动"],
     "budget": "medium",
     "travelStyle": "relaxed"
+  },
+  "intent": {
+    "intentType": "photography_exploration",
+    "keywords": ["摄影", "自然风光", "日出"],
+    "emotionTone": "calm",
+    "description": "用户希望进行摄影探索，寻找自然美景",
+    "confidence": 0.85
   }
 }
 ```
@@ -40,6 +47,12 @@
 | `preferences.interests` | string[] | 否 | 兴趣列表（如：自然风光、户外活动、文化历史） |
 | `preferences.budget` | string | 否 | 预算等级：`low`（经济）、`medium`（中等）、`high`（豪华） |
 | `preferences.travelStyle` | string | 否 | 旅行风格：`relaxed`（轻松）、`moderate`（适中）、`intensive`（紧凑） |
+| `intent` | object | 否 | 意图识别数据（用于优化行程生成） |
+| `intent.intentType` | string | 否 | 意图类型，可选值：`photography_exploration`（摄影探索）、`cultural_exchange`（文化交流）、`emotional_healing`（情感疗愈）、`mind_healing`（心灵疗愈）、`extreme_exploration`（极限探索）、`urban_creation`（城市创作） |
+| `intent.keywords` | string[] | 否 | 提取的关键词列表 |
+| `intent.emotionTone` | string | 否 | 情感倾向，可选值：`calm`（平静）、`active`（活跃）、`romantic`（浪漫）、`adventurous`（冒险）、`peaceful`（平和）等 |
+| `intent.description` | string | 否 | 意图描述 |
+| `intent.confidence` | number | 否 | 置信度（0-1） |
 
 ---
 
@@ -59,9 +72,39 @@ curl -X POST "http://localhost:3000/api/v1/journeys/generate" \
       "interests": ["自然风光", "户外活动"],
       "budget": "medium",
       "travelStyle": "relaxed"
+    },
+    "intent": {
+      "intentType": "photography_exploration",
+      "keywords": ["摄影", "自然风光", "日出"],
+      "emotionTone": "calm",
+      "description": "用户希望进行摄影探索，寻找自然美景",
+      "confidence": 0.85
     }
   }'
 ```
+
+### 使用意图信息优化行程生成
+
+当提供 `intent` 字段时，系统会利用意图信息优化行程生成：
+
+1. **根据意图类型调整行程重点**：
+   - `photography_exploration`：优先推荐适合摄影的景点和时间（如日出、日落时段）
+   - `cultural_exchange`：增加文化体验活动，如博物馆、当地文化场所
+   - `emotional_healing`：安排安静、疗愈性的活动，如温泉、自然漫步
+   - `mind_healing`：推荐冥想、瑜伽、静心类活动
+   - `extreme_exploration`：增加冒险、刺激类活动
+   - `urban_creation`：关注城市艺术、创意空间
+
+2. **利用关键词优化活动推荐**：系统会根据关键词匹配相关活动和景点
+
+3. **根据情感倾向调整行程风格**：
+   - `calm`：安排轻松、慢节奏的活动
+   - `active`：增加运动、户外活动
+   - `romantic`：推荐浪漫场景和体验
+   - `adventurous`：增加冒险和挑战性活动
+   - `peaceful`：安排宁静、平和的体验
+
+如果不提供 `intent` 字段，系统将使用原有逻辑生成行程。
 
 ---
 
