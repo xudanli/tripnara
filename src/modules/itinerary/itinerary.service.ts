@@ -4492,6 +4492,13 @@ ${activitiesText}
 
 完整行程数据：${planJson}
 
+**重要提示**：
+- 如果行程数据中的 days 数组为空或所有 timeSlots 为空，说明行程尚未包含具体的活动安排
+- 在这种情况下，你可以：
+  a. 建议用户先添加活动到行程中
+  b. 提供目的地的一般性建议和推荐
+  c. 如果用户提出修改需求，礼貌地说明需要先有活动才能进行修改
+
 你的核心职责与服务标准：
 
 1. **专家级路线优化 (Logistical Precision)**：
@@ -4552,6 +4559,10 @@ ${activitiesText}
      - 如果无法确定具体的ID，使用 day 序号（1-based）和活动在当天的位置
      - 修改建议必须与文本回复一致
      - 在提供修改建议前，先询问用户是否确认执行修改
+     - **如果行程中没有活动数据（timeSlots为空）**：
+       - 不要生成修改建议
+       - 礼貌地说明需要先添加活动才能进行修改
+       - 可以提供添加活动的建议
 
 6. **回复示例风格**：
    - ✅ 正确："尊敬的贵宾，我是 Nara。基于您这份 **3天2晚瑞士卢塞恩** 的行程，我为您梳理了以下亮点..."
@@ -4577,37 +4588,45 @@ ${activitiesText}
       const responseText = response.trim();
       
       // 尝试从回复中提取修改建议（JSON格式）
+      // 只有在有活动数据时才提取修改建议
       let modifications: ModificationSuggestionDto[] | undefined;
+      const hasActivities = totalTimeSlots > 0;
 
-      try {
-        // 尝试从回复中提取 JSON 代码块
-        const jsonMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/);
-        if (jsonMatch && jsonMatch[1]) {
-          const jsonData = JSON.parse(jsonMatch[1].trim());
-          if (jsonData.modifications && Array.isArray(jsonData.modifications)) {
-            // 验证并转换修改建议
-            const validModifications: ModificationSuggestionDto[] = [];
-            for (const mod of jsonData.modifications) {
-              if (
-                mod.type &&
-                ['modify', 'add', 'delete', 'reorder'].includes(mod.type) &&
-                mod.target
-              ) {
-                validModifications.push(mod as ModificationSuggestionDto);
+      if (hasActivities) {
+        try {
+          // 尝试从回复中提取 JSON 代码块
+          const jsonMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/);
+          if (jsonMatch && jsonMatch[1]) {
+            const jsonData = JSON.parse(jsonMatch[1].trim());
+            if (jsonData.modifications && Array.isArray(jsonData.modifications)) {
+              // 验证并转换修改建议
+              const validModifications: ModificationSuggestionDto[] = [];
+              for (const mod of jsonData.modifications) {
+                if (
+                  mod.type &&
+                  ['modify', 'add', 'delete', 'reorder'].includes(mod.type) &&
+                  mod.target
+                ) {
+                  validModifications.push(mod as ModificationSuggestionDto);
+                }
+              }
+              if (validModifications.length > 0) {
+                modifications = validModifications;
+                this.logger.debug(
+                  `[AI Assistant] 提取到 ${modifications.length} 个修改建议`,
+                );
               }
             }
-            if (validModifications.length > 0) {
-              modifications = validModifications;
-              this.logger.debug(
-                `[AI Assistant] 提取到 ${modifications.length} 个修改建议`,
-              );
-            }
           }
+        } catch (error) {
+          // 如果解析失败，记录日志但不影响正常回复
+          this.logger.debug(
+            `[AI Assistant] 未能从回复中提取修改建议: ${error instanceof Error ? error.message : error}`,
+          );
         }
-      } catch (error) {
-        // 如果解析失败，记录日志但不影响正常回复
+      } else {
         this.logger.debug(
-          `[AI Assistant] 未能从回复中提取修改建议: ${error instanceof Error ? error.message : error}`,
+          `[AI Assistant] 行程没有活动数据（总时间段=${totalTimeSlots}），跳过修改建议提取`,
         );
       }
 
