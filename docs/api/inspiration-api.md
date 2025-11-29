@@ -22,8 +22,11 @@
 
 ```typescript
 interface DetectIntentRequest {
-  input: string;        // 用户自然语言输入，如"我想去一个安静的地方放松"
-  language?: string;     // 语言代码，默认 'zh-CN'
+  input: string;                    // 用户自然语言输入，如"我想去一个安静的地方放松"
+  language?: string;                 // 语言代码，默认 'zh-CN'
+  interests?: string[];              // 用户兴趣偏好列表（可选），如 ['自然风光', '摄影采风']
+  budget?: string;                   // 预算等级（可选），可选值：'low'（经济）、'medium'（舒适）、'high'（豪华）、'economy'、'comfort'、'luxury'
+  days?: number;                     // 旅行天数（可选），范围 1-30
 }
 ```
 
@@ -54,12 +57,25 @@ interface DetectIntentResponse {
 ### 请求示例
 
 ```bash
+# 基础用法（仅输入文本）
 curl -X POST "http://localhost:3000/api/inspiration/detect-intent" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "input": "我想去一个安静的地方放松",
     "language": "zh-CN"
+  }'
+
+# 完整用法（包含兴趣偏好、预算、天数）
+curl -X POST "http://localhost:3000/api/inspiration/detect-intent" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": "我想去一个安静的地方放松",
+    "language": "zh-CN",
+    "interests": ["自然风光", "摄影采风"],
+    "budget": "comfort",
+    "days": 5
   }'
 ```
 
@@ -76,6 +92,37 @@ curl -X POST "http://localhost:3000/api/inspiration/detect-intent" \
     "confidence": 0.85
   }
 }
+```
+
+### 使用兴趣偏好优化意图识别
+
+当提供 `interests`、`budget`、`days` 等额外信息时，系统会综合考虑这些信息来更准确地识别用户的旅行意图：
+
+- **兴趣偏好**：帮助识别用户的旅行类型偏好（如摄影探索、文化交流等）
+- **预算等级**：影响推荐的意图类型（经济型可能偏向文化探索，豪华型可能偏向休闲疗愈）
+- **旅行天数**：影响意图的深度和广度（短途可能偏向城市创作，长途可能偏向深度探索）
+
+**示例场景：**
+- 输入："最美海边日出" + 兴趣：["自然风光", "摄影采风"] + 预算：comfort + 天数：5
+- 识别结果：`photography_exploration`（摄影探索），置信度更高
+
+**对比示例：**
+
+```json
+// 仅输入文本
+{
+  "input": "最美海边日出"
+}
+// 可能识别为：emotional_healing（情感疗愈），置信度 0.75
+
+// 包含兴趣偏好
+{
+  "input": "最美海边日出",
+  "interests": ["自然风光", "摄影采风"],
+  "budget": "comfort",
+  "days": 5
+}
+// 识别为：photography_exploration（摄影探索），置信度 0.92
 ```
 
 ---

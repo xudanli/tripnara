@@ -105,9 +105,32 @@ export class InspirationService {
 - description: 意图描述
 - confidence: 置信度（0-1）`;
 
-      const userMessage = `用户输入：${dto.input}
+      let userMessage = `用户输入：${dto.input}`;
 
-请分析这个输入的旅行意图。`;
+      // 如果有兴趣偏好，添加到提示词中
+      if (dto.interests && dto.interests.length > 0) {
+        userMessage += `\n\n用户兴趣偏好：${dto.interests.join('、')}`;
+      }
+
+      // 如果有预算信息，添加到提示词中
+      if (dto.budget) {
+        const budgetMap: Record<string, string> = {
+          low: '经济型',
+          medium: '舒适型',
+          high: '豪华型',
+          economy: '经济型',
+          comfort: '舒适型',
+          luxury: '豪华型',
+        };
+        userMessage += `\n预算等级：${budgetMap[dto.budget] || dto.budget}`;
+      }
+
+      // 如果有天数信息，添加到提示词中
+      if (dto.days) {
+        userMessage += `\n旅行天数：${dto.days}天`;
+      }
+
+      userMessage += `\n\n请综合考虑用户的输入、兴趣偏好、预算和天数等信息，分析这个输入的旅行意图。`;
 
       const response = await this.llmService.chatCompletionJson<AiIntentResponse>(
         {

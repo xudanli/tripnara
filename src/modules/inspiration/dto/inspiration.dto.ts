@@ -30,6 +30,36 @@ export class DetectIntentRequestDto {
   @IsOptional()
   @IsString()
   language?: string;
+
+  @ApiPropertyOptional({
+    description: '用户兴趣偏好列表',
+    example: ['自然风光', '摄影采风', '历史文化'],
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  interests?: string[];
+
+  @ApiPropertyOptional({
+    description: '预算等级',
+    example: 'medium',
+    enum: ['low', 'medium', 'high', 'economy', 'comfort', 'luxury'],
+  })
+  @IsOptional()
+  @IsString()
+  budget?: string;
+
+  @ApiPropertyOptional({
+    description: '旅行天数',
+    example: 5,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(30)
+  days?: number;
 }
 
 export class IntentDataDto {
