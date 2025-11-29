@@ -698,7 +698,22 @@ export class ItineraryRepository {
     if (input.cost !== undefined) updateData.cost = input.cost;
     if (input.details !== undefined) updateData.details = input.details;
 
-    await this.activityRepository.update(activityId, updateData);
+    // 如果没有需要更新的字段，直接返回现有数据
+    if (Object.keys(updateData).length === 0) {
+      return await this.activityRepository.findOne({
+        where: { id: activityId },
+      });
+    }
+
+    // 执行更新
+    const result = await this.activityRepository.update(activityId, updateData);
+    
+    // 检查是否成功更新
+    if ((result.affected ?? 0) === 0) {
+      return null;
+    }
+
+    // 重新查询以确保获取最新数据
     return await this.activityRepository.findOne({
       where: { id: activityId },
     });
@@ -725,29 +740,82 @@ export class ItineraryRepository {
 
   /**
    * 重新排序活动（通过更新 time 字段）
+   * 优化：添加数据验证、批量更新、保持原有时间间隔
    */
   async reorderActivities(
     dayId: string,
     activityIds: string[],
   ): Promise<ItineraryActivityEntity[]> {
-    // 获取所有活动
+    // 1. 获取所有活动并验证
     const activities = await this.findActivitiesByDayId(dayId);
     const activityMap = new Map(activities.map((a) => [a.id, a]));
 
-    // 按照新的顺序更新 time 字段（使用索引作为时间排序）
-    for (let i = 0; i < activityIds.length; i++) {
-      const activityId = activityIds[i];
-      const activity = activityMap.get(activityId);
-      if (activity) {
-        // 使用索引生成时间字符串，保持原有格式（HH:MM）
-        const hours = Math.floor(i / 2);
-        const minutes = (i % 2) * 30;
-        const newTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-        await this.activityRepository.update(activityId, { time: newTime });
+    // 2. 验证 activityIds 是否都属于这个 dayId
+    const invalidIds = activityIds.filter(id => !activityMap.has(id));
+    if (invalidIds.length > 0) {
+      throw new Error(
+        `以下活动不属于此天数: ${invalidIds.join(', ')}`,
+      );
+    }
+
+    // 3. 验证数量匹配
+    if (activityIds.length !== activities.length) {
+      throw new Error(
+        `活动数量不匹配: 期望 ${activities.length}, 实际 ${activityIds.length}`,
+      );
+    }
+
+    // 4. 计算时间间隔（基于原有活动的时间分布）
+    const timeIntervals: string[] = [];
+    if (activities.length > 0) {
+      // 如果只有一个活动，保持原时间
+      if (activities.length === 1) {
+        timeIntervals.push(activities[0].time);
+      } else {
+        // 计算平均时间间隔
+        const sortedActivities = [...activities].sort((a, b) => 
+          a.time.localeCompare(b.time)
+        );
+        const firstTime = this.parseTimeToMinutes(sortedActivities[0].time);
+        const lastTime = this.parseTimeToMinutes(sortedActivities[sortedActivities.length - 1].time);
+        const totalDuration = lastTime - firstTime;
+        const interval = totalDuration / (activities.length - 1);
+
+        // 生成新的时间序列
+        for (let i = 0; i < activityIds.length; i++) {
+          const minutes = firstTime + Math.round(interval * i);
+          timeIntervals.push(this.minutesToTimeString(minutes));
+        }
       }
     }
 
+    // 5. 批量更新（优化性能）
+    const updatePromises = activityIds.map((activityId, index) => {
+      const newTime = timeIntervals[index] || activities[index]?.time || '09:00';
+      return this.activityRepository.update(activityId, { time: newTime });
+    });
+
+    await Promise.all(updatePromises);
+
+    // 6. 重新查询并返回
     return await this.findActivitiesByDayId(dayId);
+  }
+
+  /**
+   * 将时间字符串（HH:MM）转换为分钟数
+   */
+  private parseTimeToMinutes(time: string): number {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+  }
+
+  /**
+   * 将分钟数转换为时间字符串（HH:MM）
+   */
+  private minutesToTimeString(minutes: number): string {
+    const hours = Math.floor(minutes / 60) % 24; // 确保不超过24小时
+    const mins = minutes % 60;
+    return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
   }
 
   // ========== 任务管理方法 ==========

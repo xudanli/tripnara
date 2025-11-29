@@ -375,7 +375,7 @@ export class LlmService {
           // 短字符串，尝试转义特殊字符后闭合
           // 移除可能导致问题的字符（如未转义的换行符）
           result = result.replace(/\n/g, '\\n').replace(/\r/g, '\\r');
-          result += '"';
+      result += '"';
         }
       }
     }
