@@ -984,6 +984,10 @@ export class JourneyV1Controller {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiParam({ name: 'journeyId', description: '行程ID' })
+  @ApiBody({
+    type: JourneyAssistantChatRequestDto,
+    description: '助手聊天请求',
+  })
   @ApiResponse({
     status: 200,
     description: '成功获取助手回复',

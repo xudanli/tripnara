@@ -45,7 +45,8 @@
 ### cURL
 
 ```bash
-curl -X POST "http://localhost:3000/api/v1/journeys/{journeyId}/assistant/chat" \
+# 注意：URL 中的 {journeyId} 需要替换为实际的行程ID
+curl -X POST "http://localhost:3000/api/v1/journeys/7a80e7ce-a359-4149-b0b1-534f316eb2bc/assistant/chat" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -53,6 +54,11 @@ curl -X POST "http://localhost:3000/api/v1/journeys/{journeyId}/assistant/chat" 
     "language": "zh-CN"
   }'
 ```
+
+**重要提示：**
+- 完整路径是：`/api/v1/journeys/:journeyId/assistant/chat`
+- 全局前缀是 `api`，控制器路径是 `v1/journeys`，所以不需要重复添加 `/api`
+- 如果前端配置了基础 URL 包含 `/api`，则只需要调用 `/v1/journeys/:journeyId/assistant/chat`
 
 ### JavaScript (axios)
 
@@ -246,16 +252,19 @@ Trip Nara 助手可以回答以下类型的问题：
 ### 示例3：多轮对话
 
 ```javascript
+// 注意：如果 axios 配置了 baseURL 为 '/api'，则路径应该是 '/v1/journeys/...'
+// 如果 baseURL 为空，则路径应该是 '/api/v1/journeys/...'
+
 // 第一轮对话
 const response1 = await axios.post(
-  `/api/v1/journeys/${journeyId}/assistant/chat`,
+  `/v1/journeys/${journeyId}/assistant/chat`, // 假设 baseURL 已配置为 '/api'
   { message: '这个行程的预算大概是多少？' }
 );
 const conversationId = response1.data.conversationId;
 
 // 第二轮对话（使用相同的 conversationId）
 const response2 = await axios.post(
-  `/api/v1/journeys/${journeyId}/assistant/chat`,
+  `/v1/journeys/${journeyId}/assistant/chat`,
   {
     message: '那每天的预算分配如何？',
     conversationId: conversationId,
