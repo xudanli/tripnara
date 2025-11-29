@@ -176,9 +176,13 @@ export class ItineraryDayDto {
 }
 
 export class GenerateItineraryRequestDto {
-  @ApiProperty({ description: '目的地', example: '瑞士琉森' })
+  @ApiPropertyOptional({
+    description: '目的地（可选，如果不提供将根据其他信息推荐目的地）',
+    example: '瑞士琉森',
+  })
+  @IsOptional()
   @IsString()
-  destination!: string;
+  destination?: string;
 
   @ApiProperty({ description: '旅行天数', example: 5, minimum: 1, maximum: 30 })
   @IsNumber()

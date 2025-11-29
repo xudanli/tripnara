@@ -36,11 +36,42 @@
 }
 ```
 
+### 不提供目的地的场景
+
+如果未提供 `destination`，系统会根据其他信息自动推荐目的地：
+
+```json
+{
+  "days": 5,
+  "startDate": "2024-06-01",
+  "preferences": {
+    "interests": ["自然风光", "户外活动"],
+    "budget": "medium",
+    "travelStyle": "relaxed"
+  },
+  "intent": {
+    "intentType": "photography_exploration",
+    "keywords": ["摄影", "自然风光", "日出"],
+    "emotionTone": "calm",
+    "description": "用户希望进行摄影探索，寻找自然美景"
+  }
+}
+```
+
+**工作流程：**
+1. 系统根据 `intent`、`preferences`、`days` 等信息调用推荐目的地接口
+2. 自动选择第一个推荐的目的地
+3. 使用该目的地生成详细行程
+
+**注意事项：**
+- 如果既没有 `destination`，也没有足够的信息（如 `intent`、`preferences.interests`），系统可能无法推荐目的地
+- 建议至少提供 `intent` 或 `preferences.interests` 之一，以便系统更好地推荐目的地
+
 ### 字段说明
 
 | 字段名 | 类型 | 必填 | 说明 |
 |--------|------|------|------|
-| `destination` | string | 是 | 目的地名称（如：瑞士琉森、日本东京） |
+| `destination` | string | 否 | 目的地名称（如：瑞士琉森、日本东京）。如果不提供，系统会根据其他信息（天数、偏好、意图等）自动推荐目的地 |
 | `days` | number | 是 | 旅行天数，范围 1-30 |
 | `startDate` | string | 是 | 旅行开始日期（YYYY-MM-DD格式） |
 | `preferences` | object | 否 | 用户偏好 |

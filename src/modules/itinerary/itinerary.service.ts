@@ -18,6 +18,7 @@ import * as crypto from 'crypto';
 import { DataValidator } from '../../utils/dataValidator';
 import { CostCalculator } from '../../utils/costCalculator';
 import { CurrencyService } from '../currency/currency.service';
+import { InspirationService } from '../inspiration/inspiration.service';
 import {
   GenerateItineraryRequestDto,
   GenerateItineraryResponseDto,
@@ -122,6 +123,7 @@ export class ItineraryService {
     private readonly itineraryRepository: ItineraryRepository,
     private readonly templateRepository: JourneyTemplateRepository,
     private readonly currencyService: CurrencyService,
+    private readonly inspirationService: InspirationService,
     @InjectRepository(PreparationProfileEntity)
     private readonly preparationProfileRepository: Repository<PreparationProfileEntity>,
     @InjectRepository(AiSafetyNoticeCacheEntity)
@@ -133,6 +135,53 @@ export class ItineraryService {
     userId?: string,
   ): Promise<GenerateItineraryResponseDto> {
     try {
+      let destination = dto.destination;
+
+      // 如果没有提供目的地，但有其他信息（天数、开始日期、偏好、意图等），先推荐目的地
+      if (!destination) {
+        this.logger.log('Destination not provided, recommending destinations based on other information');
+
+        // 构建推荐目的地的输入文本
+        let inputText = '';
+        if (dto.intent?.description) {
+          inputText = dto.intent.description;
+        } else if (dto.intent?.keywords && dto.intent.keywords.length > 0) {
+          inputText = dto.intent.keywords.join('、');
+        } else if (dto.preferences?.interests && dto.preferences.interests.length > 0) {
+          inputText = `我想去一个${dto.preferences.interests.join('、')}的地方`;
+        } else {
+          inputText = `我想去一个适合${dto.days}天旅行的地方`;
+        }
+
+        // 调用推荐目的地接口
+        const recommendResult = await this.inspirationService.recommendDestinations({
+          input: inputText,
+          intent: dto.intent
+            ? {
+                intentType: dto.intent.intentType,
+                keywords: dto.intent.keywords,
+                emotionTone: dto.intent.emotionTone,
+              }
+            : undefined,
+          language: 'zh-CN',
+          limit: 1, // 只推荐1个，直接使用
+        });
+
+        // 使用第一个推荐的目的地
+        if (
+          recommendResult.success &&
+          recommendResult.data.locations &&
+          recommendResult.data.locations.length > 0
+        ) {
+          destination = recommendResult.data.locations[0];
+          this.logger.log(`Using recommended destination: ${destination}`);
+        } else {
+          throw new BadRequestException(
+            '无法根据提供的信息推荐目的地，请提供具体的目的地名称',
+          );
+        }
+      }
+
       // 获取用户偏好（如果提供了userId）
       const userPreferences = userId
         ? await this.preferencesService.getPreferences(userId)
@@ -159,7 +208,7 @@ export class ItineraryService {
         '你是一个专业的旅行规划师和创意文案师，擅长制定详细、实用的旅行行程，并为每个活动设计生动有趣的标题。请始终以纯JSON格式返回数据，不要添加任何额外的文字说明或解释，确保标题富有创意和吸引力。';
 
       const prompt = this.buildUserPrompt(
-        dto.destination,
+        destination,
         dto.days,
         preferenceText,
         preferenceGuidance,
@@ -175,7 +224,7 @@ export class ItineraryService {
 
       // 调用AI生成行程
       this.logger.log(
-        `Generating itinerary for destination: ${dto.destination}, days: ${dto.days}`,
+        `Generating itinerary for destination: ${destination}, days: ${dto.days}`,
       );
 
       const startTime = Date.now();
@@ -198,12 +247,12 @@ export class ItineraryService {
 
         const duration = Date.now() - startTime;
         this.logger.log(
-          `Itinerary generation completed in ${duration}ms for ${dto.destination}`,
+          `Itinerary generation completed in ${duration}ms for ${destination}`,
         );
       } catch (error) {
         const duration = Date.now() - startTime;
         this.logger.error(
-          `LLM request failed after ${duration}ms for ${dto.destination}`,
+          `LLM request failed after ${duration}ms for ${destination}`,
           error,
         );
 
@@ -230,7 +279,7 @@ export class ItineraryService {
 
       // 自动推断货币
       const currency = await this.currencyService.inferCurrency({
-        destination: dto.destination,
+        destination: destination,
         // 如果有坐标信息，也可以传入（从第一个活动的坐标推断）
         coordinates:
           itineraryData.days?.[0]?.activities?.[0]?.location
