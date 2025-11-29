@@ -1475,6 +1475,25 @@ ${dateInstructions}`;
     const summary = DataValidator.fixString(entity.summary, '');
     const startDate = DataValidator.fixDate(entity.startDate as Date | string);
     
+    // 调试日志：检查数据提取
+    if (daysArray.length === 0 && entity.days) {
+      this.logger.warn(
+        `[validateAndTransformEntity] 警告：entity.days 存在但不是数组，类型=${typeof entity.days}, 值=${JSON.stringify(entity.days).substring(0, 200)}`,
+      );
+    }
+    
+    // 统计活动数量
+    const totalActivities = daysArray.reduce(
+      (sum, day) => sum + (Array.isArray(day.activities) ? day.activities.length : 0),
+      0,
+    );
+    
+    if (daysArray.length > 0) {
+      this.logger.debug(
+        `[validateAndTransformEntity] 提取数据: 天数=${daysArray.length}, 总活动数=${totalActivities}`,
+      );
+    }
+    
     return { daysArray, totalCost, summary, startDate };
   }
 
@@ -4217,7 +4236,7 @@ ${activitiesText}
     dto: JourneyAssistantChatRequestDto,
   ): Promise<JourneyAssistantChatResponseDto> {
     try {
-      // 获取行程详情
+      // 获取行程详情（确保加载关联数据）
       const itinerary = await this.itineraryRepository.findById(journeyId);
 
       if (!itinerary) {
@@ -4227,6 +4246,17 @@ ${activitiesText}
       // 检查所有权
       if (itinerary.userId !== userId) {
         throw new ForbiddenException('无权访问此行程');
+      }
+
+      // 调试：检查加载的数据
+      this.logger.debug(
+        `[AI Assistant] 从数据库加载的数据: days是数组=${Array.isArray(itinerary.days)}, days长度=${itinerary.days?.length || 0}`,
+      );
+      if (itinerary.days && Array.isArray(itinerary.days) && itinerary.days.length > 0) {
+        const firstDayActivities = itinerary.days[0].activities?.length || 0;
+        this.logger.debug(
+          `[AI Assistant] 第1天活动数量: ${firstDayActivities}`,
+        );
       }
 
       // 转换行程数据为前端格式（包含完整信息）
@@ -4253,7 +4283,40 @@ ${activitiesText}
       );
 
       // 构建行程 JSON 数据（用于上下文）
+      // 添加更详细的日志，帮助调试数据传递问题
+      if (totalTimeSlots === 0) {
+        this.logger.warn(
+          `[AI Assistant] 警告：行程 ${journeyId} 没有时间段数据，可能影响AI分析`,
+        );
+        // 记录原始实体数据用于调试
+        this.logger.debug(
+          `[AI Assistant] 原始实体数据: days字段类型=${typeof (itinerary as any).days}, days是数组=${Array.isArray((itinerary as any).days)}, days长度=${(itinerary as any).days?.length || 0}`,
+        );
+        // 检查是否有活动数据
+        if ((itinerary as any).days && Array.isArray((itinerary as any).days)) {
+          const totalActivitiesInEntity = (itinerary as any).days.reduce(
+            (sum: number, day: any) => sum + (Array.isArray(day.activities) ? day.activities.length : 0),
+            0,
+          );
+          this.logger.debug(
+            `[AI Assistant] 实体中的活动总数: ${totalActivitiesInEntity}`,
+          );
+        }
+      }
+
       const planJson = JSON.stringify(itineraryDetail, null, 2);
+      
+      // 记录传递给AI的数据大小（用于调试）
+      this.logger.debug(
+        `[AI Assistant] 传递给AI的JSON数据大小: ${planJson.length} 字符, 天数=${itineraryDetail.daysCount}, 时间段=${totalTimeSlots}`,
+      );
+      
+      // 如果数据为空，记录完整的itineraryDetail结构用于调试
+      if (totalTimeSlots === 0) {
+        this.logger.warn(
+          `[AI Assistant] 完整itineraryDetail结构: ${JSON.stringify(itineraryDetail, null, 2).substring(0, 1000)}`,
+        );
+      }
 
       // 生成对话ID（如果未提供）
       const conversationId = dto.conversationId || crypto.randomUUID();
