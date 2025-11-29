@@ -1,5 +1,5 @@
-import { Controller, Get, Param, Query, UsePipes, ValidationPipe } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Post, Query, UsePipes, ValidationPipe } from '@nestjs/common';
+import { ApiOperation, ApiParam, ApiQuery, ApiTags, ApiBody, ApiOkResponse } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { NotFoundException } from '@nestjs/common';
@@ -95,6 +95,138 @@ export class DestinationsV1Controller {
       lat && lng ? { lat, lng } : undefined,
       destination.countryCode,
     );
+  }
+
+  @Post('find-or-create')
+  @ApiOperation({
+    summary: '查找或创建目的地',
+    description: '根据目的地名称查找目的地，如果不存在则创建新的目的地',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: '目的地名称',
+          example: '冰岛',
+        },
+        countryCode: {
+          type: 'string',
+          description: '国家代码（可选）',
+          example: 'IS',
+        },
+      },
+      required: ['name'],
+    },
+  })
+  @ApiOkResponse({
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        data: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            name: { type: 'string' },
+            slug: { type: 'string' },
+            countryCode: { type: 'string', nullable: true },
+          },
+        },
+      },
+    },
+  })
+  async findOrCreateDestination(
+    @Body() body: { name: string; countryCode?: string },
+  ): Promise<{
+    success: boolean;
+    data: {
+      id: string;
+      name: string;
+      slug: string;
+      countryCode?: string;
+    };
+  }> {
+    const { name, countryCode } = body;
+
+    if (!name || name.trim().length === 0) {
+      throw new NotFoundException('目的地名称不能为空');
+    }
+
+    // 生成 slug
+    const slug = this.generateSlug(name);
+
+    // 先尝试根据 slug 查找
+    let destination = await this.destinationRepository.findOne({
+      where: { slug },
+    });
+
+    // 如果没找到，尝试根据名称查找
+    if (!destination) {
+      destination = await this.destinationRepository.findOne({
+        where: { name: name.trim() },
+      });
+    }
+
+    // 如果找到了，返回
+    if (destination) {
+      return {
+        success: true,
+        data: {
+          id: destination.id,
+          name: destination.name,
+          slug: destination.slug,
+          countryCode: destination.countryCode || undefined,
+        },
+      };
+    }
+
+    // 如果没找到，创建新的目的地
+    // 如果 slug 已存在，添加后缀
+    let finalSlug = slug;
+    let counter = 1;
+    while (
+      await this.destinationRepository.findOne({
+        where: { slug: finalSlug },
+      })
+    ) {
+      finalSlug = `${slug}-${counter}`;
+      counter++;
+    }
+
+    const newDestination = this.destinationRepository.create({
+      name: name.trim(),
+      slug: finalSlug,
+      countryCode: countryCode || undefined,
+    });
+
+    const saved = await this.destinationRepository.save(newDestination);
+
+    return {
+      success: true,
+      data: {
+        id: saved.id,
+        name: saved.name,
+        slug: saved.slug,
+        countryCode: saved.countryCode || undefined,
+      },
+    };
+  }
+
+  /**
+   * 生成 URL 友好的 slug
+   */
+  private generateSlug(name: string): string {
+    return name
+      .toLowerCase()
+      .trim()
+      .replace(/[\s_]+/g, '-') // 空格和下划线替换为连字符
+      .replace(/[^\w\-]+/g, '') // 移除特殊字符
+      .replace(/\-\-+/g, '-') // 多个连字符替换为单个
+      .replace(/^-+/, '') // 移除开头的连字符
+      .replace(/-+$/, '') // 移除结尾的连字符
+      .substring(0, 150); // 限制长度
   }
 }
 
