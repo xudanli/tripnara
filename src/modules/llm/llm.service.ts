@@ -319,6 +319,7 @@ export class LlmService {
     let result = '';
     let inString = false;
     let escapeNext = false;
+    let stringStartPos = -1;
 
     for (let i = 0; i < json.length; i++) {
       const char = json[i];
@@ -336,17 +337,47 @@ export class LlmService {
       }
 
       if (char === '"') {
+        if (!inString) {
+          stringStartPos = i;
+        }
         inString = !inString;
         result += char;
+        continue;
+      }
+
+      // 如果字符串中包含未转义的换行符或控制字符，可能是截断导致的
+      if (inString && (char === '\n' || char === '\r' || (char.charCodeAt(0) < 32 && char !== '\t'))) {
+        // 遇到未转义的换行符，可能是字符串被截断了
+        // 先闭合当前字符串，然后继续处理
+        result += '"';
+        inString = false;
+        stringStartPos = -1;
+        // 跳过这个字符，因为它不应该在字符串中
         continue;
       }
 
       result += char;
     }
 
-    // 如果字符串未闭合，直接闭合它
+    // 如果字符串未闭合，尝试智能闭合
     if (inString) {
-      result += '"';
+      // 检查是否在字符串末尾（可能是被截断）
+      const lastChar = result[result.length - 1];
+      // 如果最后一个字符不是引号，说明字符串确实未闭合
+      if (lastChar !== '"') {
+        // 尝试找到字符串的合理结束位置
+        // 如果字符串很长（>100字符），可能是被截断了，直接闭合
+        const stringLength = result.length - (stringStartPos >= 0 ? stringStartPos : 0);
+        if (stringLength > 100) {
+          // 长字符串被截断，直接闭合
+          result += '"';
+        } else {
+          // 短字符串，尝试转义特殊字符后闭合
+          // 移除可能导致问题的字符（如未转义的换行符）
+          result = result.replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+          result += '"';
+        }
+      }
     }
 
     return result;
