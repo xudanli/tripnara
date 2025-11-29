@@ -4065,33 +4065,16 @@ ${dateInstructions}`;
       throw new NotFoundException('行程不存在');
     }
 
-    // 调试：检查加载的数据
+    // 验证数据完整性（repository 层已经处理了备用查询）
+    const hasDays = entity.days && Array.isArray(entity.days) && entity.days.length > 0;
     this.logger.debug(
-      `[generateDailySummaries] 从数据库加载的数据: days是数组=${Array.isArray(entity.days)}, days长度=${entity.days?.length || 0}`,
+      `[generateDailySummaries] 数据加载结果: days是数组=${Array.isArray(entity.days)}, days长度=${entity.days?.length || 0}`,
     );
-
-    // 如果days为空，尝试直接从数据库查询（备用方案）
-    if (!entity.days || entity.days.length === 0) {
+    
+    if (!hasDays) {
       this.logger.warn(
-        `[generateDailySummaries] 警告：itinerary.days为空，尝试直接查询数据库`,
+        `[generateDailySummaries] 警告：行程 ${journeyId} 没有days数据（repository层已尝试备用查询）`,
       );
-      try {
-        const daysFromDb = await this.itineraryRepository.findDaysByItineraryId(journeyId);
-        this.logger.debug(
-          `[generateDailySummaries] 直接从数据库查询到的天数: ${daysFromDb.length}`,
-        );
-        if (daysFromDb.length > 0) {
-          // 如果数据库中有数据但关联未加载，手动设置
-          (entity as any).days = daysFromDb;
-          this.logger.warn(
-            `[generateDailySummaries] 已手动加载days数据: ${daysFromDb.length}天`,
-          );
-        }
-      } catch (error) {
-        this.logger.error(
-          `[generateDailySummaries] 查询days数据失败: ${error instanceof Error ? error.message : error}`,
-        );
-      }
     }
 
     const destination = entity.destination || '未知目的地';
@@ -4310,62 +4293,21 @@ ${activitiesText}
         throw new ForbiddenException('无权访问此行程');
       }
 
-      // 调试：检查加载的数据
+      // 验证数据完整性（repository 层已经处理了备用查询）
+      const hasDays = itinerary.days && Array.isArray(itinerary.days) && itinerary.days.length > 0;
       this.logger.debug(
-        `[AI Assistant] 从数据库加载的数据: days是数组=${Array.isArray(itinerary.days)}, days长度=${itinerary.days?.length || 0}`,
+        `[AI Assistant] 数据加载结果: days是数组=${Array.isArray(itinerary.days)}, days长度=${itinerary.days?.length || 0}`,
       );
-      if (itinerary.days && Array.isArray(itinerary.days) && itinerary.days.length > 0) {
+      
+      if (hasDays) {
         const firstDayActivities = itinerary.days[0].activities?.length || 0;
         this.logger.debug(
           `[AI Assistant] 第1天活动数量: ${firstDayActivities}`,
         );
       } else {
-        // 如果days为空，尝试直接从数据库查询（备用方案）
         this.logger.warn(
-          `[AI Assistant] 警告：itinerary.days为空，尝试直接查询数据库`,
+          `[AI Assistant] 警告：行程 ${journeyId} 没有days数据（repository层已尝试备用查询）`,
         );
-        try {
-          const daysFromDb = await this.itineraryRepository.findDaysByItineraryId(journeyId);
-          this.logger.debug(
-            `[AI Assistant] 直接从数据库查询到的天数: ${daysFromDb.length}`,
-          );
-          if (daysFromDb.length > 0) {
-            // 如果数据库中有数据但关联未加载，手动设置
-            (itinerary as any).days = daysFromDb;
-            this.logger.warn(
-              `[AI Assistant] 已手动加载days数据: ${daysFromDb.length}天`,
-            );
-          } else {
-            this.logger.error(
-              `[AI Assistant] 数据库中也没有days数据，journeyId=${journeyId}`,
-            );
-            // 尝试通过批量获取活动接口获取数据（备用方案）
-            try {
-              const activitiesResult = await this.batchGetJourneyActivities(
-                journeyId,
-                undefined, // 不指定dayIds，获取所有活动
-                userId,
-              );
-              this.logger.debug(
-                `[AI Assistant] 通过批量接口获取到的活动数量: ${activitiesResult.totalCount}`,
-              );
-              if (activitiesResult.totalCount > 0) {
-                // 如果有活动数据，说明days可能在其他地方，但当前无法重构完整结构
-                this.logger.warn(
-                  `[AI Assistant] 发现活动数据但无法关联到days，可能需要重建days结构`,
-                );
-              }
-            } catch (error) {
-              this.logger.error(
-                `[AI Assistant] 批量获取活动失败: ${error instanceof Error ? error.message : error}`,
-              );
-            }
-          }
-        } catch (error) {
-          this.logger.error(
-            `[AI Assistant] 查询days数据失败: ${error instanceof Error ? error.message : error}`,
-          );
-        }
       }
 
       // 转换行程数据为前端格式（包含完整信息）

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, FindOptionsWhere, In } from 'typeorm';
 import {
@@ -60,6 +60,8 @@ type UpdateItineraryInput = Partial<
 
 @Injectable()
 export class ItineraryRepository {
+  private readonly logger = new Logger(ItineraryRepository.name);
+
   constructor(
     @InjectRepository(ItineraryEntity)
     private readonly itineraryRepository: Repository<ItineraryEntity>,
@@ -160,25 +162,53 @@ export class ItineraryRepository {
     return result;
   }
 
+  /**
+   * 查找行程（带关联数据）
+   * 使用 QueryBuilder 确保数据正确加载，并包含备用查询机制以提高稳定性
+   */
   async findById(id: string): Promise<ItineraryEntity | null> {
-    const itinerary = await this.itineraryRepository.findOne({
-      where: { id },
-      relations: ['days', 'days.activities'],
-    });
+    // 方法1：使用 QueryBuilder 加载关联数据（推荐，性能更好）
+    let itinerary = await this.itineraryRepository
+      .createQueryBuilder('itinerary')
+      .where('itinerary.id = :id', { id })
+      .leftJoinAndSelect('itinerary.days', 'day')
+      .leftJoinAndSelect('day.activities', 'activity')
+      .orderBy('day.day', 'ASC')
+      .addOrderBy('activity.time', 'ASC')
+      .getOne();
 
     if (!itinerary) {
       return null;
     }
 
-    // 手动排序天数
-    if (itinerary.days) {
-      itinerary.days.sort((a, b) => a.day - b.day);
-      // 排序每个天的活动
-      itinerary.days.forEach((day) => {
-        if (day.activities) {
-          day.activities.sort((a, b) => a.time.localeCompare(b.time));
+    // 验证数据完整性
+    const hasDays = itinerary.days && Array.isArray(itinerary.days) && itinerary.days.length > 0;
+    const daysCount = itinerary.daysCount || 0;
+
+    // 如果关联数据为空但 daysCount > 0，说明数据不一致，尝试备用查询
+    if (!hasDays && daysCount > 0) {
+      // 方法2：直接查询 days（备用方案）
+      const daysFromDb = await this.findDaysByItineraryId(id);
+      if (daysFromDb.length > 0) {
+        // 手动设置关联数据
+        (itinerary as any).days = daysFromDb;
+      }
+    }
+
+    // 确保每个 day 的 activities 都已正确加载
+    if (itinerary.days && Array.isArray(itinerary.days)) {
+      for (const day of itinerary.days) {
+        if (!day.activities || day.activities.length === 0) {
+          // 如果某个 day 的 activities 为空，尝试直接查询
+          const activities = await this.activityRepository.find({
+            where: { dayId: day.id },
+            order: { time: 'ASC' },
+          });
+          if (activities.length > 0) {
+            (day as any).activities = activities;
+          }
         }
-      });
+      }
     }
 
     return itinerary;
