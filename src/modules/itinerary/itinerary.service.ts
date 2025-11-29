@@ -4240,10 +4240,39 @@ ${activitiesText}
       const conversationId = dto.conversationId || crypto.randomUUID();
       const language = dto.language || 'zh-CN';
 
+      // 检测是否为首次对话（没有 conversationId 且消息为空或特定欢迎触发词）
+      const isFirstMessage = !dto.conversationId && (
+        !dto.message.trim() || 
+        /^(你好|您好|hi|hello|开始|start)$/i.test(dto.message.trim())
+      );
+
+      // 如果是首次对话，返回预设的欢迎语
+      if (isFirstMessage) {
+        const welcomeMessage = `您好，我是您的专属旅行管家。
+
+我已审阅了您前往 **${destinationName}** 的行程安排。基于我 20 年的高端定制旅行经验，我将为您提供以下专业服务：
+
+**核心服务内容：**
+
+- **路线优化分析**：基于地理位置与交通网络，评估行程效率，提供具体优化方案
+- **深度本地洞察**：分享地道游览方式、最佳时间安排、餐厅预约要求等实用信息
+- **风险识别与预案**：主动识别潜在问题（如闭馆日、天气影响等），并提供备选方案
+- **预算匹配评估**：分析行程安排与预算的匹配度，提供务实建议
+
+您可随时提出任何关于行程的疑问，我将以专业、周到的服务为您解答。`;
+
+        return {
+          success: true,
+          response: welcomeMessage,
+          conversationId,
+          message: '欢迎语已发送',
+        };
+      }
+
       // 构建系统提示词
       const systemMessage = `身份设定：
 
-你是 **WanderAI 首席旅行管家 (Senior Concierge)**。你拥有 20 年的高端定制旅行经验，精通全球地理、复杂的交通物流、米其林餐饮体系以及各地深度的文化禁忌。
+你是 **TripNara 首席旅行管家 (Senior Concierge)**。你拥有 20 年的高端定制旅行经验，精通全球地理、复杂的交通物流、米其林餐饮体系以及各地深度的文化禁忌。
 
 当前上下文：
 
