@@ -4439,6 +4439,15 @@ ${activitiesText}
           welcomeMessage += `\n\n您可随时提出任何关于行程的疑问，我将以专业、周到的服务为您解答。`;
         }
 
+        // 保存欢迎消息（作为assistant消息）
+        await this.itineraryRepository.saveConversationMessage(
+          conversationId,
+          journeyId,
+          userId,
+          'assistant',
+          welcomeMessage,
+        );
+
         return {
           success: true,
           response: welcomeMessage,
@@ -4446,6 +4455,21 @@ ${activitiesText}
           message: '欢迎语已发送',
         };
       }
+
+      // 保存用户消息
+      await this.itineraryRepository.saveConversationMessage(
+        conversationId,
+        journeyId,
+        userId,
+        'user',
+        dto.message,
+      );
+
+      // 获取对话历史（用于上下文）
+      const historyMessages = await this.itineraryRepository.getConversationHistory(
+        conversationId,
+        20, // 最多加载最近20条消息
+      );
 
       // 构建系统提示词
       const systemMessage = `身份设定：
@@ -4541,14 +4565,29 @@ ${activitiesText}
 
 请始终使用简体中文回答，保持专业、沉稳、周到的管家服务姿态。`;
 
+      // 构建消息数组（包含系统提示、历史对话和当前消息）
+      const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+        { role: 'system', content: systemMessage },
+      ];
+
+      // 添加历史消息（排除系统消息和当前用户消息）
+      for (const historyMsg of historyMessages) {
+        if (historyMsg.role === 'user' || historyMsg.role === 'assistant') {
+          messages.push({
+            role: historyMsg.role,
+            content: historyMsg.content,
+          });
+        }
+      }
+
+      // 添加当前用户消息
+      messages.push({ role: 'user', content: dto.message });
+
       // 调用 LLM 生成回复
       const response = await this.llmService.chatCompletion({
         provider: 'deepseek',
         model: 'deepseek-chat',
-        messages: [
-          { role: 'system', content: systemMessage },
-          { role: 'user', content: dto.message },
-        ],
+        messages,
         temperature: 0.7,
         maxOutputTokens: 2000, // 增加token限制，支持更详细的格式化回复和修改建议
       });
@@ -4598,6 +4637,16 @@ ${activitiesText}
         );
       }
 
+      // 保存AI回复
+      await this.itineraryRepository.saveConversationMessage(
+        conversationId,
+        journeyId,
+        userId,
+        'assistant',
+        responseText,
+        modifications ? { modifications } : undefined,
+      );
+
       return {
         success: true,
         response: responseText,
@@ -4619,6 +4668,50 @@ ${activitiesText}
         `助手回复失败: ${error instanceof Error ? error.message : '未知错误'}`,
       );
     }
+  }
+
+  /**
+   * 获取对话历史
+   */
+  async getConversationHistory(
+    journeyId: string,
+    conversationId: string,
+    userId: string,
+  ) {
+    // 检查行程所有权
+    const itinerary = await this.itineraryRepository.findById(journeyId);
+    if (!itinerary) {
+      throw new NotFoundException(`行程不存在: ${journeyId}`);
+    }
+
+    if (itinerary.userId !== userId) {
+      throw new ForbiddenException('无权访问此行程的对话历史');
+    }
+
+    // 获取对话历史
+    const messages = await this.itineraryRepository.getConversationHistory(
+      conversationId,
+    );
+
+    // 验证对话属于此行程
+    if (messages.length > 0 && messages[0].journeyId !== journeyId) {
+      throw new ForbiddenException('对话不属于此行程');
+    }
+
+    // 转换为DTO
+    return {
+      success: true,
+      conversationId,
+      messages: messages.map((msg) => ({
+        id: msg.id,
+        role: msg.role,
+        content: msg.content,
+        sequence: msg.sequence,
+        metadata: msg.metadata || undefined,
+        createdAt: msg.createdAt,
+      })),
+      totalCount: messages.length,
+    };
   }
 }
 

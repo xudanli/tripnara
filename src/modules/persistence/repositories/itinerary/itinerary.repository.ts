@@ -11,6 +11,7 @@ import {
   ExpenseCategory,
   ExpenseSplitType,
 } from '../../entities/expense.entity';
+import { ConversationMessageEntity } from '../../entities/conversation.entity';
 
 type CreateItineraryInput = {
   userId?: string;
@@ -71,6 +72,8 @@ export class ItineraryRepository {
     private readonly activityRepository: Repository<ItineraryActivityEntity>,
     @InjectRepository(ExpenseEntity)
     private readonly expenseRepository: Repository<ExpenseEntity>,
+    @InjectRepository(ConversationMessageEntity)
+    private readonly conversationMessageRepository: Repository<ConversationMessageEntity>,
   ) {}
 
   async createItinerary(input: CreateItineraryInput): Promise<ItineraryEntity> {
@@ -1054,6 +1057,87 @@ export class ItineraryRepository {
       select: ['id'],
     });
     return !!expense;
+  }
+
+  // ========== 对话消息管理方法 ==========
+
+  /**
+   * 保存对话消息
+   */
+  async saveConversationMessage(
+    conversationId: string,
+    journeyId: string,
+    userId: string,
+    role: 'user' | 'assistant',
+    content: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<ConversationMessageEntity> {
+    // 获取当前对话的最大序号
+    const maxSequence = await this.conversationMessageRepository
+      .createQueryBuilder('msg')
+      .where('msg.conversationId = :conversationId', { conversationId })
+      .select('MAX(msg.sequence)', 'max')
+      .getRawOne();
+
+    const nextSequence = (maxSequence?.max || 0) + 1;
+
+    const message = this.conversationMessageRepository.create({
+      conversationId,
+      journeyId,
+      userId,
+      role,
+      content,
+      sequence: nextSequence,
+      metadata: metadata || null,
+    });
+
+    return await this.conversationMessageRepository.save(message);
+  }
+
+  /**
+   * 获取对话历史消息
+   */
+  async getConversationHistory(
+    conversationId: string,
+    limit?: number,
+  ): Promise<ConversationMessageEntity[]> {
+    const queryBuilder = this.conversationMessageRepository
+      .createQueryBuilder('msg')
+      .where('msg.conversationId = :conversationId', { conversationId })
+      .orderBy('msg.sequence', 'ASC')
+      .addOrderBy('msg.createdAt', 'ASC');
+
+    if (limit) {
+      queryBuilder.limit(limit);
+    }
+
+    return await queryBuilder.getMany();
+  }
+
+  /**
+   * 获取行程的所有对话ID列表
+   */
+  async getConversationIdsByJourney(
+    journeyId: string,
+  ): Promise<string[]> {
+    const conversations = await this.conversationMessageRepository
+      .createQueryBuilder('msg')
+      .select('DISTINCT msg.conversationId', 'conversationId')
+      .where('msg.journeyId = :journeyId', { journeyId })
+      .orderBy('msg.createdAt', 'DESC')
+      .getRawMany();
+
+    return conversations.map((c) => c.conversationId);
+  }
+
+  /**
+   * 删除对话的所有消息
+   */
+  async deleteConversation(conversationId: string): Promise<boolean> {
+    const result = await this.conversationMessageRepository.delete({
+      conversationId,
+    });
+    return (result.affected ?? 0) > 0;
   }
 }
 

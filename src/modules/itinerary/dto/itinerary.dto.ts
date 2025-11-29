@@ -2506,3 +2506,46 @@ export class JourneyAssistantChatResponseDto {
   modifications?: ModificationSuggestionDto[];
 }
 
+/**
+ * 对话消息 DTO
+ */
+export class ConversationMessageDto {
+  @ApiProperty({ description: '消息ID', example: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ description: '消息角色', enum: ['user', 'assistant'], example: 'user' })
+  role!: 'user' | 'assistant';
+
+  @ApiProperty({ description: '消息内容', example: '这个行程的预算大概是多少？' })
+  content!: string;
+
+  @ApiProperty({ description: '消息序号', example: 1 })
+  sequence!: number;
+
+  @ApiPropertyOptional({ description: '元数据', example: {} })
+  metadata?: Record<string, unknown>;
+
+  @ApiProperty({ description: '创建时间', example: '2025-01-30T10:00:00Z' })
+  createdAt!: Date;
+}
+
+/**
+ * 获取对话历史响应 DTO
+ */
+export class GetConversationHistoryResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({ description: '对话ID', example: 'uuid' })
+  conversationId!: string;
+
+  @ApiProperty({
+    description: '对话消息列表',
+    type: [ConversationMessageDto],
+  })
+  messages!: ConversationMessageDto[];
+
+  @ApiProperty({ description: '消息总数', example: 10 })
+  totalCount!: number;
+}
+

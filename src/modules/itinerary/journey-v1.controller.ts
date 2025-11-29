@@ -73,6 +73,7 @@ import {
   GenerateDailySummariesResponseDto,
   JourneyAssistantChatRequestDto,
   JourneyAssistantChatResponseDto,
+  GetConversationHistoryResponseDto,
 } from './dto/itinerary.dto';
 
 @ApiTags('Journey V1')
@@ -1014,6 +1015,31 @@ export class JourneyV1Controller {
       journeyId,
       user.userId,
       dto,
+    );
+  }
+
+  @Get(':journeyId/assistant/conversations/:conversationId/history')
+  @ApiOperation({
+    summary: '获取对话历史',
+    description: '获取指定对话的所有历史消息',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiParam({ name: 'journeyId', description: '行程ID' })
+  @ApiParam({ name: 'conversationId', description: '对话ID' })
+  @ApiResponse({
+    status: 200,
+    description: '获取成功',
+  })
+  async getConversationHistory(
+    @Param('journeyId') journeyId: string,
+    @Param('conversationId') conversationId: string,
+    @CurrentUser() user: { userId: string },
+  ) {
+    return this.itineraryService.getConversationHistory(
+      journeyId,
+      conversationId,
+      user.userId,
     );
   }
 }
