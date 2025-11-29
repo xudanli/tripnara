@@ -4070,6 +4070,30 @@ ${dateInstructions}`;
       `[generateDailySummaries] 从数据库加载的数据: days是数组=${Array.isArray(entity.days)}, days长度=${entity.days?.length || 0}`,
     );
 
+    // 如果days为空，尝试直接从数据库查询（备用方案）
+    if (!entity.days || entity.days.length === 0) {
+      this.logger.warn(
+        `[generateDailySummaries] 警告：itinerary.days为空，尝试直接查询数据库`,
+      );
+      try {
+        const daysFromDb = await this.itineraryRepository.findDaysByItineraryId(journeyId);
+        this.logger.debug(
+          `[generateDailySummaries] 直接从数据库查询到的天数: ${daysFromDb.length}`,
+        );
+        if (daysFromDb.length > 0) {
+          // 如果数据库中有数据但关联未加载，手动设置
+          (entity as any).days = daysFromDb;
+          this.logger.warn(
+            `[generateDailySummaries] 已手动加载days数据: ${daysFromDb.length}天`,
+          );
+        }
+      } catch (error) {
+        this.logger.error(
+          `[generateDailySummaries] 查询days数据失败: ${error instanceof Error ? error.message : error}`,
+        );
+      }
+    }
+
     const destination = entity.destination || '未知目的地';
     const { daysArray } = this.validateAndTransformEntity(entity);
 
@@ -4079,20 +4103,22 @@ ${dateInstructions}`;
       const daysIsArray = Array.isArray(entity.days);
       const daysLength = entity.days?.length || 0;
       
+      const daysCount = entity.daysCount || 0;
+      
       this.logger.error(
-        `[generateDailySummaries] 行程数据为空: journeyId=${journeyId}, hasDaysRelation=${hasDaysRelation}, daysIsArray=${daysIsArray}, daysLength=${daysLength}`,
+        `[generateDailySummaries] 行程数据为空: journeyId=${journeyId}, hasDaysRelation=${hasDaysRelation}, daysIsArray=${daysIsArray}, daysLength=${daysLength}, daysCount=${daysCount}`,
       );
       
-      throw new BadRequestException(
-        `行程数据为空，无法生成每日概要。请确保行程已包含天数数据。` +
-        (hasDaysRelation && !daysIsArray
-          ? ` 注意：days字段存在但格式不正确（类型：${typeof entity.days}）`
-          : hasDaysRelation && daysLength === 0
-            ? ` 注意：days关联已加载但为空数组，可能数据库中确实没有天数数据`
-            : !hasDaysRelation
-              ? ` 注意：days关联未加载，请检查数据库查询配置`
-              : ''),
-      );
+      // 如果行程有 daysCount 但没有 days 数据，提供修复建议
+      let errorMessage = `行程数据为空，无法生成每日概要。`;
+      if (daysCount > 0) {
+        errorMessage += ` 注意：行程显示有 ${daysCount} 天，但数据库中缺少天数数据。`;
+        errorMessage += ` 建议：请重新生成行程或联系技术支持。`;
+      } else {
+        errorMessage += ` 请确保行程已包含天数数据。`;
+      }
+      
+      throw new BadRequestException(errorMessage);
     }
 
     // 确定要生成概要的天数
