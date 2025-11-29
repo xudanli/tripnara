@@ -2216,3 +2216,58 @@ export class RecalculateTotalCostResponseDto {
   previousTotalCost?: number;
 }
 
+/**
+ * 生成每日概要请求 DTO
+ */
+export class GenerateDailySummariesRequestDto {
+  @ApiPropertyOptional({
+    description: '指定要生成概要的日期（第几天），如果不提供则生成所有天的概要',
+    example: 1,
+    minimum: 1,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  day?: number;
+}
+
+/**
+ * 每日概要数据 DTO
+ */
+export class DailySummaryDto {
+  @ApiProperty({ description: '第几天', example: 1 })
+  day!: number;
+
+  @ApiProperty({ description: '日期', example: '2024-06-01' })
+  date!: string;
+
+  @ApiProperty({ description: '每日概要内容', example: '第一天将探索琉森老城区的历史建筑和文化遗产...' })
+  summary!: string;
+
+  @ApiProperty({ description: '生成时间', example: '2024-06-01T12:00:00.000Z' })
+  generatedAt!: string;
+}
+
+/**
+ * 生成每日概要响应 DTO
+ */
+export class GenerateDailySummariesResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({ description: '行程ID', example: 'uuid' })
+  journeyId!: string;
+
+  @ApiProperty({ description: '目的地', example: '瑞士琉森' })
+  destination!: string;
+
+  @ApiProperty({
+    description: '每日概要列表',
+    type: [DailySummaryDto],
+  })
+  data!: DailySummaryDto[];
+
+  @ApiPropertyOptional({ description: '消息', example: '成功生成每日概要' })
+  message?: string;
+}
+

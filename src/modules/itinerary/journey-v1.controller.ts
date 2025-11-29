@@ -69,6 +69,8 @@ import {
   BatchGetActivitiesRequestDto,
   BatchActivitiesResponseDto,
   RecalculateTotalCostResponseDto,
+  GenerateDailySummariesRequestDto,
+  GenerateDailySummariesResponseDto,
 } from './dto/itinerary.dto';
 
 @ApiTags('Journey V1')
@@ -933,6 +935,43 @@ export class JourneyV1Controller {
     @CurrentUser() user: { userId: string },
   ): Promise<DeleteExpenseResponseDto> {
     return this.itineraryService.deleteExpense(journeyId, expenseId, user.userId);
+  }
+
+  @Post(':journeyId/daily-summaries')
+  @ApiOperation({
+    summary: '生成每日概要',
+    description: '使用 AI 为行程的每一天生成概要，可以指定特定天数或生成所有天的概要',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiParam({ name: 'journeyId', description: '行程ID' })
+  @ApiResponse({
+    status: 200,
+    description: '成功生成每日概要',
+    type: GenerateDailySummariesResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: '请求参数错误或行程数据为空',
+  })
+  @ApiResponse({
+    status: 403,
+    description: '无权访问此行程',
+  })
+  @ApiResponse({
+    status: 404,
+    description: '行程不存在',
+  })
+  async generateDailySummaries(
+    @Param('journeyId') journeyId: string,
+    @Body() dto: GenerateDailySummariesRequestDto,
+    @CurrentUser() user: { userId: string },
+  ): Promise<GenerateDailySummariesResponseDto> {
+    return this.itineraryService.generateDailySummaries(
+      journeyId,
+      user.userId,
+      dto.day,
+    );
   }
 }
 

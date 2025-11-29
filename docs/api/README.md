@@ -114,6 +114,15 @@
 - [journey-api-39-get-alert.md](./journey-api-39-get-alert.md) - 获取单个安全提示详情
 - [journey-api-40-update-alert.md](./journey-api-40-update-alert.md) - 更新安全提示
 - [journey-api-41-delete-alert.md](./journey-api-41-delete-alert.md) - 删除安全提示
+
+---
+
+### 13. 每日概要生成 API
+**文档**: [journey-api-43-daily-summaries.md](./journey-api-43-daily-summaries.md)
+
+- `POST /api/v1/journeys/{journeyId}/daily-summaries` - 生成每日概要
+
+**功能**: 使用 AI 为行程的每一天生成生动有趣的概要（80-120字），突出当天的亮点和特色活动。支持生成所有天的概要或指定天的概要。
 - [journey-api-38-public-safety-notice.md](./journey-api-38-public-safety-notice.md) - 生成通用安全提示
 
 - `GET /api/v1/alerts` - 获取安全提示列表（支持筛选和分页）

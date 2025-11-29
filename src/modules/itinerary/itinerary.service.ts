@@ -3928,5 +3928,208 @@ ${dateInstructions}
       updatedAt: expense.updatedAt.toISOString(),
     };
   }
+
+  /**
+   * 生成每日概要
+   */
+  async generateDailySummaries(
+    journeyId: string,
+    userId: string,
+    day?: number,
+  ): Promise<{
+    success: boolean;
+    journeyId: string;
+    destination: string;
+    data: Array<{
+      day: number;
+      date: string;
+      summary: string;
+      generatedAt: string;
+    }>;
+    message?: string;
+  }> {
+    // 检查权限
+    await this.ensureOwnership(journeyId, userId, '生成每日概要');
+
+    // 获取行程数据
+    const entity = await this.itineraryRepository.findById(journeyId);
+    if (!entity) {
+      throw new NotFoundException('行程不存在');
+    }
+
+    const destination = entity.destination || '未知目的地';
+    const { daysArray } = this.validateAndTransformEntity(entity);
+
+    if (!daysArray || daysArray.length === 0) {
+      throw new BadRequestException('行程数据为空，无法生成每日概要');
+    }
+
+    // 确定要生成概要的天数
+    const daysToGenerate = day
+      ? daysArray.filter((d) => d.day === day)
+      : daysArray;
+
+    if (daysToGenerate.length === 0) {
+      throw new BadRequestException(
+        day ? `第 ${day} 天不存在` : '没有可生成概要的天数',
+      );
+    }
+
+    // 为每一天生成概要
+    const summaries = await Promise.all(
+      daysToGenerate.map(async (dayData) => {
+        // 转换日期格式
+        const dateStr =
+          dayData.date instanceof Date
+            ? dayData.date.toISOString().split('T')[0]
+            : typeof dayData.date === 'string'
+              ? dayData.date
+              : new Date(dayData.date).toISOString().split('T')[0];
+
+        // 转换活动数据格式
+        const activities = (dayData.activities || []).map((act) => ({
+          time: DataValidator.fixTime(act.time, '09:00'),
+          title: DataValidator.fixString(act.title, '未命名活动'),
+          type: DataValidator.fixString(act.type, 'attraction'),
+          duration: DataValidator.fixNumber(act.duration, 60, 1),
+          notes: act.notes,
+          cost: act.cost,
+        }));
+
+        const summary = await this.generateDailySummaryWithAI(
+          destination,
+          {
+            day: dayData.day,
+            date: dateStr,
+            activities,
+          },
+        );
+
+        return {
+          day: dayData.day,
+          date: dateStr,
+          summary,
+          generatedAt: new Date().toISOString(),
+        };
+      }),
+    );
+
+    return {
+      success: true,
+      journeyId,
+      destination,
+      data: summaries,
+      message: `成功生成 ${summaries.length} 天的概要`,
+    };
+  }
+
+  /**
+   * 使用 AI 生成单日概要
+   */
+  private async generateDailySummaryWithAI(
+    destination: string,
+    dayData: {
+      day: number;
+      date: string;
+      activities: Array<{
+        time: string;
+        title: string;
+        type: string;
+        duration: number;
+        notes?: string;
+        cost?: number;
+      }>;
+    },
+  ): Promise<string> {
+    try {
+      // 构建活动列表描述
+      const activitiesText = dayData.activities
+        .map((act, index) => {
+          const time = act.time || '未指定时间';
+          const title = act.title || '未命名活动';
+          const type = act.type || '未知类型';
+          const duration = act.duration ? `${act.duration}分钟` : '';
+          const notes = act.notes ? `（${act.notes}）` : '';
+          return `${index + 1}. ${time} - ${title} (${type})${duration ? `，持续${duration}` : ''}${notes}`;
+        })
+        .join('\n');
+
+      const systemMessage = `你是一个专业的旅行文案师，擅长为旅行行程的每一天生成生动有趣的概要。
+
+请根据提供的每日活动安排，生成一段简洁而富有吸引力的概要（80-120字），要求：
+1. 突出当天的亮点和特色活动
+2. 语言生动有趣，富有感染力
+3. 控制长度在80-120字之间
+4. 使用中文，风格轻松自然`;
+
+      const userMessage = `目的地：${destination}
+第${dayData.day}天（${dayData.date}）的活动安排：
+
+${activitiesText}
+
+请为这一天生成一段概要，突出亮点和特色。`;
+
+      const response = await this.llmService.chatCompletion({
+        provider: 'deepseek',
+        messages: [
+          { role: 'system', content: systemMessage },
+          { role: 'user', content: userMessage },
+        ],
+        temperature: 0.7,
+        maxOutputTokens: 200,
+      });
+
+      // 清理和验证响应
+      let summary = response.trim();
+      if (summary.length < 50) {
+        // 如果太短，使用模板生成
+        summary = this.generateDailySummaryTemplate(destination, dayData);
+      } else if (summary.length > 200) {
+        // 如果太长，截断
+        summary = summary.substring(0, 200) + '...';
+      }
+
+      return summary;
+    } catch (error) {
+      this.logger.warn(
+        `AI生成每日概要失败（第${dayData.day}天），使用模板回退`,
+        error,
+      );
+      // 使用模板回退
+      return this.generateDailySummaryTemplate(destination, dayData);
+    }
+  }
+
+  /**
+   * 使用模板生成每日概要（回退方案）
+   */
+  private generateDailySummaryTemplate(
+    destination: string,
+    dayData: {
+      day: number;
+      date: string;
+      activities: Array<{
+        time: string;
+        title: string;
+        type: string;
+      }>;
+    },
+  ): string {
+    const activityCount = dayData.activities.length;
+    const mainActivities = dayData.activities
+      .slice(0, 3)
+      .map((act) => act.title)
+      .join('、');
+
+    if (activityCount === 0) {
+      return `第${dayData.day}天，在${destination}自由探索，享受悠闲时光。`;
+    }
+
+    if (activityCount === 1) {
+      return `第${dayData.day}天，在${destination}体验${mainActivities}，感受独特的旅行魅力。`;
+    }
+
+    return `第${dayData.day}天，在${destination}安排了${activityCount}个精彩活动，包括${mainActivities}等，让您充分体验当地文化和风情。`;
+  }
 }
 
