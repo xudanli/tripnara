@@ -9,7 +9,6 @@ import { DestinationModule } from './modules/destination/destination.module';
 import { GuidesModule } from './modules/guides/guides.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { PersistenceModule } from './modules/persistence/persistence.module';
-import { TaskModule } from './modules/task/task.module';
 import { validateEnv } from './config/env.validation';
 import { TYPEORM_ENTITIES } from './config/typeorm.entities';
 import { MonitoringModule } from './modules/monitoring/monitoring.module';
@@ -22,7 +21,6 @@ import { ItineraryModule } from './modules/itinerary/itinerary.module';
 import { LocationModule } from './modules/location/location.module';
 import { TravelModule } from './modules/travel/travel.module';
 import { InspirationModule } from './modules/inspiration/inspiration.module';
-import { SeekerModule } from './modules/seeker/seeker.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
 import { MediaModule } from './modules/media/media.module';
 import { MemberModule } from './modules/journey-members/member.module';
@@ -97,7 +95,6 @@ const resolveEnvFilePaths = (): string[] => {
     GuidesModule,
     CatalogModule,
     PersistenceModule,
-    TaskModule,
     MonitoringModule,
     VisaModule,
     AuthModule,
@@ -108,7 +105,6 @@ const resolveEnvFilePaths = (): string[] => {
     LocationModule,
     TravelModule,
     InspirationModule,
-    SeekerModule,
     AlertsModule,
     MediaModule,
     MemberModule,
