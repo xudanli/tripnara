@@ -4233,6 +4233,25 @@ ${activitiesText}
       const itineraryDetail = await this.entityToDetailWithTimeSlotsDto(itinerary);
       const destinationName = itineraryDetail.destination || '未知目的地';
 
+      // 验证数据完整性（用于调试）
+      const daysWithCoordinates = itineraryDetail.days?.filter(
+        (day) => day.timeSlots?.some((slot) => slot.coordinates),
+      ) || [];
+      const totalTimeSlots = itineraryDetail.days?.reduce(
+        (sum, day) => sum + (day.timeSlots?.length || 0),
+        0,
+      ) || 0;
+      const timeSlotsWithCoordinates = itineraryDetail.days?.reduce(
+        (sum, day) =>
+          sum +
+          (day.timeSlots?.filter((slot) => slot.coordinates)?.length || 0),
+        0,
+      ) || 0;
+
+      this.logger.debug(
+        `[AI Assistant] 行程数据完整性检查: 目的地=${destinationName}, 天数=${itineraryDetail.daysCount}, 总时间段=${totalTimeSlots}, 有坐标的时间段=${timeSlotsWithCoordinates}, 有坐标的天数=${daysWithCoordinates.length}`,
+      );
+
       // 构建行程 JSON 数据（用于上下文）
       const planJson = JSON.stringify(itineraryDetail, null, 2);
 
