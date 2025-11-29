@@ -85,6 +85,7 @@ import {
   DeleteExpenseResponseDto,
   JourneyAssistantChatRequestDto,
   JourneyAssistantChatResponseDto,
+  ModificationSuggestionDto,
 } from './dto/itinerary.dto';
 import {
   ItineraryEntity,
@@ -1470,15 +1471,27 @@ ${dateInstructions}`;
    * 提取公共的实体验证和转换逻辑
    */
   private validateAndTransformEntity(entity: ItineraryEntity) {
-    const daysArray = Array.isArray(entity.days) ? entity.days : [];
+    // 处理 days 数据：确保是数组
+    let daysArray: ItineraryDayEntity[] = [];
+    if (entity.days) {
+      if (Array.isArray(entity.days)) {
+        daysArray = entity.days;
+      } else {
+        // 如果不是数组，记录警告但继续处理
+        this.logger.warn(
+          `[validateAndTransformEntity] 警告：entity.days 存在但不是数组，类型=${typeof entity.days}, 值=${JSON.stringify(entity.days).substring(0, 200)}`,
+        );
+      }
+    }
+    
     const totalCost = DataValidator.fixNumber(entity.totalCost, 0, 0);
     const summary = DataValidator.fixString(entity.summary, '');
     const startDate = DataValidator.fixDate(entity.startDate as Date | string);
     
     // 调试日志：检查数据提取
-    if (daysArray.length === 0 && entity.days) {
+    if (daysArray.length === 0 && entity.daysCount > 0) {
       this.logger.warn(
-        `[validateAndTransformEntity] 警告：entity.days 存在但不是数组，类型=${typeof entity.days}, 值=${JSON.stringify(entity.days).substring(0, 200)}`,
+        `[validateAndTransformEntity] 警告：行程有 daysCount=${entity.daysCount} 但没有 days 数据，可能数据不一致`,
       );
     }
     
@@ -4501,9 +4514,49 @@ ${activitiesText}
    - **路线展示**：使用箭头符号（**地点A → 地点B → 地点C**）清晰展示流线。
    - **回复结构**：对于复杂问题，使用清晰的段落结构，先总结要点，再展开细节。
 
-5. **回复示例风格**：
+5. **行程修改能力 (Itinerary Modification)**：
+   - 当用户提出修改行程的需求时（如："把第一天的第一个活动改成10点开始"、"优化第一天的路线"、"删除某个活动"等），你需要：
+     a. **识别修改意图**：准确理解用户想要修改的内容（活动、时间、地点、顺序等）
+     b. **理解修改原因**：分析用户修改的意图和原因
+     c. **生成修改建议**：生成结构化的修改建议（JSON格式）
+     d. **文本说明**：在文本回复中清晰说明修改内容和原因
+   
+   - **修改类型**：
+     - modify：修改现有活动（时间、标题、地点等）
+     - add：在指定天数添加新活动
+     - delete：删除指定活动
+     - reorder：重新排列活动的顺序（路线优化）
+   
+   - **修改建议格式**（必须在回复末尾以JSON代码块形式提供）：
+     使用三个反引号包裹JSON代码块，格式如下：
+     [JSON代码块开始]
+     {
+       "modifications": [
+         {
+           "type": "modify",
+           "target": {
+             "day": 1,
+             "activityId": "activity-id-from-plan-json"
+           },
+           "changes": {
+             "time": "10:00"
+           },
+           "reason": "将活动时间调整为10:00，提供更充足的准备时间"
+         }
+       ]
+     }
+     [JSON代码块结束]
+   
+   - **重要规则**：
+     - 必须从提供的行程JSON数据中获取准确的 activityId 或 dayId
+     - 如果无法确定具体的ID，使用 day 序号（1-based）和活动在当天的位置
+     - 修改建议必须与文本回复一致
+     - 在提供修改建议前，先询问用户是否确认执行修改
+
+6. **回复示例风格**：
    - ✅ 正确："尊敬的贵宾，我是 Nara。基于您这份 **3天2晚瑞士卢塞恩** 的行程，我为您梳理了以下亮点..."
    - ✅ 正确："作为您的专属旅行管家 Nara，我建议..."
+   - ✅ 正确（修改场景）："尊敬的贵宾，我理解您希望将第一天的第一个活动调整为 **10:00** 开始。根据您的行程安排，这可以让您有更充足的准备时间。\n\n**修改建议：**\n\`\`\`json\n{...}\n\`\`\`\n\n请确认是否执行此修改？"
    - ❌ 错误："我是 WanderAI 助手..."（错误品牌）
    - ❌ 错误："哈哈，这个行程不错！"（过于随意）
 
@@ -4518,14 +4571,52 @@ ${activitiesText}
           { role: 'user', content: dto.message },
         ],
         temperature: 0.7,
-        maxOutputTokens: 1500, // 增加token限制，支持更详细的格式化回复
+        maxOutputTokens: 2000, // 增加token限制，支持更详细的格式化回复和修改建议
       });
+
+      const responseText = response.trim();
+      
+      // 尝试从回复中提取修改建议（JSON格式）
+      let modifications: ModificationSuggestionDto[] | undefined;
+
+      try {
+        // 尝试从回复中提取 JSON 代码块
+        const jsonMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/);
+        if (jsonMatch && jsonMatch[1]) {
+          const jsonData = JSON.parse(jsonMatch[1].trim());
+          if (jsonData.modifications && Array.isArray(jsonData.modifications)) {
+            // 验证并转换修改建议
+            const validModifications: ModificationSuggestionDto[] = [];
+            for (const mod of jsonData.modifications) {
+              if (
+                mod.type &&
+                ['modify', 'add', 'delete', 'reorder'].includes(mod.type) &&
+                mod.target
+              ) {
+                validModifications.push(mod as ModificationSuggestionDto);
+              }
+            }
+            if (validModifications.length > 0) {
+              modifications = validModifications;
+              this.logger.debug(
+                `[AI Assistant] 提取到 ${modifications.length} 个修改建议`,
+              );
+            }
+          }
+        }
+      } catch (error) {
+        // 如果解析失败，记录日志但不影响正常回复
+        this.logger.debug(
+          `[AI Assistant] 未能从回复中提取修改建议: ${error instanceof Error ? error.message : error}`,
+        );
+      }
 
       return {
         success: true,
-        response: response.trim(),
+        response: responseText,
         conversationId,
         message: '回复成功',
+        modifications,
       };
     } catch (error) {
       this.logger.error(

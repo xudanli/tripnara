@@ -15,6 +15,7 @@ import {
   ValidateIf,
   IsIn,
   IsBoolean,
+  IsEnum,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import {
@@ -2378,6 +2379,96 @@ export class JourneyAssistantChatRequestDto {
 /**
  * 行程助手聊天响应 DTO
  */
+/**
+ * 行程修改建议 DTO
+ */
+export class ModificationSuggestionDto {
+  @ApiProperty({
+    description: '修改类型',
+    enum: ['modify', 'add', 'delete', 'reorder'],
+    example: 'modify',
+  })
+  @IsEnum(['modify', 'add', 'delete', 'reorder'])
+  type!: 'modify' | 'add' | 'delete' | 'reorder';
+
+  @ApiProperty({
+    description: '修改目标',
+    example: {
+      day: 1,
+      dayId: 'day-id-here',
+      activityId: 'activity-id-here',
+      slotId: 'slot-id-here',
+    },
+  })
+  @IsObject()
+  target!: {
+    day?: number; // 天数（1-based）
+    dayId?: string; // 天数ID
+    activityId?: string; // 活动ID
+    slotId?: string; // 时间段ID（前端使用）
+  };
+
+  @ApiPropertyOptional({
+    description: '修改内容（用于 modify 类型）',
+    example: {
+      time: '10:00',
+      title: '新标题',
+      duration: 120,
+    },
+  })
+  @IsOptional()
+  @IsObject()
+  changes?: {
+    time?: string;
+    title?: string;
+    type?: 'attraction' | 'meal' | 'hotel' | 'shopping' | 'transport' | 'ocean';
+    duration?: number;
+    location?: { lat: number; lng: number };
+    notes?: string;
+    cost?: number;
+  };
+
+  @ApiPropertyOptional({
+    description: '新活动数据（用于 add 类型）',
+    example: {
+      time: '14:00',
+      title: '新活动',
+      type: 'attraction',
+      duration: 90,
+      location: { lat: 46.7704, lng: 8.4050 },
+    },
+  })
+  @IsOptional()
+  @IsObject()
+  newActivity?: {
+    time: string;
+    title: string;
+    type: 'attraction' | 'meal' | 'hotel' | 'shopping' | 'transport' | 'ocean';
+    duration: number;
+    location: { lat: number; lng: number };
+    notes?: string;
+    cost?: number;
+  };
+
+  @ApiPropertyOptional({
+    description: '新的活动顺序（用于 reorder 类型）',
+    example: ['activity-id-1', 'activity-id-2', 'activity-id-3'],
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  newOrder?: string[];
+
+  @ApiPropertyOptional({
+    description: '修改原因（给用户看的说明）',
+    example: '将活动时间调整为10:00，提供更充足的准备时间',
+  })
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}
+
 export class JourneyAssistantChatResponseDto {
   @ApiProperty({ description: '是否成功', example: true })
   success!: boolean;
@@ -2390,5 +2481,28 @@ export class JourneyAssistantChatResponseDto {
 
   @ApiPropertyOptional({ description: '消息', example: '回复成功' })
   message?: string;
+
+  @ApiPropertyOptional({
+    description: '行程修改建议（当用户提出修改需求时，Nara会生成结构化的修改建议）',
+    type: [ModificationSuggestionDto],
+    example: [
+      {
+        type: 'modify',
+        target: {
+          day: 1,
+          activityId: 'activity-id-here',
+        },
+        changes: {
+          time: '10:00',
+        },
+        reason: '将活动时间调整为10:00，提供更充足的准备时间',
+      },
+    ],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ModificationSuggestionDto)
+  modifications?: ModificationSuggestionDto[];
 }
 
