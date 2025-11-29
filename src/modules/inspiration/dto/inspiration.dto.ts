@@ -189,12 +189,12 @@ export class RecommendDestinationsRequestDto {
     description: '返回数量',
     example: 10,
     default: 10,
-    minimum: 8,
+    minimum: 1,
     maximum: 12,
   })
   @IsOptional()
   @IsNumber()
-  @Min(8)
+  @Min(1)
   @Max(12)
   limit?: number;
 }

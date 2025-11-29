@@ -105,7 +105,7 @@ interface RecommendDestinationsRequest {
   heldVisas?: string[];            // 用户持有的签证
   visaFreeDestinations?: string[];   // 免签目的地列表
   visaInfoSummary?: string | null;  // 签证信息摘要
-  limit?: number;                   // 返回数量，默认 10，范围 8-12
+  limit?: number;                   // 返回数量，默认 10，范围 1-12
 }
 ```
 

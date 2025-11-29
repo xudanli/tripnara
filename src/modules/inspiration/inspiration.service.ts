@@ -159,7 +159,8 @@ export class InspirationService {
         };
       }
 
-      const systemMessage = `你是一个专业的旅行目的地推荐助手。根据用户的旅行意图和需求，推荐8-12个候选目的地。
+      const limit = dto.limit || 10;
+      const systemMessage = `你是一个专业的旅行目的地推荐助手。根据用户的旅行意图和需求，推荐${limit}个候选目的地。
 
 请考虑以下因素：
 1. 用户的旅行意图和情感倾向
@@ -170,7 +171,7 @@ export class InspirationService {
 6. 目的地的代表性图片
 
 请以JSON格式返回结果，包含以下字段：
-- locations: 推荐的目的地列表（8-12个）
+- locations: 推荐的目的地列表（${limit}个）
 - locationDetails: 可选，目的地详情对象，key为目的地名称，每个目的地包含：
   * country: 国家名称
   * description: 目的地描述（50-100字）
@@ -203,7 +204,7 @@ export class InspirationService {
         userMessage += `\n免签目的地：${dto.visaFreeDestinations.join(', ')}`;
       }
 
-      userMessage += `\n\n请推荐${dto.limit || 10}个目的地。`;
+      userMessage += `\n\n请推荐${limit}个目的地。`;
 
       const response =
         await this.llmService.chatCompletionJson<AiRecommendDestinationsResponse>(
