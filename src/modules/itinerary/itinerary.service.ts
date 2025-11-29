@@ -83,6 +83,8 @@ import {
   CreateExpenseResponseDto,
   UpdateExpenseResponseDto,
   DeleteExpenseResponseDto,
+  JourneyAssistantChatRequestDto,
+  JourneyAssistantChatResponseDto,
 } from './dto/itinerary.dto';
 import {
   ItineraryEntity,
@@ -4204,6 +4206,91 @@ ${activitiesText}
     }
 
     return `第${dayData.day}天，在${destination}安排了${activityCount}个精彩活动，包括${mainActivities}等，让您充分体验当地文化和风情。`;
+  }
+
+  /**
+   * 行程助手聊天
+   */
+  async journeyAssistantChat(
+    journeyId: string,
+    userId: string,
+    dto: JourneyAssistantChatRequestDto,
+  ): Promise<JourneyAssistantChatResponseDto> {
+    try {
+      // 获取行程详情
+      const itinerary = await this.itineraryRepository.findById(journeyId);
+
+      if (!itinerary) {
+        throw new NotFoundException(`行程不存在: ${journeyId}`);
+      }
+
+      // 检查所有权
+      if (itinerary.userId !== userId) {
+        throw new ForbiddenException('无权访问此行程');
+      }
+
+      // 转换行程数据为前端格式（包含完整信息）
+      const itineraryDetail = await this.entityToDetailWithTimeSlotsDto(itinerary);
+      const destinationName = itineraryDetail.destination || '未知目的地';
+
+      // 构建行程 JSON 数据（用于上下文）
+      const planJson = JSON.stringify(itineraryDetail, null, 2);
+
+      // 生成对话ID（如果未提供）
+      const conversationId = dto.conversationId || crypto.randomUUID();
+      const language = dto.language || 'zh-CN';
+
+      // 构建系统提示词
+      const systemMessage = `你是一个名为 "Trip Nara 助手" 的智能旅行伴侣。
+
+用户正在查看一份前往 ${destinationName} 的旅行计划。
+
+该计划的详细 JSON 数据如下：
+
+${planJson}
+
+任务：
+
+1. 根据上述 JSON 数据回答用户关于行程、预算、活动、时间安排、天气或注意事项的问题。
+
+2. 你的回答应该简短、热情且实用。
+
+3. 如果用户问到计划中没有的细节（例如具体的餐厅预订链接），请基于该目的地的通用知识给出建议。
+
+4. 必须使用用户偏好语言回答。`;
+
+      // 调用 LLM 生成回复
+      const response = await this.llmService.chatCompletion({
+        provider: 'deepseek',
+        model: 'deepseek-chat',
+        messages: [
+          { role: 'system', content: systemMessage },
+          { role: 'user', content: dto.message },
+        ],
+        temperature: 0.7,
+        maxOutputTokens: 1000,
+      });
+
+      return {
+        success: true,
+        response: response.trim(),
+        conversationId,
+        message: '回复成功',
+      };
+    } catch (error) {
+      this.logger.error(
+        `Failed to chat with assistant for journey ${journeyId}`,
+        error,
+      );
+
+      if (error instanceof NotFoundException || error instanceof ForbiddenException) {
+        throw error;
+      }
+
+      throw new BadRequestException(
+        `助手回复失败: ${error instanceof Error ? error.message : '未知错误'}`,
+      );
+    }
   }
 }
 

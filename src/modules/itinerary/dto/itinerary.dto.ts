@@ -2344,3 +2344,51 @@ export class GenerateDailySummariesResponseDto {
   message?: string;
 }
 
+/**
+ * 行程助手聊天请求 DTO
+ */
+export class JourneyAssistantChatRequestDto {
+  @ApiProperty({
+    description: '用户消息',
+    example: '这个行程的预算大概是多少？',
+  })
+  @IsString()
+  @IsNotEmpty()
+  message!: string;
+
+  @ApiPropertyOptional({
+    description: '对话ID（用于多轮对话，如果不提供将创建新对话）',
+    example: 'uuid',
+  })
+  @IsOptional()
+  @IsString()
+  conversationId?: string;
+
+  @ApiPropertyOptional({
+    description: '语言代码',
+    example: 'zh-CN',
+    enum: ['zh-CN', 'en-US'],
+    default: 'zh-CN',
+  })
+  @IsOptional()
+  @IsString()
+  language?: string;
+}
+
+/**
+ * 行程助手聊天响应 DTO
+ */
+export class JourneyAssistantChatResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({ description: 'AI助手回复', example: '根据您的行程安排，总预算大约在8000-12000元之间...' })
+  response!: string;
+
+  @ApiProperty({ description: '对话ID', example: 'uuid' })
+  conversationId!: string;
+
+  @ApiPropertyOptional({ description: '消息', example: '回复成功' })
+  message?: string;
+}
+

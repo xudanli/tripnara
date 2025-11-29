@@ -71,6 +71,8 @@ import {
   RecalculateTotalCostResponseDto,
   GenerateDailySummariesRequestDto,
   GenerateDailySummariesResponseDto,
+  JourneyAssistantChatRequestDto,
+  JourneyAssistantChatResponseDto,
 } from './dto/itinerary.dto';
 
 @ApiTags('Journey V1')
@@ -971,6 +973,43 @@ export class JourneyV1Controller {
       journeyId,
       user.userId,
       dto.day,
+    );
+  }
+
+  @Post(':journeyId/assistant/chat')
+  @ApiOperation({
+    summary: '行程助手聊天',
+    description: '与行程AI助手对话，询问关于行程、预算、活动、时间安排等问题',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiParam({ name: 'journeyId', description: '行程ID' })
+  @ApiResponse({
+    status: 200,
+    description: '成功获取助手回复',
+    type: JourneyAssistantChatResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: '请求参数错误或AI服务调用失败',
+  })
+  @ApiResponse({
+    status: 403,
+    description: '无权访问此行程',
+  })
+  @ApiResponse({
+    status: 404,
+    description: '行程不存在',
+  })
+  async journeyAssistantChat(
+    @Param('journeyId') journeyId: string,
+    @Body() dto: JourneyAssistantChatRequestDto,
+    @CurrentUser() user: { userId: string },
+  ): Promise<JourneyAssistantChatResponseDto> {
+    return this.itineraryService.journeyAssistantChat(
+      journeyId,
+      user.userId,
+      dto,
     );
   }
 }

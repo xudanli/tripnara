@@ -123,6 +123,15 @@
 - `POST /api/v1/journeys/{journeyId}/daily-summaries` - 生成每日概要
 
 **功能**: 使用 AI 为行程的每一天生成生动有趣的概要（80-120字），突出当天的亮点和特色活动。支持生成所有天的概要或指定天的概要。
+
+---
+
+### 14. 行程AI助手 API
+**文档**: [journey-api-44-assistant.md](./journey-api-44-assistant.md)
+
+- `POST /api/v1/journeys/{journeyId}/assistant/chat` - 行程助手聊天
+
+**功能**: 与行程AI助手对话，询问关于行程、预算、活动、时间安排、天气或注意事项等问题。助手基于完整的行程数据（JSON格式）提供智能回答，支持多轮对话和多种语言。
 - [journey-api-38-public-safety-notice.md](./journey-api-38-public-safety-notice.md) - 生成通用安全提示
 
 - `GET /api/v1/alerts` - 获取安全提示列表（支持筛选和分页）
