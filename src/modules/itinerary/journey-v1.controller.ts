@@ -18,6 +18,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags, ApiParam, ApiResponse, ApiBody } 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ItineraryService } from './itinerary.service';
+import { JourneyAssistantService } from './services/journey-assistant.service';
 import {
   GenerateItineraryRequestDto,
   GenerateItineraryResponseDto,
@@ -82,7 +83,10 @@ import {
 export class JourneyV1Controller {
   private readonly logger = new Logger(JourneyV1Controller.name);
   
-  constructor(private readonly itineraryService: ItineraryService) {}
+  constructor(
+    private readonly itineraryService: ItineraryService,
+    private readonly journeyAssistantService: JourneyAssistantService,
+  ) {}
 
   @Post('generate')
   @ApiOperation({
@@ -1011,10 +1015,17 @@ export class JourneyV1Controller {
     @Body() dto: JourneyAssistantChatRequestDto,
     @CurrentUser() user: { userId: string },
   ): Promise<JourneyAssistantChatResponseDto> {
-    return this.itineraryService.journeyAssistantChat(
+    // 获取完整实体（包含关联数据）
+    const itineraryEntity = await this.itineraryService['itineraryRepository'].findById(journeyId);
+    if (!itineraryEntity) {
+      throw new BadRequestException('行程不存在');
+    }
+    
+    return this.journeyAssistantService.chat(
       journeyId,
       user.userId,
       dto,
+      itineraryEntity,
     );
   }
 
@@ -1036,7 +1047,7 @@ export class JourneyV1Controller {
     @Param('conversationId') conversationId: string,
     @CurrentUser() user: { userId: string },
   ) {
-    return this.itineraryService.getConversationHistory(
+    return this.journeyAssistantService.getConversationHistory(
       journeyId,
       conversationId,
       user.userId,

@@ -159,5 +159,138 @@ export class DataValidator {
     const str = this.fixString(value, defaultValue).toLowerCase();
     return validTypes.includes(str) ? str : defaultValue;
   }
+
+  /**
+   * 验证并修复位置坐标
+   * 支持多种输入格式：{lat, lng}, {latitude, longitude}, {Lat, Lng} 等
+   * @param value 原始值
+   * @param defaultValue 默认值（如果转换失败）
+   * @returns 修复后的位置对象 {lat: number, lng: number} 或 null
+   */
+  static fixLocation(
+    value: any,
+    defaultValue?: { lat: number; lng: number },
+  ): { lat: number; lng: number } | null {
+    // 如果已经是正确的格式
+    if (
+      value &&
+      typeof value === 'object' &&
+      typeof value.lat === 'number' &&
+      typeof value.lng === 'number'
+    ) {
+      if (
+        value.lat >= -90 &&
+        value.lat <= 90 &&
+        value.lng >= -180 &&
+        value.lng <= 180
+      ) {
+        return { lat: value.lat, lng: value.lng };
+      }
+    }
+
+    // 如果为空或不是对象
+    if (!value || typeof value !== 'object') {
+      return defaultValue || null;
+    }
+
+    // 尝试从对象中提取lat和lng
+    const locObj = value as Record<string, unknown>;
+    let lat: number | null = null;
+    let lng: number | null = null;
+
+    // 尝试获取lat（支持多种字段名）
+    const latValue =
+      locObj.lat ??
+      locObj.latitude ??
+      locObj.Lat ??
+      locObj.Latitude;
+    if (latValue !== undefined && latValue !== null) {
+      if (typeof latValue === 'number') {
+        lat = latValue;
+      } else if (typeof latValue === 'string') {
+        const parsed = parseFloat(latValue);
+        if (!isNaN(parsed)) {
+          lat = parsed;
+        }
+      }
+    }
+
+    // 尝试获取lng（支持多种字段名）
+    const lngValue =
+      locObj.lng ??
+      locObj.longitude ??
+      locObj.Lng ??
+      locObj.Longitude ??
+      locObj.lon;
+    if (lngValue !== undefined && lngValue !== null) {
+      if (typeof lngValue === 'number') {
+        lng = lngValue;
+      } else if (typeof lngValue === 'string') {
+        const parsed = parseFloat(lngValue);
+        if (!isNaN(parsed)) {
+          lng = parsed;
+        }
+      }
+    }
+
+    // 验证坐标范围
+    if (lat !== null && lng !== null) {
+      if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        return { lat, lng };
+      }
+    }
+
+    // 如果无法解析或超出范围，返回默认值或null
+    return defaultValue || null;
+  }
+
+  /**
+   * 规范化位置坐标（带日志记录）
+   * 与 fixLocation 功能相同，但会记录警告信息
+   * @param location 原始位置值
+   * @param context 上下文信息（用于日志）
+   * @param defaultValue 默认值（如果转换失败）
+   * @returns 修复后的位置对象或null
+   */
+  static normalizeLocation(
+    location: unknown,
+    context?: {
+      activityTitle?: string;
+      day?: number;
+      activityIndex?: number;
+      logger?: {
+        warn: (message: string) => void;
+      };
+    },
+    defaultValue?: { lat: number; lng: number },
+  ): { lat: number; lng: number } | null {
+    const result = this.fixLocation(location, defaultValue);
+
+    // 如果转换失败且有上下文信息，记录警告
+    if (!result && context) {
+      const { activityTitle, day, activityIndex, logger } = context;
+      if (logger && activityTitle !== undefined) {
+        const locationStr = JSON.stringify(location);
+        if (day !== undefined && activityIndex !== undefined) {
+          logger.warn(
+            `第${day}天第${activityIndex + 1}个活动"${activityTitle}"的location字段格式不正确: ${locationStr}，使用默认坐标`,
+          );
+        } else {
+          logger.warn(
+            `活动"${activityTitle}"的location字段格式不正确: ${locationStr}，使用默认坐标`,
+          );
+        }
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * 获取默认坐标（冰岛坐标作为fallback）
+   */
+  static getDefaultLocation(): { lat: number; lng: number } {
+    return { lat: 64.9631, lng: -19.0208 };
+  }
 }
 

@@ -1114,6 +1114,37 @@ export class ItineraryRepository {
   }
 
   /**
+   * 使用 SQL 聚合计算行程活动总费用（性能优化）
+   * 直接从数据库计算，避免加载所有数据到内存
+   */
+  async calculateTotalCostFromActivities(
+    itineraryId: string,
+  ): Promise<number> {
+    // 获取所有 day IDs
+    const days = await this.dayRepository.find({
+      where: { itineraryId },
+      select: ['id'],
+    });
+
+    if (days.length === 0) {
+      return 0;
+    }
+
+    const dayIds = days.map((d) => d.id);
+
+    // 使用 SQL SUM 聚合计算总费用
+    const result = await this.activityRepository
+      .createQueryBuilder('activity')
+      .select('COALESCE(SUM(activity.cost), 0)', 'total')
+      .where('activity.dayId IN (:...dayIds)', { dayIds })
+      .andWhere('activity.cost IS NOT NULL')
+      .andWhere('activity.cost > 0')
+      .getRawOne();
+
+    return result ? Number(result.total) : 0;
+  }
+
+  /**
    * 创建支出记录
    */
   async createExpense(

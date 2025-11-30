@@ -3,6 +3,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ItineraryV1Controller } from './itinerary-v1.controller';
 import { JourneyV1Controller } from './journey-v1.controller';
 import { ItineraryService } from './itinerary.service';
+import { JourneyAssistantService } from './services/journey-assistant.service';
+import { PromptService } from './services/prompt.service';
+import { ItineraryMapper } from './services/itinerary.mapper';
+import { ItineraryGenerationService } from './services/itinerary-generation.service';
+import { JourneyTaskService } from './services/journey-task.service';
+import { JourneyExpenseService } from './services/journey-expense.service';
 import { LlmModule } from '../llm/llm.module';
 import { PreferencesModule } from '../preferences/preferences.module';
 import { PersistenceModule } from '../persistence/persistence.module';
@@ -21,8 +27,16 @@ import { AiSafetyNoticeCacheEntity } from '../persistence/entities/ai-log.entity
     TypeOrmModule.forFeature([PreparationProfileEntity, AiSafetyNoticeCacheEntity]),
   ],
   controllers: [ItineraryV1Controller, JourneyV1Controller],
-  providers: [ItineraryService],
-  exports: [ItineraryService],
+  providers: [
+    ItineraryService,
+    JourneyAssistantService,
+    PromptService,
+    ItineraryMapper,
+    ItineraryGenerationService,
+    JourneyTaskService,
+    JourneyExpenseService,
+  ],
+  exports: [ItineraryService, JourneyAssistantService],
 })
 export class ItineraryModule {}
 

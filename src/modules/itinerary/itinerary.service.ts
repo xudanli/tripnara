@@ -9,6 +9,10 @@ import { ErrorHandler } from '../../utils/errorHandler';
 import { LlmService } from '../llm/llm.service';
 import { PreferencesService } from '../preferences/preferences.service';
 import { ItineraryRepository } from '../persistence/repositories/itinerary/itinerary.repository';
+import { JourneyAssistantService } from './services/journey-assistant.service';
+import { ItineraryGenerationService } from './services/itinerary-generation.service';
+import { JourneyTaskService } from './services/journey-task.service';
+import { JourneyExpenseService } from './services/journey-expense.service';
 import { JourneyTemplateRepository } from '../persistence/repositories/journey-template/journey-template.repository';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -142,6 +146,10 @@ export class ItineraryService {
     private readonly templateRepository: JourneyTemplateRepository,
     private readonly currencyService: CurrencyService,
     private readonly inspirationService: InspirationService,
+    private readonly journeyAssistantService: JourneyAssistantService,
+    private readonly itineraryGenerationService: ItineraryGenerationService,
+    private readonly journeyTaskService: JourneyTaskService,
+    private readonly journeyExpenseService: JourneyExpenseService,
     @InjectRepository(PreparationProfileEntity)
     private readonly preparationProfileRepository: Repository<PreparationProfileEntity>,
     @InjectRepository(AiSafetyNoticeCacheEntity)
@@ -149,6 +157,17 @@ export class ItineraryService {
   ) {}
 
   async generateItinerary(
+    dto: GenerateItineraryRequestDto,
+    userId?: string,
+  ): Promise<GenerateItineraryResponseDto> {
+    // 委托给 ItineraryGenerationService
+    return this.itineraryGenerationService.generateItinerary(dto, userId);
+  }
+
+  // 以下方法已移至 ItineraryGenerationService，保留用于参考
+  // 如需查看完整实现，请参考 ItineraryGenerationService
+  /* 
+  private async generateItinerary_OLD(
     dto: GenerateItineraryRequestDto,
     userId?: string,
   ): Promise<GenerateItineraryResponseDto> {
@@ -258,7 +277,7 @@ export class ItineraryService {
               { role: 'user', content: prompt },
             ],
             temperature: 0.7,
-            maxOutputTokens: 4000, // 增加token限制，支持更详细的行程
+            maxOutputTokens: 8000, // 增加token限制，支持更长的行程（7-10天，每天3-4个活动）
             json: true,
           },
         );
@@ -292,8 +311,8 @@ export class ItineraryService {
         );
       }
 
-      // 验证和转换响应
-      const itineraryData = this.validateAndTransformResponse(aiResponse);
+      // 验证和转换响应（传入期望的天数，确保完整性）
+      const itineraryData = this.validateAndTransformResponse(aiResponse, dto.days);
 
       // 自动推断货币
       const currency = await this.currencyService.inferCurrency({
@@ -462,9 +481,10 @@ ${dateInstructions}`;
 
 【行程结构要求】
 
-1. 生成 ${days} 天的完整行程
-2. 每天安排 **3-4个活动**，确保行程充实但不紧张
+1. 生成 **完整**的 ${days} 天行程，必须包含所有 ${days} 天的数据，不能遗漏任何一天
+2. 每天安排 **3-4个活动**（根据行程天数和目的地特点灵活调整，短途行程可以安排更多活动，长途行程可以适当减少），确保行程充实但不紧张
 3. 活动时间安排要合理，避免冲突，留出适当的休息和用餐时间
+4. **重要**：必须严格按照用户请求的天数生成，如果用户要求 ${days} 天，就必须生成 ${days} 天的完整行程，不能只生成部分天数
 
 【输出格式】
 
@@ -597,97 +617,17 @@ ${dateInstructions}`;
 
 1. 请确保行程合理，时间安排紧凑但不紧张，包含当地特色景点和美食
 2. 请务必严格按照JSON格式返回，不要添加任何额外的文字说明
-3. 请确保返回完整的JSON数据，包含所有${days}天的行程安排
+3. **关键要求**：请确保返回完整的JSON数据，必须包含**所有${days}天**的行程安排，不能遗漏任何一天，不能只生成部分天数
 4. 每个活动都应该有明确的开始时间（time字段），时间安排要合理，避免冲突
 5. 坐标（location）应该尽可能准确，如果无法确定精确坐标，可以使用目的地中心坐标
-6. 保持语言有力度、明确、可执行`;
+6. 保持语言有力度、明确、可执行
+7. **验证要求**：返回的 days 数组长度必须等于 ${days}，如果不足 ${days} 天，系统将拒绝接受响应`;
 
     return prompt;
   }
 
-  /**
-   * 尝试将location字段转换为标准的{lat, lng}格式
-   * 支持多种输入格式：数字、字符串、对象等
-   */
-  private normalizeLocation(
-    location: unknown,
-    activityTitle: string,
-    day: number,
-    activityIndex: number,
-  ): { lat: number; lng: number } | null {
-    // 如果location为空或undefined
-    if (!location || typeof location !== 'object') {
-      this.logger.warn(
-        `第${day}天第${activityIndex + 1}个活动"${activityTitle}"的location字段缺失或格式不正确: ${JSON.stringify(location)}，使用默认坐标`,
-      );
-      return null;
-    }
-
-    // 尝试从对象中提取lat和lng
-    const locObj = location as Record<string, unknown>;
-    let lat: number | null = null;
-    let lng: number | null = null;
-
-    // 尝试获取lat（支持lat、latitude等字段名）
-    const latValue =
-      locObj.lat ?? locObj.latitude ?? locObj.Lat ?? locObj.Latitude;
-    if (latValue !== undefined && latValue !== null) {
-      if (typeof latValue === 'number') {
-        lat = latValue;
-      } else if (typeof latValue === 'string') {
-        const parsed = parseFloat(latValue);
-        if (!isNaN(parsed)) {
-          lat = parsed;
-        }
-      }
-    }
-
-    // 尝试获取lng（支持lng、lng、longitude等字段名）
-    const lngValue =
-      locObj.lng ??
-      locObj.longitude ??
-      locObj.Lng ??
-      locObj.Longitude ??
-      locObj.lon;
-    if (lngValue !== undefined && lngValue !== null) {
-      if (typeof lngValue === 'number') {
-        lng = lngValue;
-      } else if (typeof lngValue === 'string') {
-        const parsed = parseFloat(lngValue);
-        if (!isNaN(parsed)) {
-          lng = parsed;
-        }
-      }
-    }
-
-    // 验证坐标范围
-    if (lat !== null && lng !== null) {
-      if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-        return { lat, lng };
-      } else {
-        this.logger.warn(
-          `第${day}天第${activityIndex + 1}个活动"${activityTitle}"的location坐标超出有效范围: lat=${lat}, lng=${lng}，使用默认坐标`,
-        );
-        return null;
-      }
-    }
-
-    // 如果无法解析，记录警告并返回null
-    this.logger.warn(
-      `第${day}天第${activityIndex + 1}个活动"${activityTitle}"的location字段格式不正确: ${JSON.stringify(location)}，使用默认坐标`,
-    );
-    return null;
-  }
-
-  /**
-   * 获取默认坐标（基于目的地或通用默认值）
-   * 这里返回一个通用默认值，实际应用中可以根据destination进行地理编码
-   */
-  private getDefaultLocation(): { lat: number; lng: number } {
-    // 返回一个默认坐标（可以后续改进为根据destination进行地理编码）
-    // 这里使用冰岛的默认坐标作为fallback
-    return { lat: 64.9631, lng: -19.0208 };
-  }
+  // normalizeLocation 和 getDefaultLocation 已移至 DataValidator
+  // 使用 DataValidator.normalizeLocation 和 DataValidator.getDefaultLocation
 
   /**
    * 重新计算并更新行程总费用（公共方法，供接口调用）
@@ -709,22 +649,38 @@ ${dateInstructions}`;
 
   /**
    * 重新计算并更新行程总费用（内部方法）
+   * 性能优化：优先使用 SQL 聚合，如果失败则回退到内存计算
    * @param journeyId 行程ID
    * @returns 新的总费用
    */
   private async recalculateAndUpdateTotalCost(journeyId: string): Promise<number> {
-    // 获取完整的行程数据（包含 days 和 activities）
-    const itinerary = await this.itineraryRepository.findById(journeyId);
-    if (!itinerary) {
-      this.logger.warn(`行程不存在，无法重新计算总费用: ${journeyId}`);
-      return 0;
-    }
+    let newTotalCost = 0;
 
-    // 转换为 DTO 格式以便计算
-    const itineraryDto = this.entityToDetailDto(itinerary);
-    
-    // 计算总费用
-    const newTotalCost = CostCalculator.calculateTotalCost(itineraryDto);
+    try {
+      // 性能优化：优先使用 SQL 聚合计算（直接从数据库计算，避免加载所有数据）
+      newTotalCost = await this.itineraryRepository.calculateTotalCostFromActivities(journeyId);
+      this.logger.debug(
+        `使用 SQL 聚合计算行程 ${journeyId} 的总费用: ${newTotalCost}`,
+      );
+    } catch (error) {
+      // 如果 SQL 聚合失败，回退到内存计算（处理 details.pricing 等复杂场景）
+      this.logger.warn(
+        `SQL 聚合计算失败，回退到内存计算: ${journeyId}`,
+        error instanceof Error ? error.message : error,
+      );
+
+      const itinerary = await this.itineraryRepository.findById(journeyId);
+      if (!itinerary) {
+        this.logger.warn(`行程不存在，无法重新计算总费用: ${journeyId}`);
+        return 0;
+      }
+
+      // 转换为 DTO 格式以便计算
+      const itineraryDto = this.entityToDetailDto(itinerary);
+      
+      // 计算总费用（包含 details.pricing 等复杂场景）
+      newTotalCost = CostCalculator.calculateTotalCost(itineraryDto);
+    }
 
     // 更新数据库中的总费用
     await this.itineraryRepository.updateItineraryWithDays(journeyId, {
@@ -740,10 +696,31 @@ ${dateInstructions}`;
 
   private validateAndTransformResponse(
     aiResponse: AiItineraryResponse,
+    expectedDays?: number, // 期望的天数
   ): ItineraryDataDto {
     // 验证响应结构
     if (!aiResponse.days || !Array.isArray(aiResponse.days)) {
       throw new Error('AI响应缺少days字段或格式不正确');
+    }
+
+    // 验证天数：如果提供了期望天数，检查是否匹配
+    if (expectedDays !== undefined && aiResponse.days.length !== expectedDays) {
+      this.logger.warn(
+        `AI返回的天数不匹配: 期望 ${expectedDays} 天，实际返回 ${aiResponse.days.length} 天`,
+      );
+      // 如果返回的天数少于期望，抛出错误
+      if (aiResponse.days.length < expectedDays) {
+        throw new Error(
+          `AI返回的行程不完整: 期望 ${expectedDays} 天，但只返回了 ${aiResponse.days.length} 天。可能是 token 限制导致响应被截断，请重试或减少行程天数。`,
+        );
+      }
+      // 如果返回的天数多于期望，只取前 expectedDays 天
+      if (aiResponse.days.length > expectedDays) {
+        this.logger.warn(
+          `AI返回了 ${aiResponse.days.length} 天，但期望 ${expectedDays} 天，将只取前 ${expectedDays} 天`,
+        );
+        aiResponse.days = aiResponse.days.slice(0, expectedDays);
+      }
     }
 
     // 验证并修复 totalCost：使用 DataValidator 确保始终是数字类型
@@ -782,14 +759,17 @@ ${dateInstructions}`;
           }
 
           // 规范化location字段，如果无效则使用默认值
-          let location = this.normalizeLocation(
+          let location = DataValidator.normalizeLocation(
             act.location,
-            act.title || '未知活动',
-            day.day,
-            actIndex + 1,
+            {
+              activityTitle: act.title || '未知活动',
+              day: day.day,
+              activityIndex: actIndex + 1,
+              logger: this.logger,
+            },
           );
           if (!location) {
-            location = this.getDefaultLocation();
+            location = DataValidator.getDefaultLocation();
           }
 
           // 使用 DataValidator 修复所有字段
@@ -3394,43 +3374,8 @@ ${dateInstructions}`;
     journeyId: string,
     userId: string,
   ): Promise<TaskListResponseDto> {
-    // 检查所有权
-    const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-    if (!isOwner) {
-      throw new ForbiddenException('无权访问此行程');
-    }
-
-    // 添加重试机制，解决偶发的"不存在"报错
-    // 可能原因：事务提交延迟、数据库复制延迟、缓存不一致等
-    const maxRetries = 3;
-    const retryDelay = 100; // 100ms
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-    const tasks = await this.itineraryRepository.getTasks(journeyId);
-    return {
-      tasks: tasks as unknown as TaskDto[],
-    };
-      } catch (error) {
-        // 如果是最后一次尝试，重新抛出错误
-        if (attempt === maxRetries) {
-          this.logger.error(
-            `[getJourneyTasks] Failed to get tasks for journey ${journeyId} after ${maxRetries} attempts:`,
-            error instanceof Error ? error.message : error,
-          );
-          throw error;
-        }
-        // 否则等待后重试
-        this.logger.debug(
-          `[getJourneyTasks] Error getting tasks for journey ${journeyId}, retrying (attempt ${attempt}/${maxRetries}):`,
-          error instanceof Error ? error.message : error,
-        );
-        await new Promise((resolve) => setTimeout(resolve, retryDelay * attempt));
-      }
-    }
-
-    // 理论上不会到达这里，但为了类型安全
-    throw new Error('获取行程任务失败');
+    // 委托给 JourneyTaskService
+    return this.journeyTaskService.getJourneyTasks(journeyId, userId);
   }
 
   /**
@@ -3441,93 +3386,13 @@ ${dateInstructions}`;
     userId: string,
     dto: SyncTasksRequestDto,
   ): Promise<SyncTasksResponseDto> {
-    // 检查所有权
-    const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-    if (!isOwner) {
-      throw new ForbiddenException('无权修改此行程');
-    }
-
-    // 性能优化：查询一次，后续复用
-    const itinerary = await this.itineraryRepository.findById(journeyId);
-    if (!itinerary) {
-      throw new NotFoundException(`行程不存在: ${journeyId}`);
-    }
-
-    let newTasks: TaskDto[] = [];
-
-    // 如果指定了模板ID，从模板获取任务
-    if (dto.templateId) {
-      const templateDetail = await this.getItineraryTemplateById(dto.templateId);
-      if (templateDetail && templateDetail.tasks) {
-        newTasks = templateDetail.tasks || [];
-      }
-    }
-
-    // 根据目的地生成任务（如果强制重新生成或没有任务）
-    if (dto.forceRegenerate || newTasks.length === 0) {
-      // TODO: 调用 AI 生成任务（这里先使用占位符）
-      const aiGeneratedTasks: TaskDto[] = [
-        {
-          title: `确认护照有效期及前往 ${itinerary.destination} 是否需要签证/入境许可`,
-          completed: false,
-          category: 'preparation',
-          destination: itinerary.destination,
-          links: [
-            {
-              label: 'IATA 入境政策查询',
-              url: 'https://www.iatatravelcentre.com/',
-            },
-          ],
-        },
-        {
-          title: `预订往返 ${itinerary.destination} 的核心交通（机票/火车），并关注托运行李政策`,
-          completed: false,
-          category: 'preparation',
-          destination: itinerary.destination,
-          links: [
-            {
-              label: 'OAG 行李政策汇总',
-              url: 'https://www.oag.com/baggage-allowance',
-            },
-          ],
-        },
-      ];
-
-      // 合并 AI 生成的任务
-      newTasks = [...newTasks, ...aiGeneratedTasks];
-    }
-
-    // 获取现有任务
-    const existingTasks = (await this.itineraryRepository.getTasks(journeyId)) as unknown as TaskDto[];
-
-    // 合并任务（去重，基于 title 或 autoKey）
-    const taskMap = new Map<string, TaskDto>();
-    
-    // 先添加现有任务
-    existingTasks.forEach((task) => {
-      const key = task.autoKey || task.title;
-      if (key && !taskMap.has(key)) {
-        taskMap.set(key, task);
-      }
-    });
-
-    // 添加新任务（如果不存在）
-    newTasks.forEach((task) => {
-      const key = task.autoKey || task.title;
-      if (key && !taskMap.has(key)) {
-        task.autoGenerated = true;
-        taskMap.set(key, task);
-      }
-    });
-
-    const mergedTasks = Array.from(taskMap.values());
-    await this.itineraryRepository.updateTasks(journeyId, mergedTasks as unknown as Array<Record<string, unknown>>);
-
-    return {
-      success: true,
-      tasks: mergedTasks,
-      message: '同步成功',
-    };
+    // 委托给 JourneyTaskService，传入 getItineraryTemplateById 方法
+    return this.journeyTaskService.syncJourneyTasks(
+      journeyId,
+      userId,
+      dto,
+      (templateId: string) => this.getItineraryTemplateById(templateId),
+    );
   }
 
   /**
@@ -3539,33 +3404,13 @@ ${dateInstructions}`;
     userId: string,
     dto: UpdateTaskRequestDto,
   ): Promise<UpdateTaskResponseDto> {
-    // 检查所有权
-    const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-    if (!isOwner) {
-      throw new ForbiddenException('无权修改此行程');
-    }
-
-    const updates: Partial<TaskDto> = {};
-    if (dto.title !== undefined) updates.title = dto.title;
-    if (dto.completed !== undefined) updates.completed = dto.completed;
-    if (dto.links !== undefined) updates.links = dto.links;
-
-    const tasks = await this.itineraryRepository.updateTask(
+    // 委托给 JourneyTaskService
+    return this.journeyTaskService.updateJourneyTask(
       journeyId,
       taskId,
-      updates as Partial<Record<string, unknown>>,
+      userId,
+      dto,
     );
-
-    const updatedTask = tasks.find((t) => (t as unknown as TaskDto).id === taskId) as unknown as TaskDto;
-    if (!updatedTask) {
-      throw new NotFoundException(`任务不存在: ${taskId}`);
-    }
-
-    return {
-      success: true,
-      task: updatedTask,
-      message: '更新成功',
-    };
   }
 
   /**
@@ -3576,18 +3421,8 @@ ${dateInstructions}`;
     taskId: string,
     userId: string,
   ): Promise<DeleteTaskResponseDto> {
-    // 检查所有权
-    const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-    if (!isOwner) {
-      throw new ForbiddenException('无权修改此行程');
-    }
-
-    await this.itineraryRepository.deleteTask(journeyId, taskId);
-
-    return {
-      success: true,
-      message: '删除成功',
-    };
+    // 委托给 JourneyTaskService
+    return this.journeyTaskService.deleteJourneyTask(journeyId, taskId, userId);
   }
 
   /**
@@ -3598,34 +3433,8 @@ ${dateInstructions}`;
     userId: string,
     dto: CreateTaskRequestDto,
   ): Promise<CreateTaskResponseDto> {
-    // 检查所有权
-    const isOwner = await this.itineraryRepository.checkOwnership(journeyId, userId);
-    if (!isOwner) {
-      throw new ForbiddenException('无权修改此行程');
-    }
-
-    const newTask: TaskDto = {
-      title: dto.title,
-      completed: false,
-      category: dto.category,
-      destination: dto.destination,
-      links: dto.links,
-      autoGenerated: false,
-      createdAt: Date.now(),
-    };
-
-    const tasks = await this.itineraryRepository.addTask(
-      journeyId,
-      newTask as unknown as Record<string, unknown>,
-    );
-
-    const createdTask = tasks[tasks.length - 1] as unknown as TaskDto;
-
-    return {
-      success: true,
-      task: createdTask,
-      message: '创建成功',
-    };
+    // 委托给 JourneyTaskService
+    return this.journeyTaskService.createJourneyTask(journeyId, userId, dto);
   }
 
   // ========== 准备任务模板管理方法 ==========
@@ -4020,37 +3829,8 @@ ${dateInstructions}`;
       payerId?: string;
     },
   ): Promise<GetExpenseListResponseDto> {
-    // 检查所有权
-    await this.ensureOwnership(journeyId, userId, '访问此行程的支出');
-
-    // 转换日期字符串为 Date 对象
-    const startDate = filters?.startDate ? new Date(filters.startDate) : undefined;
-    const endDate = filters?.endDate ? new Date(filters.endDate) : undefined;
-
-    // 获取支出列表
-    const expenses = await this.itineraryRepository.findExpensesByItineraryId(
-      journeyId,
-      {
-        category: filters?.category as any,
-        startDate,
-        endDate,
-        payerId: filters?.payerId,
-      },
-    );
-
-    // 转换为 DTO
-    const expenseDtos: ExpenseDto[] = expenses.map((expense) =>
-      this.entityToExpenseDto(expense),
-    );
-
-    // 计算总支出（使用行程的主要货币，如果需要可以按货币分组）
-    const total = await this.itineraryRepository.calculateTotalExpenses(journeyId);
-
-    return {
-      success: true,
-      data: expenseDtos,
-      total: Number(total),
-    };
+    // 委托给 JourneyExpenseService
+    return this.journeyExpenseService.getExpenses(journeyId, userId, filters);
   }
 
   /**
@@ -4061,51 +3841,8 @@ ${dateInstructions}`;
     dto: CreateExpenseDto,
     userId: string,
   ): Promise<CreateExpenseResponseDto> {
-    // 检查所有权
-    await this.ensureOwnership(journeyId, userId, '为此行程添加支出');
-
-    // 验证自定义分摊详情
-    if (dto.splitType === 'custom' && (!dto.splitDetails || Object.keys(dto.splitDetails).length === 0)) {
-      throw new BadRequestException('当分摊方式为custom时，必须提供splitDetails');
-    }
-
-    // 验证分摊详情总和等于金额
-    if (dto.splitType === 'custom' && dto.splitDetails) {
-      const totalSplit = Object.values(dto.splitDetails).reduce((sum, amount) => sum + amount, 0);
-      if (Math.abs(totalSplit - dto.amount) > 0.01) {
-        throw new BadRequestException('分摊详情的总和必须等于支出金额');
-      }
-    }
-
-    // 获取行程信息，确定默认货币
-    const itinerary = await this.itineraryRepository.findById(journeyId);
-    if (!itinerary) {
-      throw new NotFoundException(`行程不存在: ${journeyId}`);
-    }
-
-    // 确定支出日期（默认为今天）
-    const expenseDate = dto.date ? new Date(dto.date) : new Date();
-
-    // 创建支出
-    const expense = await this.itineraryRepository.createExpense(journeyId, {
-      title: dto.title,
-      amount: dto.amount,
-      currencyCode: dto.currencyCode || 'USD',
-      category: dto.category,
-      location: dto.location,
-      payerId: dto.payerId,
-      payerName: dto.payerName,
-      splitType: dto.splitType || 'none',
-      splitDetails: dto.splitDetails,
-      date: expenseDate,
-      notes: dto.notes,
-    });
-
-    return {
-      success: true,
-      data: this.entityToExpenseDto(expense),
-      message: '支出创建成功',
-    };
+    // 委托给 JourneyExpenseService
+    return this.journeyExpenseService.createExpense(journeyId, userId, dto);
   }
 
   /**
@@ -4117,56 +3854,13 @@ ${dateInstructions}`;
     dto: UpdateExpenseDto,
     userId: string,
   ): Promise<UpdateExpenseResponseDto> {
-    // 检查行程所有权
-    await this.ensureOwnership(journeyId, userId, '修改此行程的支出');
-
-    // 检查支出是否属于该行程
-    const expenseOwnership = await this.itineraryRepository.checkExpenseOwnership(
-      expenseId,
+    // 委托给 JourneyExpenseService
+    return this.journeyExpenseService.updateExpense(
       journeyId,
+      expenseId,
+      userId,
+      dto,
     );
-    if (!expenseOwnership) {
-      throw new NotFoundException(`支出不存在或不属于此行程: ${expenseId}`);
-    }
-
-    // 验证自定义分摊详情
-    if (dto.splitType === 'custom' && (!dto.splitDetails || Object.keys(dto.splitDetails).length === 0)) {
-      throw new BadRequestException('当分摊方式为custom时，必须提供splitDetails');
-    }
-
-    // 验证分摊详情总和等于金额
-    if (dto.splitType === 'custom' && dto.splitDetails && dto.amount) {
-      const totalSplit = Object.values(dto.splitDetails).reduce((sum, amount) => sum + amount, 0);
-      if (Math.abs(totalSplit - dto.amount) > 0.01) {
-        throw new BadRequestException('分摊详情的总和必须等于支出金额');
-      }
-    }
-
-    // 构建更新数据
-    const updateData: any = {};
-    if (dto.title !== undefined) updateData.title = dto.title;
-    if (dto.amount !== undefined) updateData.amount = dto.amount;
-    if (dto.currencyCode !== undefined) updateData.currencyCode = dto.currencyCode;
-    if (dto.category !== undefined) updateData.category = dto.category;
-    if (dto.location !== undefined) updateData.location = dto.location;
-    if (dto.payerId !== undefined) updateData.payerId = dto.payerId;
-    if (dto.payerName !== undefined) updateData.payerName = dto.payerName;
-    if (dto.splitType !== undefined) updateData.splitType = dto.splitType;
-    if (dto.splitDetails !== undefined) updateData.splitDetails = dto.splitDetails;
-    if (dto.date !== undefined) updateData.date = new Date(dto.date);
-    if (dto.notes !== undefined) updateData.notes = dto.notes;
-
-    // 更新支出
-    const updated = await this.itineraryRepository.updateExpense(expenseId, updateData);
-    if (!updated) {
-      throw new NotFoundException(`支出不存在: ${expenseId}`);
-    }
-
-    return {
-      success: true,
-      data: this.entityToExpenseDto(updated),
-      message: '支出更新成功',
-    };
   }
 
   /**
@@ -4177,28 +3871,12 @@ ${dateInstructions}`;
     expenseId: string,
     userId: string,
   ): Promise<DeleteExpenseResponseDto> {
-    // 检查行程所有权
-    await this.ensureOwnership(journeyId, userId, '删除此行程的支出');
-
-    // 检查支出是否属于该行程
-    const expenseOwnership = await this.itineraryRepository.checkExpenseOwnership(
-      expenseId,
+    // 委托给 JourneyExpenseService
+    return this.journeyExpenseService.deleteExpense(
       journeyId,
+      expenseId,
+      userId,
     );
-    if (!expenseOwnership) {
-      throw new NotFoundException(`支出不存在或不属于此行程: ${expenseId}`);
-    }
-
-    // 删除支出
-    const deleted = await this.itineraryRepository.deleteExpense(expenseId);
-    if (!deleted) {
-      throw new NotFoundException(`支出不存在: ${expenseId}`);
-    }
-
-    return {
-      success: true,
-      message: '支出删除成功',
-    };
   }
 
   /**
@@ -4466,394 +4144,12 @@ ${activitiesText}
     userId: string,
     dto: JourneyAssistantChatRequestDto,
   ): Promise<JourneyAssistantChatResponseDto> {
-    try {
-      // 获取行程详情（确保加载关联数据）
-      const itinerary = await this.itineraryRepository.findById(journeyId);
-
-      if (!itinerary) {
-        throw new NotFoundException(`行程不存在: ${journeyId}`);
-      }
-
-      // 检查所有权
-      if (itinerary.userId !== userId) {
-        throw new ForbiddenException('无权访问此行程');
-      }
-
-      // 验证数据完整性（repository 层已经处理了备用查询）
-      const hasDays = itinerary.days && Array.isArray(itinerary.days) && itinerary.days.length > 0;
-      this.logger.debug(
-        `[AI Assistant] 数据加载结果: days是数组=${Array.isArray(itinerary.days)}, days长度=${itinerary.days?.length || 0}`,
-      );
-      
-      if (hasDays) {
-        const firstDayActivities = itinerary.days[0].activities?.length || 0;
-        this.logger.debug(
-          `[AI Assistant] 第1天活动数量: ${firstDayActivities}`,
-        );
-      } else {
-        this.logger.warn(
-          `[AI Assistant] 警告：行程 ${journeyId} 没有days数据（repository层已尝试备用查询）`,
-        );
-      }
-
-      // 转换行程数据为前端格式（包含完整信息）
-      const itineraryDetail = await this.entityToDetailWithTimeSlotsDto(itinerary);
-      const destinationName = itineraryDetail.destination || '未知目的地';
-
-      // 如果days为空，尝试通过批量获取活动接口获取数据
-      if (!itineraryDetail.days || itineraryDetail.days.length === 0) {
-        this.logger.warn(
-          `[AI Assistant] 行程 ${journeyId} 没有days数据，尝试通过批量接口获取活动`,
-        );
-        try {
-          const activitiesResult = await this.batchGetJourneyActivities(
-            journeyId,
-            undefined, // 获取所有活动
-            userId,
-          );
-          this.logger.debug(
-            `[AI Assistant] 批量接口返回的活动数量: ${activitiesResult.totalCount}, 天数分组数: ${Object.keys(activitiesResult.activities).length}`,
-          );
-          
-          // 如果通过批量接口获取到了活动，说明days数据可能在其他地方
-          // 但由于无法重构完整的days结构，我们只能记录警告
-          if (activitiesResult.totalCount > 0) {
-            this.logger.warn(
-              `[AI Assistant] 发现 ${activitiesResult.totalCount} 个活动，但无法关联到days结构。可能需要重建days数据。`,
-            );
-          }
-        } catch (error) {
-          this.logger.error(
-            `[AI Assistant] 批量获取活动失败: ${error instanceof Error ? error.message : error}`,
-          );
-        }
-      }
-
-      // 验证数据完整性（用于调试）
-      const daysWithCoordinates = itineraryDetail.days?.filter(
-        (day) => day.timeSlots?.some((slot) => slot.coordinates),
-      ) || [];
-      const totalTimeSlots = itineraryDetail.days?.reduce(
-        (sum, day) => sum + (day.timeSlots?.length || 0),
-        0,
-      ) || 0;
-      const timeSlotsWithCoordinates = itineraryDetail.days?.reduce(
-        (sum, day) =>
-          sum +
-          (day.timeSlots?.filter((slot) => slot.coordinates)?.length || 0),
-        0,
-      ) || 0;
-
-      this.logger.debug(
-        `[AI Assistant] 行程数据完整性检查: 目的地=${destinationName}, 天数=${itineraryDetail.daysCount}, 总时间段=${totalTimeSlots}, 有坐标的时间段=${timeSlotsWithCoordinates}, 有坐标的天数=${daysWithCoordinates.length}`,
-      );
-
-      // 构建行程 JSON 数据（用于上下文）
-      // 添加更详细的日志，帮助调试数据传递问题
-      if (totalTimeSlots === 0) {
-        this.logger.warn(
-          `[AI Assistant] 警告：行程 ${journeyId} 没有时间段数据，可能影响AI分析`,
-        );
-        // 记录原始实体数据用于调试
-        this.logger.debug(
-          `[AI Assistant] 原始实体数据: days字段类型=${typeof (itinerary as any).days}, days是数组=${Array.isArray((itinerary as any).days)}, days长度=${(itinerary as any).days?.length || 0}`,
-        );
-        // 检查是否有活动数据
-        if ((itinerary as any).days && Array.isArray((itinerary as any).days)) {
-          const totalActivitiesInEntity = (itinerary as any).days.reduce(
-            (sum: number, day: any) => sum + (Array.isArray(day.activities) ? day.activities.length : 0),
-            0,
-          );
-          this.logger.debug(
-            `[AI Assistant] 实体中的活动总数: ${totalActivitiesInEntity}`,
-          );
-        }
-      }
-
-      const planJson = JSON.stringify(itineraryDetail, null, 2);
-      
-      // 记录传递给AI的数据大小（用于调试）
-      this.logger.debug(
-        `[AI Assistant] 传递给AI的JSON数据大小: ${planJson.length} 字符, 天数=${itineraryDetail.daysCount}, 时间段=${totalTimeSlots}`,
-      );
-      
-      // 如果数据为空，记录完整的itineraryDetail结构用于调试
-      if (totalTimeSlots === 0) {
-        this.logger.warn(
-          `[AI Assistant] 完整itineraryDetail结构: ${JSON.stringify(itineraryDetail, null, 2).substring(0, 1000)}`,
-        );
-      }
-
-      // 生成对话ID（如果未提供）
-      const conversationId = dto.conversationId || crypto.randomUUID();
-      const language = dto.language || 'zh-CN';
-
-      // 检测是否为首次对话（没有 conversationId 且消息为空或特定欢迎触发词）
-      const isFirstMessage = !dto.conversationId && (
-        !dto.message.trim() || 
-        /^(你好|您好|hi|hello|开始|start)$/i.test(dto.message.trim())
-      );
-
-      // 如果是首次对话，返回预设的欢迎语
-      if (isFirstMessage) {
-        // 检查是否有行程数据
-        const hasDaysData = itineraryDetail.days && itineraryDetail.days.length > 0;
-        const daysCount = itineraryDetail.daysCount || 0;
-        
-        let welcomeMessage = `尊敬的贵宾，您好。
-
-我是 **Nara**，您的专属旅行管家。我已审阅了您前往 **${destinationName}** 的行程安排。`;
-
-        if (!hasDaysData || daysCount === 0) {
-          welcomeMessage += `\n\n**注意**：当前行程尚未包含具体的日程安排。`;
-        } else {
-          welcomeMessage += `行程共 **${daysCount}** 天。`;
-        }
-
-        welcomeMessage += `\n\n基于我 20 年的高端定制旅行经验，我将为您提供以下专业服务：
-
-**核心服务内容：**
-
-- **路线优化分析**：基于地理位置与交通网络，评估行程效率，提供具体优化方案
-- **深度本地洞察**：分享地道游览方式、最佳时间安排、餐厅预约要求等实用信息
-- **风险识别与预案**：主动识别潜在问题（如闭馆日、天气影响等），并提供备选方案
-- **预算匹配评估**：分析行程安排与预算的匹配度，提供务实建议`;
-
-        if (!hasDaysData || daysCount === 0) {
-          welcomeMessage += `\n\n当您完成行程安排后，我可以为您提供更详细的路线优化和实用建议。`;
-        } else {
-          welcomeMessage += `\n\n您可随时提出任何关于行程的疑问，我将以专业、周到的服务为您解答。`;
-        }
-
-        // 保存欢迎消息（作为assistant消息）
-        await this.itineraryRepository.saveConversationMessage(
-          conversationId,
-          journeyId,
-          userId,
-          'assistant',
-          welcomeMessage,
-        );
-
-        return {
-          success: true,
-          response: welcomeMessage,
-          conversationId,
-          message: '欢迎语已发送',
-        };
-      }
-
-      // 保存用户消息
-      await this.itineraryRepository.saveConversationMessage(
-        conversationId,
-        journeyId,
-        userId,
-        'user',
-        dto.message,
-      );
-
-      // 获取对话历史（用于上下文）
-      const historyMessages = await this.itineraryRepository.getConversationHistory(
-        conversationId,
-        20, // 最多加载最近20条消息
-      );
-
-      // 构建系统提示词
-      const systemMessage = `身份设定：
-
-你是 **Nara**，一位拥有 20 年高端定制旅行经验的首席旅行管家 (Senior Concierge)。你精通全球地理、复杂的交通物流、米其林餐饮体系以及各地深度的文化禁忌。
-
-**重要**：在任何回复中，你都必须以"Nara"的身份出现。这是你的名字，你可以说"我是 Nara"或"作为您的专属旅行管家 Nara"。严禁使用其他品牌名称或身份。
-
-当前上下文：
-
-用户正在查阅前往 **${destinationName}** 的行程。
-
-完整行程数据：${planJson}
-
-**重要提示**：
-- 如果行程数据中的 days 数组为空或所有 timeSlots 为空，说明行程尚未包含具体的活动安排
-- 在这种情况下，你可以：
-  a. 建议用户先添加活动到行程中
-  b. 提供目的地的一般性建议和推荐
-  c. 如果用户提出修改需求，礼貌地说明需要先有活动才能进行修改
-
-你的核心职责与服务标准：
-
-1. **专家级路线优化 (Logistical Precision)**：
-   - 当用户询问路线是否合理时，严禁使用模棱两可的回答。
-   - **必须**基于地理位置分析景点分布。如果发现行程存在"折返跑"或效率低下，请直言不讳地指出，并提供**具体的优化方案**。
-   - 在建议路线时，必须附带**具体的交通方式及预估耗时**（例如："建议打车，约 15 分钟，费用约 2000 日元，因为该路段地铁换乘复杂"）。
-
-2. **深度本地洞察 (Insider Knowledge)**：
-   - 不要只介绍景点是什么，要告诉用户**怎么玩才地道**（例如："不要上午去，下午 4 点的光线最适合拍照"）。
-   - 在推荐餐厅时，需提及预约难度或着装要求。
-
-3. **批判性思维 (Critical Analysis)**：
-   - 如果用户的预算与行程不匹配（例如经济型预算想吃顶级怀石料理），请礼貌但务实地提醒。
-   - 主动识别行程中的隐形风险（如：该地区周一博物馆闭馆、雨季备选方案等）。
-
-4. **回复格式规范**：
-   - **语气**：专业、沉稳、周到、有条理。使用"您"而非"你"。拒绝过度活泼、幼稚或过于随意的语气。保持高端服务管家的专业姿态。
-   - **身份一致性**：你的名字是 Nara。可以适当提及"我是 Nara"或"作为您的专属旅行管家 Nara"，但不要过度重复。严禁在回复中自称其他品牌或身份。
-   - **排版**：充分使用 Markdown 格式。关键信息（时间、地点、费用、重要提示）必须**加粗**。复杂建议使用有序或无序列表。段落之间适当留白，提高可读性。
-   - **路线展示**：使用箭头符号（**地点A → 地点B → 地点C**）清晰展示流线。
-   - **回复结构**：对于复杂问题，使用清晰的段落结构，先总结要点，再展开细节。
-
-5. **行程修改能力 (Itinerary Modification)**：
-   - 当用户提出修改行程的需求时（如："把第一天的第一个活动改成10点开始"、"优化第一天的路线"、"删除某个活动"等），你需要：
-     a. **识别修改意图**：准确理解用户想要修改的内容（活动、时间、地点、顺序等）
-     b. **理解修改原因**：分析用户修改的意图和原因
-     c. **生成修改建议**：生成结构化的修改建议（JSON格式）
-     d. **文本说明**：在文本回复中清晰说明修改内容和原因
-   
-   - **修改类型**：
-     - modify：修改现有活动（时间、标题、地点等）
-     - add：在指定天数添加新活动
-     - delete：删除指定活动
-     - reorder：重新排列活动的顺序（路线优化）
-   
-   - **修改建议格式**（必须在回复末尾以JSON代码块形式提供）：
-     使用三个反引号包裹JSON代码块，格式如下：
-     [JSON代码块开始]
-     {
-       "modifications": [
-         {
-           "type": "modify",
-           "target": {
-             "day": 1,
-             "activityId": "activity-id-from-plan-json"
-           },
-           "changes": {
-             "time": "10:00"
-           },
-           "reason": "将活动时间调整为10:00，提供更充足的准备时间"
-         }
-       ]
-     }
-     [JSON代码块结束]
-   
-   - **重要规则**：
-     - 必须从提供的行程JSON数据中获取准确的 activityId 或 dayId
-     - 如果无法确定具体的ID，使用 day 序号（1-based）和活动在当天的位置
-     - 修改建议必须与文本回复一致
-     - 在提供修改建议前，先询问用户是否确认执行修改
-     - **如果行程中没有活动数据（timeSlots为空）**：
-       - 不要生成修改建议
-       - 礼貌地说明需要先添加活动才能进行修改
-       - 可以提供添加活动的建议
-
-6. **回复示例风格**：
-   - ✅ 正确："尊敬的贵宾，我是 Nara。基于您这份 **3天2晚瑞士卢塞恩** 的行程，我为您梳理了以下亮点..."
-   - ✅ 正确："作为您的专属旅行管家 Nara，我建议..."
-   - ✅ 正确（修改场景）："尊敬的贵宾，我理解您希望将第一天的第一个活动调整为 **10:00** 开始。根据您的行程安排，这可以让您有更充足的准备时间。\n\n**修改建议：**\n\`\`\`json\n{...}\n\`\`\`\n\n请确认是否执行此修改？"
-   - ❌ 错误："我是 WanderAI 助手..."（错误品牌）
-   - ❌ 错误："哈哈，这个行程不错！"（过于随意）
-
-请始终使用简体中文回答，保持专业、沉稳、周到的管家服务姿态。`;
-
-      // 构建消息数组（包含系统提示、历史对话和当前消息）
-      const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
-        { role: 'system', content: systemMessage },
-      ];
-
-      // 添加历史消息（排除系统消息和当前用户消息）
-      for (const historyMsg of historyMessages) {
-        if (historyMsg.role === 'user' || historyMsg.role === 'assistant') {
-          messages.push({
-            role: historyMsg.role,
-            content: historyMsg.content,
-          });
-        }
-      }
-
-      // 添加当前用户消息
-      messages.push({ role: 'user', content: dto.message });
-
-      // 调用 LLM 生成回复
-      const response = await this.llmService.chatCompletion({
-        provider: 'deepseek',
-        model: 'deepseek-chat',
-        messages,
-        temperature: 0.7,
-        maxOutputTokens: 2000, // 增加token限制，支持更详细的格式化回复和修改建议
-      });
-
-      const responseText = response.trim();
-      
-      // 尝试从回复中提取修改建议（JSON格式）
-      // 只有在有活动数据时才提取修改建议
-      let modifications: ModificationSuggestionDto[] | undefined;
-      const hasActivities = totalTimeSlots > 0;
-
-      if (hasActivities) {
-        try {
-          // 尝试从回复中提取 JSON 代码块
-          const jsonMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/);
-          if (jsonMatch && jsonMatch[1]) {
-            const jsonData = JSON.parse(jsonMatch[1].trim());
-            if (jsonData.modifications && Array.isArray(jsonData.modifications)) {
-              // 验证并转换修改建议
-              const validModifications: ModificationSuggestionDto[] = [];
-              for (const mod of jsonData.modifications) {
-                if (
-                  mod.type &&
-                  ['modify', 'add', 'delete', 'reorder'].includes(mod.type) &&
-                  mod.target
-                ) {
-                  validModifications.push(mod as ModificationSuggestionDto);
-                }
-              }
-              if (validModifications.length > 0) {
-                modifications = validModifications;
-                this.logger.debug(
-                  `[AI Assistant] 提取到 ${modifications.length} 个修改建议`,
-                );
-              }
-            }
-          }
-        } catch (error) {
-          // 如果解析失败，记录日志但不影响正常回复
-          this.logger.debug(
-            `[AI Assistant] 未能从回复中提取修改建议: ${error instanceof Error ? error.message : error}`,
-          );
-        }
-      } else {
-        this.logger.debug(
-          `[AI Assistant] 行程没有活动数据（总时间段=${totalTimeSlots}），跳过修改建议提取`,
-        );
-      }
-
-      // 保存AI回复
-      await this.itineraryRepository.saveConversationMessage(
-        conversationId,
-        journeyId,
-        userId,
-        'assistant',
-        responseText,
-        modifications ? { modifications } : undefined,
-      );
-
-      return {
-        success: true,
-        response: responseText,
-        conversationId,
-        message: '回复成功',
-        modifications,
-      };
-    } catch (error) {
-      this.logger.error(
-        `Failed to chat with assistant for journey ${journeyId}`,
-        error,
-      );
-
-      if (error instanceof NotFoundException || error instanceof ForbiddenException) {
-        throw error;
-      }
-
-      throw new BadRequestException(
-        `助手回复失败: ${error instanceof Error ? error.message : '未知错误'}`,
-      );
+    // 委托给 JourneyAssistantService
+    const itinerary = await this.itineraryRepository.findById(journeyId);
+    if (!itinerary) {
+      throw new NotFoundException(`行程不存在: ${journeyId}`);
     }
+    return this.journeyAssistantService.chat(journeyId, userId, dto, itinerary);
   }
 
   /**
@@ -4864,40 +4160,12 @@ ${activitiesText}
     conversationId: string,
     userId: string,
   ) {
-    // 检查行程所有权
-    const itinerary = await this.itineraryRepository.findById(journeyId);
-    if (!itinerary) {
-      throw new NotFoundException(`行程不存在: ${journeyId}`);
-    }
-
-    if (itinerary.userId !== userId) {
-      throw new ForbiddenException('无权访问此行程的对话历史');
-    }
-
-    // 获取对话历史
-    const messages = await this.itineraryRepository.getConversationHistory(
+    // 委托给 JourneyAssistantService
+    return this.journeyAssistantService.getConversationHistory(
+      journeyId,
       conversationId,
+      userId,
     );
-
-    // 验证对话属于此行程
-    if (messages.length > 0 && messages[0].journeyId !== journeyId) {
-      throw new ForbiddenException('对话不属于此行程');
-    }
-
-    // 转换为DTO
-    return {
-      success: true,
-      conversationId,
-      messages: messages.map((msg) => ({
-        id: msg.id,
-        role: msg.role,
-        content: msg.content,
-        sequence: msg.sequence,
-        metadata: msg.metadata || undefined,
-        createdAt: msg.createdAt,
-      })),
-      totalCount: messages.length,
-    };
   }
 }
 
