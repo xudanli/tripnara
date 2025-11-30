@@ -10,6 +10,8 @@
 
 **缓存**: 位置信息会缓存 24 小时，相同活动+目的地+类型的请求会直接返回缓存结果
 
+**AI生成策略**: 系统使用专业的旅行助手AI，根据活动名称、坐标与目的地生成高度匹配的地点详情。所有信息必须与【活动名称 + 目的地 + 坐标】完全一致，内容以"行动导向"为主，清晰说明"如何到达、怎么进入、怎么使用、需要注意什么"。
+
 ---
 
 ## 1. 生成单个活动位置信息
@@ -59,21 +61,24 @@ interface GenerateLocationResponse {
 }
 
 interface LocationInfo {
-  chineseName: string;        // 中文名称
-  localName: string;          // 当地语言名称
-  chineseAddress: string;      // 中文地址
-  localAddress: string;       // 当地语言地址
-  transportInfo: string;       // 详细交通信息
-  openingHours: string;       // 开放时间
-  ticketPrice: string;         // 门票价格（详细说明）
-  visitTips: string;          // 游览建议
-  nearbyAttractions?: string; // 周边推荐（可选）
-  contactInfo?: string;        // 联系方式（可选）
-  category: string;            // 景点类型
+  chineseName: string;        // 中文名称（与活动内容精确匹配，不能泛泛）
+  localName: string;          // 当地语言名称（如有官方多语言译名请全部补充）
+  chineseAddress: string;      // 中文地址（包含门牌号、街道、行政区、邮编，若无门牌用最近公共建筑或官方入口）
+  localAddress: string;       // 当地语言详细地址（格式同上）
+  transportInfo: string;       // 详细交通信息（必须可执行）：地铁/轻轨（具体站名+出口+步行时间）、公交（线路号+下车站名）、自驾（停车场名称+费用+入口导航点）、步行路线（从最近地标/车站出发的具体指引）
+  openingHours: string;       // 开放时间（按季节/节假日区分，包含最不拥挤时段、避暑/避雨建议）
+  ticketPrice: string;         // 门票价格（详细说明：成人/儿童/老人价格，是否需预约、是否有免费时段、是否接受电子票）
+  visitTips: string;          // 游览建议（以行动为主：怎么走、怎么拍、怎么体验，体力需求、携带物品、避坑提示）
+  nearbyAttractions?: string; // 周边推荐（可选）：临近景点、服务点、便利店、洗手间、补给点
+  contactInfo?: string;        // 联系方式（可选）：官方电话、邮箱、官网
+  category: string;            // 景点类型（必须与活动类型匹配）
   rating: number;              // 评分 (1-5)
-  visitDuration: string;      // 建议游览时长
-  bestTimeToVisit: string;     // 最佳游览时间
+  visitDuration: string;      // 建议游览时长（分钟）
+  bestTimeToVisit: string;     // 最佳游览时间（结合季节、天气、人群情况）
   accessibility?: string;      // 无障碍设施信息（可选）
+  dressingTips?: string;       // 穿搭建议（可选）：温度范围、风雨情况、鞋子类型、保暖层级，室内/宗教场所的着装礼仪
+  culturalTips?: string;       // 当地文化提示（可选）：小费习惯、排队礼仪、宗教禁忌、拍照限制，与该目的地相关的高频误区提醒
+  bookingInfo?: string;        // 预订信息（可选，强执行性）：是否需要提前预约、推荐预订渠道（官网/APP/电话）、建议提前多久预订、是否有快速通道/免费取消等政策
 }
 ```
 
@@ -97,7 +102,10 @@ interface LocationInfo {
     "rating": 4.8,
     "visitDuration": "2-3小时",
     "bestTimeToVisit": "上午10点前，晴朗天气",
-    "accessibility": "请确认无障碍设施"
+    "accessibility": "请确认无障碍设施",
+    "dressingTips": "建议穿着舒适的步行鞋和轻便外套，山区天气变化快，建议携带雨具。海拔3020米，需注意保暖，建议穿多层衣物便于调节",
+    "culturalTips": "瑞士人注重准时，建议提前到达。进入缆车站需保持安静，不要大声喧哗。当地习惯给小费，建议准备零钱。注意当地禁忌和习俗",
+    "bookingInfo": "建议提前预订，可通过官网或电话预约，旺季需提前1-2周预订。持Swiss Travel Pass可享受50%折扣，建议提前查询优惠政策"
   }
 }
 ```
@@ -329,21 +337,24 @@ interface BatchActivity {
 }
 
 interface LocationInfo {
-  chineseName: string;
-  localName: string;
-  chineseAddress: string;
-  localAddress: string;
-  transportInfo: string;
-  openingHours: string;
-  ticketPrice: string;
-  visitTips: string;
-  nearbyAttractions?: string;
-  contactInfo?: string;
-  category: string;
-  rating: number;
-  visitDuration: string;
-  bestTimeToVisit: string;
-  accessibility?: string;
+  chineseName: string;        // 中文名称（与活动内容精确匹配）
+  localName: string;          // 当地语言名称
+  chineseAddress: string;      // 中文地址（包含门牌号、街道、行政区、邮编）
+  localAddress: string;       // 当地语言详细地址
+  transportInfo: string;       // 详细交通信息（必须可执行）
+  openingHours: string;       // 开放时间（按季节/节假日区分）
+  ticketPrice: string;         // 门票价格（详细说明）
+  visitTips: string;          // 游览建议（以行动为主）
+  nearbyAttractions?: string; // 周边推荐
+  contactInfo?: string;        // 联系方式
+  category: string;            // 景点类型
+  rating: number;              // 评分 (1-5)
+  visitDuration: string;      // 建议游览时长
+  bestTimeToVisit: string;     // 最佳游览时间
+  accessibility?: string;      // 无障碍设施信息
+  dressingTips?: string;       // 穿搭建议
+  culturalTips?: string;       // 当地文化提示
+  bookingInfo?: string;        // 预订信息（强执行性）
 }
 
 interface BatchLocationResult {
@@ -422,6 +433,16 @@ const results = await generateLocationBatch([
 3. **批量限制**: 建议每次批量请求不超过 10 个活动
 4. **坐标精度**: 坐标用于 AI 生成更准确的位置信息
 5. **语言支持**: 根据目的地自动识别主要语言（如瑞士→德语+法语）
+
+### AI生成要求
+
+系统使用专业的旅行助手AI生成位置信息，遵循以下核心要求：
+
+1. **信息一致性**: 所有地点信息（名称、地址、交通、开放时间等）必须与【活动名称 + 目的地 + 坐标】完全一致
+2. **地址处理**: 若坐标在偏移区或无官方门牌号，会根据附近地标、建筑或官方登记点提供最接近的可识别地址
+3. **行动导向**: 内容以"行动导向"为主，清晰说明"如何到达、怎么进入、怎么使用、需要注意什么"
+4. **信息完整性**: 包含10个维度的详细信息（名称、地址、交通、开放时间、价格、游览建议、周边推荐、穿搭建议、文化提示、预订信息）
+5. **真实性**: 所有信息必须真实、具体、无虚构感，拒绝泛泛而谈的描述
 
 ### 错误处理建议
 

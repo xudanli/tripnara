@@ -27,6 +27,15 @@ type CreateItineraryInput = {
     name: string;
   };
   preferences?: Record<string, unknown>;
+  practicalInfo?: {
+    weather?: string;
+    safety?: string;
+    plugType?: string;
+    currency?: string;
+    culturalTaboos?: string;
+    packingList?: string;
+    [key: string]: unknown;
+  };
   status?: 'draft' | 'published' | 'archived';
   daysData: Array<{
     day: number;
@@ -55,6 +64,7 @@ type UpdateItineraryInput = Partial<
     | 'currency'
     | 'currencyInfo'
     | 'preferences'
+    | 'practicalInfo'
     | 'status'
   >
 >;
@@ -87,6 +97,7 @@ export class ItineraryRepository {
       currency: input.currency,
       currencyInfo: input.currencyInfo,
       preferences: input.preferences,
+      practicalInfo: input.practicalInfo,
       status: input.status || 'draft',
     });
 
@@ -312,6 +323,9 @@ export class ItineraryRepository {
     if (input.preferences !== undefined) {
       updateData.preferences = input.preferences;
     }
+    if (input.practicalInfo !== undefined) {
+      updateData.practicalInfo = input.practicalInfo;
+    }
     if (input.status !== undefined) {
       updateData.status = input.status;
     }
@@ -354,6 +368,15 @@ export class ItineraryRepository {
         name: string;
       };
       preferences?: Record<string, unknown>;
+      practicalInfo?: {
+        weather?: string;
+        safety?: string;
+        plugType?: string;
+        currency?: string;
+        culturalTaboos?: string;
+        packingList?: string;
+        [key: string]: unknown;
+      };
       status?: 'draft' | 'published' | 'archived';
       daysData?: Array<{
         day: number;
@@ -381,6 +404,7 @@ export class ItineraryRepository {
     if (input.currency !== undefined) updateData.currency = input.currency;
     if (input.currencyInfo !== undefined) updateData.currencyInfo = input.currencyInfo;
     if (input.preferences !== undefined) updateData.preferences = input.preferences;
+    if (input.practicalInfo !== undefined) updateData.practicalInfo = input.practicalInfo;
     if (input.status !== undefined) updateData.status = input.status;
 
     if (Object.keys(updateData).length > 0) {

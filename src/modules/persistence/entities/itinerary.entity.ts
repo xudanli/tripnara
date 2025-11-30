@@ -61,6 +61,17 @@ export class ItineraryEntity {
   @Column({ type: 'jsonb', nullable: true })
   safetyNotice?: Record<string, unknown>;
 
+  @Column({ type: 'jsonb', nullable: true })
+  practicalInfo?: {
+    weather?: string;
+    safety?: string;
+    plugType?: string;
+    currency?: string;
+    culturalTaboos?: string;
+    packingList?: string;
+    [key: string]: unknown;
+  }; // 实用信息（天气、安全、插座、汇率、文化禁忌、打包清单等）
+
   @Column({
     type: 'varchar',
     length: 20,

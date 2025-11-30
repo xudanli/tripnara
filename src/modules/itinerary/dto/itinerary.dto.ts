@@ -269,6 +269,29 @@ export class ItineraryDataDto {
     symbol: string;
     name: string;
   };
+
+  @ApiPropertyOptional({
+    description: '实用信息（天气、安全、插座、汇率、文化禁忌、打包清单等）',
+    example: {
+      weather: '未来一周天气预报摘要',
+      safety: '安全提醒和注意事项',
+      plugType: 'Type C, 220V',
+      currency: 'CHF，1 CHF ≈ 8 CNY',
+      culturalTaboos: '文化禁忌和注意事项',
+      packingList: '针对性打包清单',
+    },
+  })
+  @IsOptional()
+  @IsObject()
+  practicalInfo?: {
+    weather?: string;
+    safety?: string;
+    plugType?: string;
+    currency?: string;
+    culturalTaboos?: string;
+    packingList?: string;
+    [key: string]: unknown;
+  };
 }
 
 export class GenerateItineraryResponseDto {
@@ -402,6 +425,29 @@ export class UpdateItineraryRequestDto {
   @ValidateNested()
   @Type(() => ItineraryPreferencesDto)
   preferences?: ItineraryPreferencesDto;
+
+  @ApiPropertyOptional({
+    description: '实用信息（天气、安全、插座、汇率、文化禁忌、打包清单等）',
+    example: {
+      weather: '未来一周天气预报摘要',
+      safety: '安全提醒和注意事项',
+      plugType: 'Type C, 220V',
+      currency: 'CHF，1 CHF ≈ 8 CNY',
+      culturalTaboos: '文化禁忌和注意事项',
+      packingList: '针对性打包清单',
+    },
+  })
+  @IsOptional()
+  @IsObject()
+  practicalInfo?: {
+    weather?: string;
+    safety?: string;
+    plugType?: string;
+    currency?: string;
+    culturalTaboos?: string;
+    packingList?: string;
+    [key: string]: unknown;
+  };
 
   @ApiPropertyOptional({
     description: '状态',
@@ -692,6 +738,29 @@ export class ItineraryDetailWithTimeSlotsDto {
   })
   preferences?: ItineraryPreferencesDto;
 
+  @ApiPropertyOptional({
+    description: '实用信息（天气、安全、插座、汇率、文化禁忌、打包清单等）',
+    example: {
+      weather: '未来一周天气预报摘要',
+      safety: '安全提醒和注意事项',
+      plugType: 'Type C, 220V',
+      currency: 'CHF，1 CHF ≈ 8 CNY',
+      culturalTaboos: '文化禁忌和注意事项',
+      packingList: '针对性打包清单',
+    },
+  })
+  @IsOptional()
+  @IsObject()
+  practicalInfo?: {
+    weather?: string;
+    safety?: string;
+    plugType?: string;
+    currency?: string;
+    culturalTaboos?: string;
+    packingList?: string;
+    [key: string]: unknown;
+  };
+
   @ApiProperty({
     description: '状态',
     enum: ['draft', 'published', 'archived'],
@@ -734,6 +803,29 @@ export class ItineraryDataWithTimeSlotsDto {
   @IsOptional()
   @IsArray()
   itinerary?: Array<Record<string, unknown>>;
+
+  @ApiPropertyOptional({
+    description: '实用信息（天气、安全、插座、汇率、文化禁忌、打包清单等）',
+    example: {
+      weather: '未来一周天气预报摘要',
+      safety: '安全提醒和注意事项',
+      plugType: 'Type C, 220V',
+      currency: 'CHF，1 CHF ≈ 8 CNY',
+      culturalTaboos: '文化禁忌和注意事项',
+      packingList: '针对性打包清单',
+    },
+  })
+  @IsOptional()
+  @IsObject()
+  practicalInfo?: {
+    weather?: string;
+    safety?: string;
+    plugType?: string;
+    currency?: string;
+    culturalTaboos?: string;
+    packingList?: string;
+    [key: string]: unknown;
+  };
 
   @ApiPropertyOptional({ description: '推荐信息' })
   @IsOptional()

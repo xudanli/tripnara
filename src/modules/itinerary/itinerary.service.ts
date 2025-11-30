@@ -110,10 +110,25 @@ interface AiItineraryResponse {
       location?: unknown; // LLM可能返回各种格式，使用unknown类型
       notes?: string;
       cost?: number;
+      details?: {
+        highlights?: string[];
+        insiderTip?: string;
+        bookingSignal?: string;
+        [key: string]: unknown;
+      };
     }>;
   }>;
   totalCost?: number | string; // 支持数字或字符串
   summary?: string;
+  practicalInfo?: {
+    weather?: string;
+    safety?: string;
+    plugType?: string;
+    currency?: string;
+    culturalTaboos?: string;
+    packingList?: string;
+    [key: string]: unknown;
+  };
 }
 
 @Injectable()
@@ -438,6 +453,19 @@ ${dateInstructions}`;
 
     prompt += `
 
+【实时信息要求】
+
+在生成行程前，请考虑以下实时信息（如果无法获取，请基于常识和一般规律）：
+
+1. **天气信息**：查询 ${destination} 未来一周的天气预报，根据天气情况调整活动安排
+2. **安全新闻**：了解 ${destination} 近期的安全状况和旅行建议，确保行程安全
+
+【行程结构要求】
+
+1. 生成 ${days} 天的完整行程
+2. 每天安排 **3-4个活动**，确保行程充实但不紧张
+3. 活动时间安排要合理，避免冲突，留出适当的休息和用餐时间
+
 【输出格式】
 
 请按照以下格式返回JSON数据：
@@ -455,13 +483,26 @@ ${dateInstructions}`;
           "duration": 120,
           "location": {"lat": 34.9949, "lng": 135.7850},
           "notes": "从停车场出发，沿标记清晰的火山步道前行约2公里，途中可观察火山岩地貌和地热现象。建议穿着防滑徒步鞋，携带充足饮水和防晒用品。步道前半段较平缓，后半段需小心碎石路面。最佳游览时间为上午9-11点，避开正午高温。适合有一定体力的游客，不适合老人和幼儿。避坑要点：不要偏离标记步道，注意脚下安全。",
-          "cost": 400
+          "cost": 400,
+          "details": {
+            "highlights": ["近距离观察活火山地貌", "体验地热现象", "欣赏裂谷壮丽景观"],
+            "insiderTip": "日落时分在观景台拍照最美，光线柔和且游客较少",
+            "bookingSignal": "无需预约，但建议避开周末高峰期"
+          }
         }
       ]
     }
   ],
   "totalCost": 8000,
-  "summary": "行程摘要"
+  "summary": "行程摘要",
+  "practicalInfo": {
+    "weather": "未来一周天气预报摘要",
+    "safety": "安全提醒和注意事项",
+    "plugType": "当地插座类型（如：Type C, 220V）",
+    "currency": "当地货币及汇率（如：CHF，1 CHF ≈ 8 CNY）",
+    "culturalTaboos": "文化禁忌和注意事项",
+    "packingList": "针对性打包清单"
+  }
 }
 
 【活动字段说明】
@@ -475,6 +516,7 @@ ${dateInstructions}`;
 5. **"location"**: 活动地点坐标（JSON对象，格式：{"lat": 纬度, "lng": 经度}）
 6. **"type"**: 活动类型（attraction/meal/hotel/shopping/transport/ocean，对应：景点/美食/住宿/购物/交通/海洋活动）
 7. **"cost"**: 预估费用（数字）
+8. **"details"**: 详细信息对象（可选，但强烈建议包含，见下方详细要求）
 
 【活动标题（必须动作导向）】
 
@@ -511,6 +553,36 @@ ${dateInstructions}`;
 - **字数要求：≥80字**，确保内容充实、可执行
 - **禁止出现模板化泛句**，如"体验当地文化"、"感受美景"、"享受美食"等空洞描述
 - **语言要有力度、明确、可执行**，让用户知道具体要做什么、怎么做
+- **描述要生动诱人，拒绝流水账**，让读者产生身临其境的感受
+
+【活动详细信息（details字段）要求】
+
+每个活动应尽可能包含 **"details"** 对象，包含以下字段：
+
+1. **"highlights"** (必填，数组)：该活动的 **2-3个核心亮点**
+   - 示例：["近距离观察活火山地貌", "体验地热现象", "欣赏裂谷壮丽景观"]
+   - 要求：亮点要具体、有吸引力，避免泛泛而谈
+
+2. **"insiderTip"** (必填，字符串)：一句**行家视角的私房建议**
+   - 示例："日落时分在二楼露台拍照最美，光线柔和且游客较少"
+   - 要求：建议要实用、具体，体现本地人或资深旅行者的经验
+
+3. **"bookingSignal"** (必填，字符串)：**明确的预约要求**
+   - 示例："无需预约，但建议避开周末高峰期"
+   - 示例："需提前3天在官网预约，旺季建议提前1周"
+   - 示例："现场购票即可，但建议提前30分钟到达"
+   - 要求：明确说明是否需要预约、如何预约、建议提前多久
+
+【行程实用信息（practicalInfo字段）要求】
+
+在返回的JSON根级别，应包含 **"practicalInfo"** 对象，提供以下实用信息：
+
+1. **"weather"**: 未来一周天气预报摘要（基于目的地和旅行日期）
+2. **"safety"**: 安全提醒和注意事项（基于目的地当前安全状况）
+3. **"plugType"**: 当地插座类型和电压（如："Type C, 220V"）
+4. **"currency"**: 当地货币及汇率（如："CHF，1 CHF ≈ 8 CNY"）
+5. **"culturalTaboos"**: 文化禁忌和注意事项（针对目的地的文化特点）
+6. **"packingList"**: 针对性打包清单（根据目的地、季节、活动类型提供）
 
 【活动类型说明】
 
@@ -741,11 +813,15 @@ ${dateInstructions}`;
       };
     });
 
+    // 处理实用信息（practicalInfo）
+    const practicalInfo = aiResponse.practicalInfo || {};
+
     // 构建行程数据对象
     const itineraryData: ItineraryDataDto = {
       days: validatedDays,
       totalCost,
       summary,
+      practicalInfo: Object.keys(practicalInfo).length > 0 ? practicalInfo : undefined,
     };
 
     // 自动计算总费用（覆盖 AI 返回的值，确保准确性）
@@ -755,6 +831,7 @@ ${dateInstructions}`;
       days: validatedDays,
       totalCost: calculatedTotalCost > 0 ? calculatedTotalCost : totalCost, // 如果计算出的费用为0，保留AI返回的值
       summary,
+      practicalInfo: itineraryData.practicalInfo, // 返回实用信息
     };
   }
 
@@ -871,6 +948,7 @@ ${dateInstructions}`;
       currency: currency.code, // 存储货币代码
       currencyInfo: currency, // 存储货币详细信息
       preferences: dto.preferences as Record<string, unknown>,
+      practicalInfo: dto.data.practicalInfo, // 存储实用信息
       status: dto.status || 'draft',
       daysData: dto.data.days.map((day, index) => ({
         day: DataValidator.fixNumber(day.day, index + 1, 1), // 天数从1开始
@@ -1012,6 +1090,7 @@ ${dateInstructions}`;
     if (dto.summary !== undefined) updateData.summary = dto.summary;
     if (dto.totalCost !== undefined) updateData.totalCost = dto.totalCost;
     if (dto.preferences !== undefined) updateData.preferences = dto.preferences;
+    if (dto.practicalInfo !== undefined) updateData.practicalInfo = dto.practicalInfo;
     if (dto.status !== undefined) updateData.status = dto.status;
 
     // 如果目的地改变，重新推断货币（性能优化：只在必要时推断）
@@ -1217,6 +1296,7 @@ ${dateInstructions}`;
       totalCost: calculatedTotalCost, // 使用计算出的总费用
         preferences:
           Object.keys(preferences).length > 0 ? preferences : undefined,
+        practicalInfo: itineraryData.practicalInfo, // 保存实用信息
         daysData: convertDays(),
     };
 
@@ -1675,6 +1755,7 @@ ${dateInstructions}`;
       currency: currency?.code,
       currencyInfo: currency,
       preferences: entity.preferences as any,
+      practicalInfo: entity.practicalInfo as any, // 返回实用信息
       status: entity.status,
       createdAt:
         entity.createdAt instanceof Date

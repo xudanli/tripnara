@@ -154,12 +154,17 @@ curl -X POST "http://localhost:3000/api/v1/journeys/generate" \
         "activities": [
           {
             "time": "09:00",
-            "title": "铁力士峰云端漫步",
+            "title": "沿火山步道徒步进入裂谷深处",
             "type": "attraction",
             "duration": 120,
             "location": { "lat": 46.7704, "lng": 8.4050 },
-            "notes": "详细的游览建议和体验描述",
-            "cost": 400
+            "notes": "从停车场出发，沿标记清晰的火山步道前行约2公里，途中可观察火山岩地貌和地热现象。建议穿着防滑徒步鞋，携带充足饮水和防晒用品。步道前半段较平缓，后半段需小心碎石路面。最佳游览时间为上午9-11点，避开正午高温。适合有一定体力的游客，不适合老人和幼儿。避坑要点：不要偏离标记步道，注意脚下安全。",
+            "cost": 400,
+            "details": {
+              "highlights": ["近距离观察活火山地貌", "体验地热现象", "欣赏裂谷壮丽景观"],
+              "insiderTip": "日落时分在观景台拍照最美，光线柔和且游客较少",
+              "bookingSignal": "无需预约，但建议避开周末高峰期"
+            }
           },
           {
             "time": "14:00",
@@ -189,7 +194,15 @@ curl -X POST "http://localhost:3000/api/v1/journeys/generate" \
       }
     ],
     "totalCost": 8000,
-    "summary": "这个5天瑞士琉森行程覆盖了铁力士峰、琉森湖、皮拉图斯山等经典景点，强调自然风光和户外活动体验。行程安排轻松合理，适合中等预算的旅行者。"
+    "summary": "这个5天瑞士琉森行程覆盖了铁力士峰、琉森湖、皮拉图斯山等经典景点，强调自然风光和户外活动体验。行程安排轻松合理，适合中等预算的旅行者。",
+    "practicalInfo": {
+      "weather": "未来一周以晴天为主，气温15-25°C，适合户外活动。建议携带轻便外套，早晚温差较大。",
+      "safety": "瑞士整体安全状况良好，但需注意山区天气变化，遵守景区安全规定。",
+      "plugType": "Type J（瑞士标准），220V，50Hz",
+      "currency": "CHF（瑞士法郎），1 CHF ≈ 8 CNY",
+      "culturalTaboos": "进入教堂需保持安静，不要大声喧哗。餐厅用餐建议给小费10-15%。",
+      "packingList": "轻便外套、防滑徒步鞋、防晒用品、转换插头、现金（部分小店不接受信用卡）"
+    }
   },
   "generatedAt": "2024-06-01T10:30:00.000Z"
 }
@@ -210,10 +223,21 @@ curl -X POST "http://localhost:3000/api/v1/journeys/generate" \
 | `data.days[].activities[].type` | string | 活动类型：`attraction`（景点）、`meal`（用餐）、`hotel`（酒店）、`shopping`（购物）、`transport`（交通）、`ocean`（海洋活动） |
 | `data.days[].activities[].duration` | number | 持续时间（分钟） |
 | `data.days[].activities[].location` | object | 位置坐标 `{ "lat": number, "lng": number }` |
-| `data.days[].activities[].notes` | string | 活动描述和建议 |
+| `data.days[].activities[].notes` | string | 活动描述和建议（≥80字，包含具体怎么做、体验过程、行动细节） |
 | `data.days[].activities[].cost` | number | 预估费用 |
+| `data.days[].activities[].details` | object | 活动详细信息（可选） |
+| `data.days[].activities[].details.highlights` | string[] | 活动核心亮点（2-3个） |
+| `data.days[].activities[].details.insiderTip` | string | 行家视角的私房建议 |
+| `data.days[].activities[].details.bookingSignal` | string | 预约要求说明 |
 | `data.totalCost` | number | 总费用 |
 | `data.summary` | string | 行程摘要 |
+| `data.practicalInfo` | object | 实用信息（可选） |
+| `data.practicalInfo.weather` | string | 未来一周天气预报摘要 |
+| `data.practicalInfo.safety` | string | 安全提醒和注意事项 |
+| `data.practicalInfo.plugType` | string | 当地插座类型和电压 |
+| `data.practicalInfo.currency` | string | 当地货币及汇率 |
+| `data.practicalInfo.culturalTaboos` | string | 文化禁忌和注意事项 |
+| `data.practicalInfo.packingList` | string | 针对性打包清单 |
 | `generatedAt` | string | 生成时间（ISO 8601格式） |
 
 ---
@@ -320,4 +344,14 @@ if (result.success) {
 7. **偏好格式**：`preferences` 字段可以传入对象或数组（数组会自动转换为 `{ interests: [...] }` 格式）
 
 8. **日期计算**：系统会根据 `startDate` 和 `days` 自动计算每天的日期
+
+9. **活动详细信息**：AI会为每个活动生成详细信息（`details`字段），包括核心亮点、私房建议和预约要求
+
+10. **实用信息**：AI会生成行程实用信息（`practicalInfo`字段），包括天气、安全、插座、汇率、文化禁忌和打包清单
+
+11. **活动标题**：所有活动标题都采用动作导向的格式，让用户一眼看到"要做什么"
+
+12. **活动描述**：每个活动的`notes`字段≥80字，包含具体怎么做、体验过程、行动细节等实用信息
+
+13. **行程结构**：每天安排3-4个活动，确保行程充实但不紧张
 
