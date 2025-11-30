@@ -6,7 +6,12 @@ import {
 } from '@nestjs/common';
 import axios, { AxiosError } from 'axios';
 import { ConfigService } from '@nestjs/config';
-import { TravelGuideResponseDto, TravelGuideSearchQueryDto } from './dto/travel-guides.dto';
+import {
+  PlatformSearchRequestDto,
+  TravelGuideItemDto,
+  TravelGuideResponseDto,
+  TravelGuideSearchQueryDto,
+} from './dto/travel-guides.dto';
 import { AttractionDetailsDto } from './dto/external.dto';
 
 interface CacheEntry<T> {
@@ -27,6 +32,8 @@ export class ExternalService {
   private readonly travelAdvisorApiKey: string;
   private readonly travelAdvisorApiHost: string;
   private readonly travelAdvisorBaseUrl: string;
+  private readonly googleApiKey?: string;
+  private readonly googleCx?: string;
 
   constructor(private readonly configService: ConfigService) {
     this.eventbriteToken =
@@ -41,6 +48,12 @@ export class ExternalService {
     this.travelAdvisorBaseUrl = this.configService.getOrThrow<string>(
       'TRAVEL_ADVISOR_BASE_URL',
     );
+    this.googleApiKey =
+      this.configService.get<string>('GOOGLE_API_KEY') ??
+      this.configService.get<string>('GUIDES_GOOGLE_API_KEY');
+    this.googleCx =
+      this.configService.get<string>('GOOGLE_CX') ??
+      this.configService.get<string>('GUIDES_GOOGLE_CX');
     this.maxRetries = this.configService.get<number>('EXTERNAL_API_MAX_RETRIES', 3);
     this.retryDelayMs = this.configService.get<number>('EXTERNAL_API_RETRY_DELAY_MS', 1000);
   }
@@ -368,6 +381,231 @@ export class ExternalService {
         error: 'TRIPADVISOR_SERVICE_ERROR',
       };
     }
+  }
+
+  async searchPlatformGuides(
+    dto: PlatformSearchRequestDto,
+  ): Promise<TravelGuideResponseDto> {
+    const limit = dto.limit ?? 50;
+
+    // 检查 Google Custom Search API 配置
+    if (!this.googleApiKey || !this.googleCx) {
+      this.logger.warn(
+        'Google Custom Search API 未配置，无法进行多平台搜索',
+      );
+      return {
+        success: true,
+        data: [],
+        message: 'Google Custom Search API 未配置，无法进行多平台搜索',
+        error: 'GOOGLE_API_NOT_CONFIGURED',
+      };
+    }
+
+    try {
+      // 并行搜索所有平台
+      const searchPromises = dto.platforms.map((platform) =>
+        this.searchPlatformViaGoogle(dto.destination, platform),
+      );
+
+      const results = await Promise.allSettled(searchPromises);
+      const allGuides: TravelGuideItemDto[] = [];
+
+      // 收集所有成功的结果
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          allGuides.push(...result.value);
+        } else {
+          this.logger.warn(
+            `搜索平台 ${dto.platforms[index].name} 失败:`,
+            result.reason,
+          );
+        }
+      });
+
+      // 去重
+      const uniqueGuides = this.deduplicateGuides(allGuides);
+
+      // 排序（按相关性）
+      const sortedGuides = this.sortGuidesByRelevance(
+        uniqueGuides,
+        dto.destination,
+      );
+
+      // 限制返回数量
+      const limitedGuides = sortedGuides.slice(0, limit);
+
+      return {
+        success: true,
+        data: limitedGuides,
+        message: null,
+        error: null,
+      };
+    } catch (error) {
+      this.logger.error('多平台搜索失败', error);
+      return {
+        success: true,
+        data: [],
+        message: '多平台搜索失败，请稍后重试',
+        error: 'PLATFORM_SEARCH_ERROR',
+      };
+    }
+  }
+
+  private async searchPlatformViaGoogle(
+    destination: string,
+    platform: { name: string; domain: string; searchUrl?: string },
+  ): Promise<TravelGuideItemDto[]> {
+    const cacheKey = `platform-search:${destination}:${platform.domain}`;
+    const cached = this.getFromCache<TravelGuideItemDto[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    try {
+      // 构建搜索查询：site:domain destination 攻略
+      const query = `site:${platform.domain} ${destination} 攻略`;
+
+      const response = await this.executeWithRetry(
+        () =>
+          axios.get('https://www.googleapis.com/customsearch/v1', {
+            params: {
+              key: this.googleApiKey,
+              cx: this.googleCx,
+              q: query,
+              num: 10, // 每个平台最多返回10个结果
+              hl: 'zh-CN',
+            },
+          }),
+        `Google Custom Search (${platform.name})`,
+      );
+
+      const items = (response.data as any)?.items || [];
+      const guides: TravelGuideItemDto[] = items.map(
+        (item: any, index: number) => {
+          // 提取发布日期（如果可能）
+          let publishedAt: string | null = null;
+          try {
+            // 尝试从 snippet 或其他字段提取日期
+            const dateMatch = item.snippet?.match(/\d{4}[-年]\d{1,2}[-月]\d{1,2}/);
+            if (dateMatch) {
+              publishedAt = dateMatch[0].replace(/[年月]/g, '-');
+            }
+          } catch (e) {
+            // 忽略日期解析错误
+          }
+
+          // 生成唯一ID
+          const id = `${platform.name.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}_${index}`;
+
+          // 提取图片URL（如果存在）
+          let imageUrl: string | null = null;
+          if (item.pagemap?.cse_image?.[0]?.src) {
+            imageUrl = item.pagemap.cse_image[0].src;
+          } else if (item.pagemap?.metatags?.[0]?.['og:image']) {
+            imageUrl = item.pagemap.metatags[0]['og:image'];
+          }
+
+          return {
+            id,
+            title: item.title || destination,
+            excerpt: item.snippet || '精彩旅行推荐',
+            url: item.link || '',
+            source: platform.name,
+            publishedAt,
+            tags: [destination, platform.name],
+            imageUrl,
+            author: null,
+            readTime: this.estimateReadTime(item.snippet),
+          };
+        },
+      );
+
+      // 缓存结果
+      this.setCache(cacheKey, guides);
+      return guides;
+    } catch (error) {
+      this.logger.error(
+        `搜索平台 ${platform.name} 失败:`,
+        (error as any)?.response?.data ?? error,
+      );
+      // 返回空数组而不是抛出错误，让其他平台继续搜索
+      return [];
+    }
+  }
+
+  /**
+   * 去重：基于 URL 去重
+   */
+  private deduplicateGuides(guides: TravelGuideItemDto[]): TravelGuideItemDto[] {
+    const seenUrls = new Set<string>();
+    const uniqueGuides: TravelGuideItemDto[] = [];
+
+    for (const guide of guides) {
+      const normalizedUrl = guide.url.toLowerCase().trim();
+      if (normalizedUrl && !seenUrls.has(normalizedUrl)) {
+        seenUrls.add(normalizedUrl);
+        uniqueGuides.push(guide);
+      }
+    }
+
+    return uniqueGuides;
+  }
+
+  /**
+   * 按相关性排序
+   */
+  private sortGuidesByRelevance(
+    guides: TravelGuideItemDto[],
+    destination: string,
+  ): TravelGuideItemDto[] {
+    const score = (guide: TravelGuideItemDto): number => {
+      let score = 0;
+      const titleLower = guide.title.toLowerCase();
+      const excerptLower = guide.excerpt.toLowerCase();
+      const destLower = destination.toLowerCase();
+
+      // 标题中包含目的地：+10分
+      if (titleLower.includes(destLower)) {
+        score += 10;
+      }
+
+      // 标题中包含"攻略"或"指南"：+5分
+      if (titleLower.includes('攻略') || titleLower.includes('指南')) {
+        score += 5;
+      }
+
+      // 摘要中包含目的地：+3分
+      if (excerptLower.includes(destLower)) {
+        score += 3;
+      }
+
+      // 有图片：+2分
+      if (guide.imageUrl) {
+        score += 2;
+      }
+
+      // 有发布日期：+1分
+      if (guide.publishedAt) {
+        score += 1;
+      }
+
+      return score;
+    };
+
+    return guides.sort((a, b) => score(b) - score(a));
+  }
+
+  /**
+   * 估算阅读时间（分钟）
+   */
+  private estimateReadTime(snippet?: string): number | null {
+    if (!snippet) {
+      return null;
+    }
+    // 简单估算：每250字约1分钟
+    const wordCount = snippet.length;
+    const minutes = Math.ceil(wordCount / 250);
+    return minutes > 0 ? minutes : null;
   }
 
   private getFromCache<T>(key: string): T | null {

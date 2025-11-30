@@ -52,6 +52,14 @@
     }>;
     totalCost?: number;        // 总成本（可选）
     summary?: string;          // 摘要（可选）
+    practicalInfo?: {          // 实用信息（可选）
+      weather?: string;        // 未来一周天气预报摘要
+      safety?: string;        // 安全提醒和注意事项
+      plugType?: string;      // 当地插座类型和电压
+      currency?: string;      // 当地货币及汇率
+      culturalTaboos?: string; // 文化禁忌和注意事项
+      packingList?: string;   // 针对性打包清单
+    };
   };
   tasks?: Array<{              // 任务列表（可选）
     id?: string;
@@ -86,6 +94,7 @@
 | days | Array | 是 | 天数详情数组 |
 | totalCost | number | 否 | 总成本 |
 | summary | string | 否 | 行程摘要 |
+| practicalInfo | object | 否 | 实用信息（天气、安全、插座、汇率、文化禁忌、打包清单等） |
 
 #### days 数组项
 
@@ -238,7 +247,15 @@ curl -X POST https://api.example.com/api/itinerary/from-frontend-data \
         }
       ],
       "totalCost": 2000,
-      "summary": "这个5天冰岛行程覆盖..."
+      "summary": "这个5天冰岛行程覆盖...",
+      "practicalInfo": {
+        "weather": "未来一周以晴天为主，气温15-25°C",
+        "safety": "冰岛整体安全状况良好",
+        "plugType": "Type C/F，220V，50Hz",
+        "currency": "ISK（冰岛克朗），1 ISK ≈ 0.05 CNY",
+        "culturalTaboos": "进入教堂需保持安静",
+        "packingList": "轻便外套、防滑徒步鞋、防晒用品"
+      }
     },
     "tasks": [
       {
@@ -311,6 +328,8 @@ const result = await response.json();
 5. **任务处理**：目前 `tasks` 数组会被接收但不会保存到数据库，仅用于日志记录。如果需要保存任务，请使用任务管理接口
 6. **开始日期**：如果不提供 `startDate`，系统将使用 `days[0].date` 作为开始日期
 7. **details 字段**：`timeSlots` 中的 `details` 字段**会被保存到数据库**，用于存储活动的详细信息（多语言名称、地址、开放时间、价格详情、推荐信息等）
+
+8. **practicalInfo 字段**：`itineraryData` 中的 `practicalInfo` 字段**会被保存到数据库**，用于存储行程的实用信息（天气、安全、插座、汇率、文化禁忌、打包清单等）
 
 ## 相关接口
 

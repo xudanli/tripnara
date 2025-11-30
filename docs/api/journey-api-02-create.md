@@ -40,7 +40,15 @@
       }
     ],
     "totalCost": 158800,
-    "summary": "5天的冰岛之旅，行程包含多个精彩活动"
+    "summary": "5天的冰岛之旅，行程包含多个精彩活动",
+    "practicalInfo": {
+      "weather": "未来一周以晴天为主，气温15-25°C，适合户外活动",
+      "safety": "冰岛整体安全状况良好，但需注意天气变化",
+      "plugType": "Type C/F，220V，50Hz",
+      "currency": "ISK（冰岛克朗），1 ISK ≈ 0.05 CNY",
+      "culturalTaboos": "进入教堂需保持安静，餐厅用餐建议给小费10-15%",
+      "packingList": "轻便外套、防滑徒步鞋、防晒用品、转换插头、现金"
+    }
   },
   "preferences": {
     "interests": ["自然风光", "户外活动"],
@@ -71,6 +79,7 @@
 | `days` | array | 是 | 行程天数详情数组，至少需要一天 | `[...]` |
 | `totalCost` | number | 是 | 行程总费用 | `158800` |
 | `summary` | string | 是 | 行程摘要 | `"5天的冰岛之旅"` |
+| `practicalInfo` | object | 否 | 实用信息（天气、安全、插座、汇率、文化禁忌、打包清单等） | 见下方说明 |
 
 #### data.days 数组项结构
 
@@ -102,6 +111,17 @@
 | `travelStyle` | string | 否 | 旅行风格：`relaxed`（轻松）、`moderate`（适中）、`intensive`（紧凑） | `"relaxed"` |
 
 **注意**：`preferences` 也可以直接传入一个兴趣数组，系统会自动转换为对象格式。
+
+#### practicalInfo 对象字段（可选）
+
+| 字段名 | 类型 | 必填 | 说明 | 示例值 |
+|--------|------|------|------|--------|
+| `weather` | string | 否 | 未来一周天气预报摘要 | `"未来一周以晴天为主，气温15-25°C"` |
+| `safety` | string | 否 | 安全提醒和注意事项 | `"整体安全状况良好，但需注意山区天气变化"` |
+| `plugType` | string | 否 | 当地插座类型和电压 | `"Type J（瑞士标准），220V，50Hz"` |
+| `currency` | string | 否 | 当地货币及汇率 | `"CHF（瑞士法郎），1 CHF ≈ 8 CNY"` |
+| `culturalTaboos` | string | 否 | 文化禁忌和注意事项 | `"进入教堂需保持安静，不要大声喧哗"` |
+| `packingList` | string | 否 | 针对性打包清单 | `"轻便外套、防滑徒步鞋、防晒用品"` |
 
 ---
 
@@ -263,6 +283,14 @@ console.log('创建成功:', result);
       "budget": "medium",
       "travelStyle": "relaxed"
     },
+    "practicalInfo": {
+      "weather": "未来一周以晴天为主，气温15-25°C",
+      "safety": "冰岛整体安全状况良好",
+      "plugType": "Type C/F，220V，50Hz",
+      "currency": "ISK（冰岛克朗），1 ISK ≈ 0.05 CNY",
+      "culturalTaboos": "进入教堂需保持安静",
+      "packingList": "轻便外套、防滑徒步鞋、防晒用品"
+    },
     "status": "draft",
     "days": [
       {
@@ -319,6 +347,13 @@ console.log('创建成功:', result);
 | `data.summary` | string | 行程摘要 |
 | `data.totalCost` | number | 总费用 |
 | `data.preferences` | object | 用户偏好设置 |
+| `data.practicalInfo` | object | 实用信息（可选） |
+| `data.practicalInfo.weather` | string | 未来一周天气预报摘要 |
+| `data.practicalInfo.safety` | string | 安全提醒和注意事项 |
+| `data.practicalInfo.plugType` | string | 当地插座类型和电压 |
+| `data.practicalInfo.currency` | string | 当地货币及汇率 |
+| `data.practicalInfo.culturalTaboos` | string | 文化禁忌和注意事项 |
+| `data.practicalInfo.packingList` | string | 针对性打包清单 |
 | `data.status` | string | 行程状态 |
 | `data.days` | array | 天数详情数组 |
 | `data.days[].id` | string | 天数ID（UUID） |

@@ -103,6 +103,7 @@
 | `totalCost` | number | 否 | 总费用 |
 | `summary` | string | 否 | 行程摘要 |
 | `title` | string | 是 | 行程标题 |
+| `practicalInfo` | object | 否 | 实用信息（天气、安全、插座、汇率、文化禁忌、打包清单等） | 见下方说明 |
 
 #### days 数组中的对象
 
@@ -144,6 +145,17 @@
 | `category` | string | 分类 | `"温泉"` |
 
 **注意**：`details` 字段的结构是灵活的，可以根据需要包含任意字段。所有字段都是可选的。**此字段会被完整保存到数据库的 JSONB 字段中。**
+
+#### practicalInfo 对象字段（可选）
+
+| 字段名 | 类型 | 说明 | 示例值 |
+|--------|------|------|--------|
+| `weather` | string | 未来一周天气预报摘要 | `"未来一周以晴天为主，气温15-25°C"` |
+| `safety` | string | 安全提醒和注意事项 | `"整体安全状况良好，但需注意山区天气变化"` |
+| `plugType` | string | 当地插座类型和电压 | `"Type J（瑞士标准），220V，50Hz"` |
+| `currency` | string | 当地货币及汇率 | `"CHF（瑞士法郎），1 CHF ≈ 8 CNY"` |
+| `culturalTaboos` | string | 文化禁忌和注意事项 | `"进入教堂需保持安静，不要大声喧哗"` |
+| `packingList` | string | 针对性打包清单 | `"轻便外套、防滑徒步鞋、防晒用品"` |
 
 #### tasks 数组中的对象
 
@@ -191,7 +203,15 @@ curl -X PATCH "http://localhost:3000/api/v1/journeys/04d7126d-219f-49ab-b71a-a59
       ],
       "totalCost": 88400,
       "summary": "冰岛5日游",
-      "title": "冰岛之旅"
+      "title": "冰岛之旅",
+      "practicalInfo": {
+        "weather": "未来一周以晴天为主，气温15-25°C",
+        "safety": "冰岛整体安全状况良好",
+        "plugType": "Type C/F，220V，50Hz",
+        "currency": "ISK（冰岛克朗），1 ISK ≈ 0.05 CNY",
+        "culturalTaboos": "进入教堂需保持安静",
+        "packingList": "轻便外套、防滑徒步鞋、防晒用品"
+      }
     },
     "startDate": "2025-11-24"
   }'
@@ -266,6 +286,13 @@ curl -X PATCH "http://localhost:3000/api/v1/journeys/04d7126d-219f-49ab-b71a-a59
 | `data.daysCount` | number | 行程天数 |
 | `data.summary` | string | 行程摘要 |
 | `data.totalCost` | number | 总费用 |
+| `data.practicalInfo` | object | 实用信息（可选） |
+| `data.practicalInfo.weather` | string | 未来一周天气预报摘要 |
+| `data.practicalInfo.safety` | string | 安全提醒和注意事项 |
+| `data.practicalInfo.plugType` | string | 当地插座类型和电压 |
+| `data.practicalInfo.currency` | string | 当地货币及汇率 |
+| `data.practicalInfo.culturalTaboos` | string | 文化禁忌和注意事项 |
+| `data.practicalInfo.packingList` | string | 针对性打包清单 |
 | `data.status` | string | 状态：`draft`、`published`、`archived` |
 | `data.preferences` | object | 偏好信息 |
 | `data.days` | array | 天数数组 |
