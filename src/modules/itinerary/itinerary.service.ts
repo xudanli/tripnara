@@ -3379,6 +3379,7 @@ ${dateInstructions}`;
 
   /**
    * 获取行程任务列表
+   * 添加重试机制，解决偶发的"不存在"报错
    */
   async getJourneyTasks(
     journeyId: string,
@@ -3390,10 +3391,37 @@ ${dateInstructions}`;
       throw new ForbiddenException('无权访问此行程');
     }
 
+    // 添加重试机制，解决偶发的"不存在"报错
+    // 可能原因：事务提交延迟、数据库复制延迟、缓存不一致等
+    const maxRetries = 3;
+    const retryDelay = 100; // 100ms
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
     const tasks = await this.itineraryRepository.getTasks(journeyId);
     return {
       tasks: tasks as unknown as TaskDto[],
     };
+      } catch (error) {
+        // 如果是最后一次尝试，重新抛出错误
+        if (attempt === maxRetries) {
+          this.logger.error(
+            `[getJourneyTasks] Failed to get tasks for journey ${journeyId} after ${maxRetries} attempts:`,
+            error instanceof Error ? error.message : error,
+          );
+          throw error;
+        }
+        // 否则等待后重试
+        this.logger.debug(
+          `[getJourneyTasks] Error getting tasks for journey ${journeyId}, retrying (attempt ${attempt}/${maxRetries}):`,
+          error instanceof Error ? error.message : error,
+        );
+        await new Promise((resolve) => setTimeout(resolve, retryDelay * attempt));
+      }
+    }
+
+    // 理论上不会到达这里，但为了类型安全
+    throw new Error('获取行程任务失败');
   }
 
   /**

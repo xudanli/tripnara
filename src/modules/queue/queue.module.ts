@@ -3,6 +3,7 @@ import { BullModule } from '@nestjs/bull';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { QueueService } from './queue.service';
 import { LocationGenerationProcessor } from './processors/location-generation.processor';
+import { QueueAdminController } from './queue-admin.controller';
 import { LocationModule } from '../location/location.module';
 
 @Module({
@@ -39,6 +40,7 @@ import { LocationModule } from '../location/location.module';
     }),
     forwardRef(() => LocationModule),
   ],
+  controllers: [QueueAdminController],
   providers: [QueueService, LocationGenerationProcessor],
   exports: [QueueService],
 })

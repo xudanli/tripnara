@@ -903,16 +903,51 @@ export class ItineraryRepository {
   // ========== 任务管理方法 ==========
 
   async getTasks(itineraryId: string): Promise<Array<Record<string, unknown>>> {
-    const itinerary = await this.itineraryRepository.findOne({
-      where: { id: itineraryId },
-      select: ['tasks'],
-    });
+    // 添加重试机制，解决偶发的"不存在"报错
+    // 可能原因：事务提交延迟、数据库复制延迟、缓存不一致等
+    const maxRetries = 3;
+    const retryDelay = 100; // 100ms
 
-    if (!itinerary) {
-      throw new Error('行程不存在');
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const itinerary = await this.itineraryRepository.findOne({
+          where: { id: itineraryId },
+          select: ['tasks'],
+        });
+
+        if (!itinerary) {
+          // 如果是最后一次尝试，抛出错误
+          if (attempt === maxRetries) {
+            this.logger.warn(
+              `[getTasks] Itinerary ${itineraryId} not found after ${maxRetries} attempts`,
+            );
+            throw new Error('行程不存在');
+          }
+          // 否则等待后重试
+          this.logger.debug(
+            `[getTasks] Itinerary ${itineraryId} not found, retrying (attempt ${attempt}/${maxRetries})`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, retryDelay * attempt));
+          continue;
+        }
+
+        return (itinerary.tasks as Array<Record<string, unknown>>) || [];
+      } catch (error) {
+        // 如果是最后一次尝试，重新抛出错误
+        if (attempt === maxRetries) {
+          throw error;
+        }
+        // 否则等待后重试
+        this.logger.debug(
+          `[getTasks] Error getting tasks for itinerary ${itineraryId}, retrying (attempt ${attempt}/${maxRetries}):`,
+          error instanceof Error ? error.message : error,
+        );
+        await new Promise((resolve) => setTimeout(resolve, retryDelay * attempt));
+      }
     }
 
-    return (itinerary.tasks as Array<Record<string, unknown>>) || [];
+    // 理论上不会到达这里，但为了类型安全
+    throw new Error('行程不存在');
   }
 
   async updateTasks(
