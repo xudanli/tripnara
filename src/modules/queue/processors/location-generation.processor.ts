@@ -1,6 +1,6 @@
 import { Processor, Process } from '@nestjs/bull';
 import { Job } from 'bullmq';
-import { Logger } from '@nestjs/common';
+import { Logger, Inject, forwardRef } from '@nestjs/common';
 import { LocationService } from '../../location/location.service';
 import { BatchActivityDto } from '../../location/dto/location.dto';
 
@@ -8,7 +8,10 @@ import { BatchActivityDto } from '../../location/dto/location.dto';
 export class LocationGenerationProcessor {
   private readonly logger = new Logger(LocationGenerationProcessor.name);
 
-  constructor(private readonly locationService: LocationService) {}
+  constructor(
+    @Inject(forwardRef(() => LocationService))
+    private readonly locationService: LocationService,
+  ) {}
 
   @Process('generate-batch')
   async handleBatchGeneration(job: Job<{ activities: BatchActivityDto[] }>) {

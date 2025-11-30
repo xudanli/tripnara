@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { BullModule } from '@nestjs/bull';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { QueueService } from './queue.service';
@@ -37,7 +37,7 @@ import { LocationModule } from '../location/location.module';
     BullModule.registerQueue({
       name: 'location-generation',
     }),
-    LocationModule,
+    forwardRef(() => LocationModule),
   ],
   providers: [QueueService, LocationGenerationProcessor],
   exports: [QueueService],
