@@ -19,6 +19,12 @@ interface CacheEntry<T> {
   expiresAt: number;
 }
 
+interface CircuitBreakerState {
+  isOpen: boolean;
+  openedAt: number;
+  failureCount: number;
+}
+
 @Injectable()
 export class ExternalService {
   private readonly logger = new Logger(ExternalService.name);
@@ -26,6 +32,10 @@ export class ExternalService {
   private readonly cacheTtlMs = 5 * 60 * 1000;
   private readonly maxRetries: number;
   private readonly retryDelayMs: number;
+
+  // 断路器：用于处理 API 配额耗尽（429 错误）
+  private readonly circuitBreakers = new Map<string, CircuitBreakerState>();
+  private readonly circuitBreakerOpenDuration = 60 * 60 * 1000; // 1小时
 
   private readonly eventbriteToken: string;
   private readonly eventbriteBaseUrl: string;
@@ -125,6 +135,14 @@ export class ExternalService {
         data: [],
       };
     }
+
+    // 检查断路器：如果配额耗尽，直接返回空结果
+    if (!this.checkCircuitBreaker('travel-advisor')) {
+      return {
+        data: [],
+      };
+    }
+
     const cacheKey = `travel-advisor:${query.toLowerCase()}`;
     const cached = this.getFromCache(cacheKey);
     if (cached) {
@@ -177,6 +195,18 @@ export class ExternalService {
         `Travel Advisor API Key is not configured, returning empty details for attraction: ${attractionId}`,
       );
       // 优雅降级：返回最小化的默认数据而不是抛出错误
+      return {
+        id: attractionId,
+        name: '',
+        rating: {
+          rating: 0,
+          reviewCount: 0,
+        },
+      };
+    }
+
+    // 检查断路器：如果配额耗尽，直接返回默认数据
+    if (!this.checkCircuitBreaker('travel-advisor')) {
       return {
         id: attractionId,
         name: '',
@@ -318,6 +348,16 @@ export class ExternalService {
         data: [],
         message: 'TripAdvisor API 未配置，返回空结果',
         error: 'TRAVEL_ADVISOR_KEY_MISSING',
+      };
+    }
+
+    // 检查断路器：如果配额耗尽，直接返回空结果
+    if (!this.checkCircuitBreaker('travel-advisor')) {
+      return {
+        success: true,
+        data: [],
+        message: 'TripAdvisor API 配额已耗尽，请稍后再试',
+        error: 'TRAVEL_ADVISOR_QUOTA_EXCEEDED',
       };
     }
 
@@ -653,6 +693,7 @@ export class ExternalService {
 
   /**
    * Determine if an error should trigger a retry
+   * 优化：429 错误（配额耗尽）不应该重试，应该触发断路器
    */
   private shouldRetry(error: unknown): boolean {
     if (!axios.isAxiosError(error)) {
@@ -665,8 +706,71 @@ export class ExternalService {
     }
 
     const status = error.response.status;
-    // Retry on rate limits (429) and server errors (5xx)
-    return status === 429 || status >= 500;
+    
+    // 429 错误（配额耗尽）：不重试，触发断路器
+    if (status === 429) {
+      const errorBody = (error.response.data as any) || {};
+      const errorMessage = JSON.stringify(errorBody).toLowerCase();
+      
+      // 如果错误信息包含 "quota"，说明是配额耗尽，触发断路器
+      if (errorMessage.includes('quota') || errorMessage.includes('limit')) {
+        this.openCircuitBreaker('travel-advisor');
+        this.logger.warn(
+          'Travel Advisor API 配额耗尽，断路器已打开，1小时内将跳过所有 API 调用',
+        );
+        return false; // 不重试
+      }
+    }
+    
+    // Retry on server errors (5xx) only
+    return status >= 500;
+  }
+
+  /**
+   * 打开断路器（API 配额耗尽时）
+   */
+  private openCircuitBreaker(serviceName: string): void {
+    this.circuitBreakers.set(serviceName, {
+      isOpen: true,
+      openedAt: Date.now(),
+      failureCount: 0,
+    });
+  }
+
+  /**
+   * 检查断路器是否打开
+   */
+  private isCircuitBreakerOpen(serviceName: string): boolean {
+    const breaker = this.circuitBreakers.get(serviceName);
+    if (!breaker || !breaker.isOpen) {
+      return false;
+    }
+
+    // 检查是否超过打开时长
+    const elapsed = Date.now() - breaker.openedAt;
+    if (elapsed >= this.circuitBreakerOpenDuration) {
+      // 断路器自动关闭
+      this.circuitBreakers.delete(serviceName);
+      this.logger.log(
+        `Circuit breaker for ${serviceName} automatically closed after ${this.circuitBreakerOpenDuration}ms`,
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * 在调用 API 前检查断路器
+   */
+  private checkCircuitBreaker(serviceName: string): boolean {
+    if (this.isCircuitBreakerOpen(serviceName)) {
+      this.logger.warn(
+        `Circuit breaker is open for ${serviceName}, skipping API call`,
+      );
+      return false;
+    }
+    return true;
   }
 
   /**

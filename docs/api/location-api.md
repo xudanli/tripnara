@@ -193,13 +193,14 @@ if (data.success) {
 
 ---
 
-## 2. 批量生成活动位置信息
+## 2. 批量生成活动位置信息（同步）
 
 ### 接口信息
 
 - **URL**: `POST /api/location/generate-batch`
 - **认证**: 需要登录（JWT Bearer Token）
 - **Content-Type**: `application/json`
+- **说明**: 同步接口，等待所有活动生成完成后返回结果。适用于少量活动（< 5个）的场景。
 
 ### 请求参数
 
@@ -491,8 +492,269 @@ try {
 
 ---
 
+## 3. 异步批量生成活动位置信息（推荐）
+
+### 接口信息
+
+- **URL**: `POST /api/location/generate-batch-async`
+- **认证**: 需要登录（JWT Bearer Token）
+- **Content-Type**: `application/json`
+- **说明**: 异步接口，立即返回 `jobId`，不等待任务完成。适用于大量活动（> 5个）的场景，提供更好的用户体验。
+
+### 请求参数
+
+与同步批量接口相同：
+
+```typescript
+interface GenerateLocationBatchRequest {
+  activities: BatchActivity[];
+}
+```
+
+### 响应格式
+
+#### 成功响应 (200 OK)
+
+```typescript
+interface EnqueueLocationGenerationResponse {
+  success: boolean;
+  jobId: string;  // 任务ID，用于查询状态和获取结果
+}
+```
+
+#### 响应示例
+
+```json
+{
+  "success": true,
+  "jobId": "job-1234567890"
+}
+```
+
+### 使用流程
+
+1. **发起异步任务**：调用 `POST /api/location/generate-batch-async`，获取 `jobId`
+2. **轮询任务状态**：定期调用 `GET /api/location/job/:jobId` 查询状态
+3. **获取结果**：当状态为 `completed` 时，调用 `GET /api/location/job/:jobId/result` 获取结果
+
+---
+
+## 4. 查询任务状态
+
+### 接口信息
+
+- **URL**: `GET /api/location/job/:jobId`
+- **认证**: 需要登录（JWT Bearer Token）
+
+### 路径参数
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `jobId` | string | 是 | 任务ID（从异步接口获取） |
+
+### 响应格式
+
+#### 成功响应 (200 OK)
+
+```typescript
+interface JobStatusResponse {
+  success: boolean;
+  data: {
+    id: string;
+    status: 'waiting' | 'active' | 'completed' | 'failed' | 'delayed' | 'paused' | 'not_found';
+    progress?: number;  // 0-100
+    result?: BatchLocationResult[];  // 仅在 completed 时存在
+    error?: string;  // 仅在 failed 时存在
+    data?: {
+      activities: BatchActivity[];
+    };
+  };
+}
+```
+
+#### 响应示例
+
+**任务进行中**：
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "job-1234567890",
+    "status": "active",
+    "progress": 45,
+    "data": {
+      "activities": [...]
+    }
+  }
+}
+```
+
+**任务完成**：
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "job-1234567890",
+    "status": "completed",
+    "progress": 100,
+    "result": [
+      {
+        "activityName": "铁力士峰云端漫步",
+        "locationInfo": { ... }
+      }
+    ]
+  }
+}
+```
+
+**任务失败**：
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "job-1234567890",
+    "status": "failed",
+    "error": "任务执行失败：网络错误"
+  }
+}
+```
+
+---
+
+## 5. 获取任务结果
+
+### 接口信息
+
+- **URL**: `GET /api/location/job/:jobId/result`
+- **认证**: 需要登录（JWT Bearer Token）
+- **说明**: 仅当任务状态为 `completed` 时可用
+
+### 路径参数
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `jobId` | string | 是 | 任务ID |
+
+### 响应格式
+
+#### 成功响应 (200 OK)
+
+```typescript
+interface GetJobResultResponse {
+  success: boolean;
+  data: BatchLocationResult[];
+}
+```
+
+#### 响应示例
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "activityName": "铁力士峰云端漫步",
+      "locationInfo": {
+        "chineseName": "铁力士峰云端漫步",
+        "localName": "Titlis Cliff Walk",
+        ...
+      }
+    }
+  ]
+}
+```
+
+#### 错误响应
+
+**任务未完成** (400 Bad Request)：
+
+```json
+{
+  "statusCode": 400,
+  "message": "Job job-1234567890 is not completed (status: active)"
+}
+```
+
+**任务不存在** (404 Not Found)：
+
+```json
+{
+  "statusCode": 404,
+  "message": "Job job-1234567890 not found"
+}
+```
+
+### 前端集成示例
+
+详细的前端集成指南请参考：[异步位置信息生成前端集成指南](../frontend/async-location-generation-integration.md)
+
+**简单示例**：
+
+```typescript
+// 1. 发起异步任务
+const { jobId } = await apiClient.post('/api/location/generate-batch-async', {
+  activities: [...]
+});
+
+// 2. 轮询任务状态
+const pollStatus = async () => {
+  const response = await apiClient.get(`/api/location/job/${jobId}`);
+  const { status, progress, result } = response.data.data;
+  
+  if (status === 'completed') {
+    // 3. 获取结果（或直接使用 result）
+    return result || await apiClient.get(`/api/location/job/${jobId}/result`);
+  } else if (status === 'failed') {
+    throw new Error(response.data.data.error);
+  } else {
+    // 继续轮询
+    setTimeout(pollStatus, 2000);
+  }
+};
+```
+
+---
+
+## 接口选择建议
+
+| 场景 | 推荐接口 | 原因 |
+|------|---------|------|
+| 单个活动 | `POST /api/location/generate` | 快速响应，无需异步 |
+| 少量活动（< 5个） | `POST /api/location/generate-batch` | 同步接口，简单直接 |
+| 大量活动（> 5个） | `POST /api/location/generate-batch-async` | 异步接口，更好的用户体验 |
+| 需要显示进度 | `POST /api/location/generate-batch-async` | 支持进度查询 |
+
+---
+
+## 缓存机制（已优化）
+
+### Redis 持久化缓存
+
+- **缓存键**: `location:${activityName}:${destination}:${activityType}` (不区分大小写)
+- **缓存时长**: 
+  - Redis 缓存：30 天（持久化）
+  - 内存缓存：24 小时（快速访问）
+- **缓存位置**: 
+  - Redis（主要）：服务重启后仍然有效
+  - 内存（辅助）：快速访问，服务重启后失效
+- **缓存命中**: 相同参数的请求会直接返回缓存结果，响应时间 < 10ms
+
+### 性能提升
+
+- **首次生成**: 2-5 秒（调用 AI）
+- **缓存命中**: < 10ms（从 Redis 或内存读取）
+- **批量生成（20个活动）**: 
+  - 优化前：~10 分钟（串行）
+  - 优化后：~30 秒（并发 + 缓存）
+
+---
+
 ## 相关接口
 
 - [行程生成 API](./itinerary-api.md) - 生成包含位置坐标的行程
 - [旅行摘要生成 API](./travel-summary-api.md) - 生成行程摘要
+- [异步位置信息生成前端集成指南](../frontend/async-location-generation-integration.md) - 详细的前端集成指南
 

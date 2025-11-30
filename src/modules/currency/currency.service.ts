@@ -194,8 +194,23 @@ const COUNTRY_NAME_TO_CODE: Record<string, string> = {
 };
 
 
+interface CoordinateCacheEntry {
+  currency: {
+    code: string;
+    symbol: string;
+    name: string;
+  };
+  countryCode: string;
+  expiresAt: number;
+}
+
 @Injectable()
 export class CurrencyService implements OnModuleInit {
+  // 坐标到货币的缓存（永久缓存，因为坐标到货币的映射是稳定的）
+  private readonly coordinateCurrencyCache = new Map<
+    string,
+    CoordinateCacheEntry
+  >();
   private readonly logger = new Logger(CurrencyService.name);
 
   // 内存缓存
@@ -471,6 +486,17 @@ export class CurrencyService implements OnModuleInit {
     symbol: string;
     name: string;
   } | null> {
+    // 性能优化：坐标到货币的映射是稳定的，使用永久缓存
+    // 例如：(64.08, -21.94) 永远是冰岛，永远是 ISK
+    const cacheKey = `${lat.toFixed(2)},${lng.toFixed(2)}`;
+    const cached = this.coordinateCurrencyCache.get(cacheKey);
+    if (cached) {
+      this.logger.debug(
+        `坐标货币缓存命中: (${lat}, ${lng}) -> ${cached.currency.code}`,
+      );
+      return cached.currency;
+    }
+
     try {
       // 如果没有地理编码服务，返回 null
       if (!this.geocodeService) {
@@ -500,8 +526,15 @@ export class CurrencyService implements OnModuleInit {
       // 根据国家代码获取货币
       const currency = this.getCurrencyByCountryCode(countryCode, language);
       if (currency) {
+        // 缓存结果（永久缓存，因为坐标到货币的映射是稳定的）
+        this.coordinateCurrencyCache.set(cacheKey, {
+          currency,
+          countryCode,
+          expiresAt: Number.MAX_SAFE_INTEGER, // 永久缓存
+        });
+
         this.logger.debug(
-          `根据坐标获取货币: lat=${lat}, lng=${lng} -> 国家代码: ${countryCode} -> 货币: ${currency.code}`,
+          `根据坐标获取货币并缓存: lat=${lat}, lng=${lng} -> 国家代码: ${countryCode} -> 货币: ${currency.code}`,
         );
         return currency;
       }

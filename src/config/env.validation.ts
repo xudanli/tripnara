@@ -7,7 +7,10 @@ const envSchema = z.object({
     .default('development'),
   PORT: z.coerce.number().positive().max(65535).default(3000),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL must be provided').optional(),
-  REDIS_URL: z.string().min(1, 'REDIS_URL must be provided').optional(),
+  REDIS_URL: z
+    .string()
+    .url('REDIS_URL must be a valid URL (e.g., redis://default:password@host:port)')
+    .optional(),
   DEEPSEEK_API_KEY: z.string().min(1).optional(),
   DEEPSEEK_BASE_URL: z.string().url().optional(),
   OPENAI_API_KEY: z.string().min(1).optional(),

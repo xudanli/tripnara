@@ -1,6 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindOptionsWhere, In } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  FindOptionsWhere,
+  In,
+  Repository,
+} from 'typeorm';
 import {
   ItineraryEntity,
   ItineraryDayEntity,
@@ -84,105 +90,130 @@ export class ItineraryRepository {
     private readonly expenseRepository: Repository<ExpenseEntity>,
     @InjectRepository(ConversationMessageEntity)
     private readonly conversationMessageRepository: Repository<ConversationMessageEntity>,
+    private readonly dataSource: DataSource,
   ) {}
 
+  /**
+   * 创建行程（使用事务确保数据一致性）
+   * 性能优化：修复事务竞态条件，确保事务提交后再返回结果
+   */
   async createItinerary(input: CreateItineraryInput): Promise<ItineraryEntity> {
-    const itinerary = this.itineraryRepository.create({
-      userId: input.userId,
-      destination: input.destination,
-      startDate: input.startDate,
-      daysCount: input.daysCount,
-      summary: input.summary,
-      totalCost: input.totalCost,
-      currency: input.currency,
-      currencyInfo: input.currencyInfo,
-      preferences: input.preferences,
-      practicalInfo: input.practicalInfo,
-      status: input.status || 'draft',
-    });
+    // 使用事务确保所有数据在同一个事务中提交
+    // 这样可以避免竞态条件：数据库 COMMIT 还没完成，前端就已经发起了 GET 请求
+    const result = await this.dataSource.transaction(
+      async (manager: EntityManager) => {
+        const itineraryRepo = manager.getRepository(ItineraryEntity);
+        const dayRepo = manager.getRepository(ItineraryDayEntity);
+        const activityRepo = manager.getRepository(ItineraryActivityEntity);
 
-    const savedItinerary = await this.itineraryRepository.save(itinerary);
-
-    // 创建天数
-    console.log(`[ItineraryRepository] Creating ${input.daysData?.length || 0} days for itinerary ${savedItinerary.id}`);
-    
-    if (!input.daysData || input.daysData.length === 0) {
-      console.warn(`[ItineraryRepository] WARNING: No days data provided for itinerary ${savedItinerary.id}`);
-      const result = await this.findById(savedItinerary.id);
-      if (!result) {
-        throw new Error('Failed to create itinerary');
-      }
-      return result;
-    }
-    
-    // 批量创建活动（性能优化：减少数据库往返次数）
-    const allActivities: Array<{
-      dayId: string;
-      time: string;
-      title: string;
-      type: 'attraction' | 'meal' | 'hotel' | 'shopping' | 'transport' | 'ocean';
-      duration: number;
-      location: { lat: number; lng: number };
-      notes?: string;
-      cost?: number;
-      details?: Record<string, unknown>;
-    }> = [];
-
-    for (const dayData of input.daysData) {
-      if (!dayData.activities) {
-        dayData.activities = [];
-      }
-      
-      const day = this.dayRepository.create({
-        itineraryId: savedItinerary.id,
-        day: dayData.day,
-        date: dayData.date,
-      });
-      const savedDay = await this.dayRepository.save(day);
-      console.log(`[ItineraryRepository] Created day ${savedDay.day} (id: ${savedDay.id}) with ${dayData.activities.length} activities`);
-
-      // 收集活动数据（不立即保存）
-      for (const activityData of dayData.activities) {
-        allActivities.push({
-          dayId: savedDay.id,
-          time: activityData.time,
-          title: activityData.title,
-          type: activityData.type,
-          duration: activityData.duration,
-          location: activityData.location,
-          notes: activityData.notes,
-          cost: activityData.cost,
-          details: activityData.details,
+        // 创建行程
+        const itinerary = itineraryRepo.create({
+          userId: input.userId,
+          destination: input.destination,
+          startDate: input.startDate,
+          daysCount: input.daysCount,
+          summary: input.summary,
+          totalCost: input.totalCost,
+          currency: input.currency,
+          currencyInfo: input.currencyInfo,
+          preferences: input.preferences,
+          practicalInfo: input.practicalInfo,
+          status: input.status || 'draft',
         });
-      }
-    }
 
-    // 批量保存所有活动（性能优化）
-    if (allActivities.length > 0) {
-      const activityEntities = allActivities.map((activityData) =>
-        this.activityRepository.create(activityData),
-      );
-      await this.activityRepository.save(activityEntities);
-      console.log(`[ItineraryRepository] Batch saved ${activityEntities.length} activities`);
-    }
+        const savedItinerary = await itineraryRepo.save(itinerary);
 
-    // 重新查询以获取完整关联数据
-    const result = await this.findById(savedItinerary.id);
-    if (!result) {
+        // 创建天数
+        this.logger.log(
+          `[createItinerary] Creating ${input.daysData?.length || 0} days for itinerary ${savedItinerary.id}`,
+        );
+
+        if (!input.daysData || input.daysData.length === 0) {
+          this.logger.warn(
+            `[createItinerary] WARNING: No days data provided for itinerary ${savedItinerary.id}`,
+          );
+          return savedItinerary;
+        }
+
+        // 批量创建活动（性能优化：减少数据库往返次数）
+        const allActivities: Array<{
+          dayId: string;
+          time: string;
+          title: string;
+          type: 'attraction' | 'meal' | 'hotel' | 'shopping' | 'transport' | 'ocean';
+          duration: number;
+          location: { lat: number; lng: number };
+          notes?: string;
+          cost?: number;
+          details?: Record<string, unknown>;
+        }> = [];
+
+        for (const dayData of input.daysData) {
+          if (!dayData.activities) {
+            dayData.activities = [];
+          }
+
+          const day = dayRepo.create({
+            itineraryId: savedItinerary.id,
+            day: dayData.day,
+            date: dayData.date,
+          });
+          const savedDay = await dayRepo.save(day);
+          this.logger.log(
+            `[createItinerary] Created day ${savedDay.day} (id: ${savedDay.id}) with ${dayData.activities.length} activities`,
+          );
+
+          // 收集活动数据（不立即保存）
+          for (const activityData of dayData.activities) {
+            allActivities.push({
+              dayId: savedDay.id,
+              time: activityData.time,
+              title: activityData.title,
+              type: activityData.type,
+              duration: activityData.duration,
+              location: activityData.location,
+              notes: activityData.notes,
+              cost: activityData.cost,
+              details: activityData.details,
+            });
+          }
+        }
+
+        // 批量保存所有活动（性能优化）
+        if (allActivities.length > 0) {
+          const activityEntities = allActivities.map((activityData) =>
+            activityRepo.create(activityData),
+          );
+          await activityRepo.save(activityEntities);
+          this.logger.log(
+            `[createItinerary] Batch saved ${activityEntities.length} activities`,
+          );
+        }
+
+        return savedItinerary;
+      },
+    );
+
+    // 事务结束后，重新查询以获取完整关联数据
+    // 此时数据已经提交，不会出现竞态条件
+    const fullResult = await this.findById(result.id);
+    if (!fullResult) {
       throw new Error('Failed to create itinerary');
     }
-    
-    console.log(`[ItineraryRepository] Created itinerary ${result.id} with ${result.days?.length || 0} days`);
-    return result;
+
+    this.logger.log(
+      `[createItinerary] Created itinerary ${fullResult.id} with ${fullResult.days?.length || 0} days`,
+    );
+    return fullResult;
   }
 
   /**
    * 查找行程（带关联数据）
-   * 使用 QueryBuilder 确保数据正确加载，并包含备用查询机制以提高稳定性
+   * 性能优化：使用 JOIN 一次性加载完整树形结构，避免 N+1 查询
    */
   async findById(id: string): Promise<ItineraryEntity | null> {
-    // 方法1：使用 QueryBuilder 加载关联数据（推荐，性能更好）
-    let itinerary = await this.itineraryRepository
+    // 使用 QueryBuilder 一次性加载所有关联数据（避免 N+1 查询）
+    const itinerary = await this.itineraryRepository
       .createQueryBuilder('itinerary')
       .where('itinerary.id = :id', { id })
       .leftJoinAndSelect('itinerary.days', 'day')
@@ -195,33 +226,57 @@ export class ItineraryRepository {
       return null;
     }
 
-    // 验证数据完整性
+    // 性能优化：如果 QueryBuilder 已经正确加载了所有数据，直接返回
+    // 只有在数据明显不一致时才进行备用查询（例如 daysCount > 0 但 days 为空）
     const hasDays = itinerary.days && Array.isArray(itinerary.days) && itinerary.days.length > 0;
     const daysCount = itinerary.daysCount || 0;
 
-    // 如果关联数据为空但 daysCount > 0，说明数据不一致，尝试备用查询
+    // 数据一致性检查：如果 daysCount > 0 但 days 为空，说明数据可能不一致
+    // 这种情况应该很少见，但为了稳定性保留备用查询
     if (!hasDays && daysCount > 0) {
-      // 方法2：直接查询 days（备用方案）
+      this.logger.warn(
+        `[findById] 行程 ${id} 的days关联为空但daysCount=${daysCount}，尝试备用查询`,
+      );
+      // 备用方案：直接查询 days（避免在循环中查询，使用批量查询）
       const daysFromDb = await this.findDaysByItineraryId(id);
       if (daysFromDb.length > 0) {
-        // 手动设置关联数据
-        (itinerary as any).days = daysFromDb;
-      }
-    }
+        // 批量查询所有 activities（避免 N+1）
+        const dayIds = daysFromDb.map((d) => d.id);
+        const allActivities = await this.activityRepository.find({
+          where: { dayId: In(dayIds) },
+          order: { time: 'ASC' },
+        });
 
-    // 确保每个 day 的 activities 都已正确加载
-    if (itinerary.days && Array.isArray(itinerary.days)) {
-      for (const day of itinerary.days) {
-        if (!day.activities || day.activities.length === 0) {
-          // 如果某个 day 的 activities 为空，尝试直接查询
-          const activities = await this.activityRepository.find({
-            where: { dayId: day.id },
-            order: { time: 'ASC' },
-          });
-          if (activities.length > 0) {
-            (day as any).activities = activities;
+        // 将 activities 分配到对应的 day
+        const activitiesByDayId = new Map<string, typeof allActivities>();
+        for (const activity of allActivities) {
+          if (!activitiesByDayId.has(activity.dayId)) {
+            activitiesByDayId.set(activity.dayId, []);
           }
+          activitiesByDayId.get(activity.dayId)!.push(activity);
         }
+
+        // 设置关联数据
+        for (const day of daysFromDb) {
+          (day as any).activities = activitiesByDayId.get(day.id) || [];
+        }
+
+        (itinerary as any).days = daysFromDb;
+        this.logger.warn(
+          `[findById] 已通过备用方案加载 ${daysFromDb.length} 天数据`,
+        );
+      }
+    } else if (hasDays) {
+      // 验证 activities 是否都已加载（如果某个 day 的 activities 为空，可能是数据问题）
+      // 注意：这里不再循环查询，因为 QueryBuilder 应该已经加载了所有数据
+      // 如果确实有数据缺失，应该在数据层面修复，而不是在这里循环查询
+      const daysWithMissingActivities = itinerary.days.filter(
+        (day) => !day.activities || day.activities.length === 0,
+      );
+      if (daysWithMissingActivities.length > 0) {
+        this.logger.warn(
+          `[findById] 发现 ${daysWithMissingActivities.length} 个天数没有 activities，但不再进行循环查询以避免 N+1 问题`,
+        );
       }
     }
 

@@ -26,6 +26,7 @@ import { MediaModule } from './modules/media/media.module';
 import { MemberModule } from './modules/journey-members/member.module';
 import { CurrencyModule } from './modules/currency/currency.module';
 import { CountryModule } from './modules/country/country.module';
+import { QueueModule } from './modules/queue/queue.module';
 
 const resolveEnvFilePaths = (): string[] => {
   const env = process.env.NODE_ENV?.toLowerCase();
@@ -110,6 +111,7 @@ const resolveEnvFilePaths = (): string[] => {
     MemberModule,
     CurrencyModule,
     CountryModule,
+    QueueModule,
   ],
   controllers: [AppController],
   providers: [AppService],
