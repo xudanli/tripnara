@@ -31,6 +31,19 @@ import { LocationModule } from '../location/location.module';
             port,
             password,
             ...(url.username && url.username !== 'default' ? { username: url.username } : {}),
+            // 修复 Redis 连接崩溃问题
+            keepAlive: 1000, // 保持连接活跃
+            connectTimeout: 10000, // 连接超时 10 秒
+            maxRetriesPerRequest: null, // 🔥 对于 BullMQ，必须设为 null，让 Bull 自己处理重试
+            enableReadyCheck: false, // 禁用就绪检查，提高性能
+            lazyConnect: false, // 立即连接
+            retryStrategy: (times: number) => {
+              // 重试策略：最多重试 3 次
+              if (times > 3) {
+                return null; // 停止重试
+              }
+              return Math.min(times * 200, 2000);
+            },
           },
         } as any; // BullModule 配置类型
       },

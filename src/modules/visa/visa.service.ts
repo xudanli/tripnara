@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
+import Redis from 'ioredis';
 import {
   VisaPolicyEntity,
   VisaUnionEntity,
@@ -22,6 +24,11 @@ import {
 
 @Injectable()
 export class VisaService {
+  private readonly logger = new Logger(VisaService.name);
+  private readonly redisClient?: Redis;
+  private readonly useRedisCache: boolean;
+  private readonly visaCacheTtlSeconds = 24 * 60 * 60; // 24小时（签证政策相对稳定）
+
   constructor(
     @InjectRepository(VisaPolicyEntity)
     private visaPolicyRepository: Repository<VisaPolicyEntity>,
@@ -31,16 +38,87 @@ export class VisaService {
     private visaUnionCountryRepository: Repository<VisaUnionCountryEntity>,
     @InjectRepository(VisaPolicyHistoryEntity)
     private visaPolicyHistoryRepository: Repository<VisaPolicyHistoryEntity>,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    // 初始化 Redis 客户端（如果配置了 REDIS_URL）
+    const redisUrl = this.configService.get<string>('REDIS_URL');
+    if (redisUrl) {
+      try {
+        const url = new URL(redisUrl);
+        const password = url.password || undefined;
+        const host = url.hostname;
+        const port = parseInt(url.port || '6379', 10);
+
+        this.redisClient = new Redis({
+          host,
+          port,
+          password,
+          ...(url.username && url.username !== 'default'
+            ? { username: url.username }
+            : {}),
+          keepAlive: 1000,
+          connectTimeout: 10000,
+          maxRetriesPerRequest: null, // 让 ioredis 自己处理重试
+          enableReadyCheck: false,
+          lazyConnect: false,
+          retryStrategy: (times) => {
+            if (times > 3) {
+              return null;
+            }
+            return Math.min(times * 200, 2000);
+          },
+        });
+
+        this.redisClient.on('error', (error) => {
+          this.logger.warn('Redis connection error in VisaService:', error.message);
+        });
+
+        this.redisClient.on('connect', () => {
+          this.logger.log('Redis connected for visa policy cache');
+        });
+
+        this.useRedisCache = true;
+        this.logger.log('Redis cache enabled for VisaService');
+      } catch (error) {
+        this.logger.warn(
+          'Failed to initialize Redis client for VisaService, using database only:',
+          error instanceof Error ? error.message : error,
+        );
+        this.useRedisCache = false;
+      }
+    } else {
+      this.useRedisCache = false;
+      this.logger.log('Redis URL not configured for VisaService, using database only');
+    }
+  }
 
   /**
    * 查询指定目的地的签证信息
+   * 性能优化：使用 Redis 缓存，减少数据库查询
    */
   async getVisaInfo(
     destinationCountry: string,
     nationalityCode?: string,
     permanentResidencyCode?: string,
   ): Promise<VisaInfo[]> {
+    // 生成缓存键：CN -> EG (nationality) 或 CN -> EG (permanent_resident)
+    const cacheKey = `visa:${destinationCountry.toUpperCase()}:${nationalityCode?.toUpperCase() || 'none'}:${permanentResidencyCode?.toUpperCase() || 'none'}`;
+    
+    // 尝试从 Redis 缓存读取
+    if (this.useRedisCache && this.redisClient) {
+      try {
+        const cached = await this.redisClient.get(cacheKey);
+        if (cached) {
+          const visaInfos = JSON.parse(cached) as VisaInfo[];
+          this.logger.debug(`Redis cache hit for visa info: ${cacheKey}`);
+          return visaInfos;
+        }
+      } catch (error) {
+        this.logger.warn(`Redis cache read error for ${cacheKey}:`, error);
+        // 继续从数据库查询
+      }
+    }
+
     const now = new Date();
     const results: VisaInfo[] = [];
 
@@ -84,6 +162,20 @@ export class VisaService {
       });
 
       results.push(...validNationalityPolicies.map(this.mapToVisaInfo));
+    }
+
+    // 写入 Redis 缓存（24小时）
+    if (this.useRedisCache && this.redisClient) {
+      try {
+        await this.redisClient.setex(
+          cacheKey,
+          this.visaCacheTtlSeconds,
+          JSON.stringify(results),
+        );
+        this.logger.debug(`Redis cache set for visa info: ${cacheKey}`);
+      } catch (error) {
+        this.logger.warn(`Redis cache write error for ${cacheKey}:`, error);
+      }
     }
 
     return results;
@@ -316,6 +408,9 @@ export class VisaService {
 
     const saved = await this.visaPolicyRepository.save(policy);
 
+    // 清除相关缓存（当政策创建时）
+    await this.invalidateVisaCache(saved.destinationCountryCode, saved.applicantCountryCode);
+
     // 记录历史
     await this.visaPolicyHistoryRepository.save({
       policyId: saved.id,
@@ -395,6 +490,9 @@ export class VisaService {
 
     const saved = await this.visaPolicyRepository.save(policy);
 
+    // 清除相关缓存（当政策更新时）
+    await this.invalidateVisaCache(saved.destinationCountryCode, saved.applicantCountryCode);
+
     // 记录历史
     await this.visaPolicyHistoryRepository.save({
       policyId: saved.id,
@@ -457,6 +555,31 @@ export class VisaService {
       duration: policy.durationDays,
       applicationUrl: policy.applicationUrl,
     };
+  }
+
+  /**
+   * 清除签证政策缓存
+   * 当政策创建、更新或删除时调用
+   */
+  private async invalidateVisaCache(
+    destinationCountryCode: string,
+    applicantCountryCode: string,
+  ): Promise<void> {
+    if (!this.useRedisCache || !this.redisClient) {
+      return;
+    }
+
+    try {
+      // 清除所有相关的缓存键（使用模式匹配）
+      const pattern = `visa:${destinationCountryCode.toUpperCase()}:*:${applicantCountryCode.toUpperCase()}`;
+      const keys = await this.redisClient.keys(pattern);
+      if (keys.length > 0) {
+        await this.redisClient.del(...keys);
+        this.logger.debug(`Cleared ${keys.length} visa cache entries for ${destinationCountryCode} -> ${applicantCountryCode}`);
+      }
+    } catch (error) {
+      this.logger.warn('Failed to invalidate visa cache:', error);
+    }
   }
 }
 

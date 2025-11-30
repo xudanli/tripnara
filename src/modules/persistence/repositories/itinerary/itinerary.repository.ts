@@ -347,9 +347,17 @@ export class ItineraryRepository {
     return queryBuilder.getManyAndCount();
   }
 
+  /**
+   * 更新行程
+   * 性能优化：接受可选的 itinerary 实体参数，避免重复查询
+   * @param id 行程ID
+   * @param input 更新数据
+   * @param existingItinerary 可选的已查询的行程实体（如果提供，将复用，避免重复查询）
+   */
   async updateItinerary(
     id: string,
     input: UpdateItineraryInput,
+    existingItinerary?: ItineraryEntity | null,
   ): Promise<ItineraryEntity | null> {
     // 构建更新对象，处理 JSONB 字段
     const updateData: any = {};
@@ -386,6 +394,16 @@ export class ItineraryRepository {
     }
 
     await this.itineraryRepository.update(id, updateData);
+    
+    // 性能优化：如果提供了已查询的实体，直接更新其字段并返回，避免重复查询
+    if (existingItinerary && existingItinerary.id === id) {
+      // 更新实体对象的字段
+      Object.assign(existingItinerary, updateData);
+      // 返回更新后的实体（已包含关联数据 days 和 activities）
+      return existingItinerary;
+    }
+    
+    // 如果没有提供实体，才进行查询（包含关联数据）
     return this.findById(id);
   }
 
@@ -407,6 +425,13 @@ export class ItineraryRepository {
 
   /**
    * 更新行程的完整数据，包括 days 和 activities
+   */
+  /**
+   * 更新行程（包含 days 和 activities）
+   * 性能优化：接受可选的 itinerary 实体参数，避免重复查询
+   * @param id 行程ID
+   * @param input 更新数据
+   * @param existingItinerary 可选的已查询的行程实体（如果提供，将复用，避免重复查询）
    */
   async updateItineraryWithDays(
     id: string,
@@ -448,6 +473,7 @@ export class ItineraryRepository {
         }>;
       }>;
     },
+    existingItinerary?: ItineraryEntity | null,
   ): Promise<ItineraryEntity | null> {
     // 更新主表字段
     const updateData: any = {};
@@ -518,6 +544,15 @@ export class ItineraryRepository {
       }
     }
 
+    // 性能优化：如果提供了已查询的实体且没有更新 daysData，直接更新其字段并返回
+    if (existingItinerary && existingItinerary.id === id && !input.daysData) {
+      // 更新实体对象的字段
+      Object.assign(existingItinerary, updateData);
+      // 返回更新后的实体（已包含关联数据）
+      return existingItinerary;
+    }
+
+    // 如果更新了 daysData 或没有提供实体，需要重新查询以获取最新的 days 和 activities
     return this.findById(id);
   }
 

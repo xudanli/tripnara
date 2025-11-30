@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule } from '@nestjs/config';
 import {
   VisaPolicyEntity,
   VisaUnionEntity,
@@ -17,6 +18,7 @@ import { VisaService } from './visa.service';
       VisaUnionCountryEntity,
       VisaPolicyHistoryEntity,
     ]),
+    ConfigModule,
   ],
   controllers: [VisaController],
   providers: [VisaService],

@@ -77,6 +77,12 @@ export class LocationService {
           ...(url.username && url.username !== 'default'
             ? { username: url.username }
             : {}),
+          // 修复 Redis 连接崩溃问题
+          keepAlive: 1000, // 保持连接活跃
+          connectTimeout: 10000, // 连接超时 10 秒
+          maxRetriesPerRequest: null, // 🔥 对于缓存场景，设为 null 让 ioredis 自己处理重试
+          enableReadyCheck: false, // 禁用就绪检查，提高性能
+          lazyConnect: false, // 立即连接
           retryStrategy: (times) => {
             // 重试策略：最多重试 3 次
             if (times > 3) {
@@ -84,7 +90,6 @@ export class LocationService {
             }
             return Math.min(times * 200, 2000);
           },
-          maxRetriesPerRequest: 3,
         });
 
         this.redisClient.on('error', (error) => {

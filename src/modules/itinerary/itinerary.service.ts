@@ -1067,6 +1067,7 @@ ${dateInstructions}`;
     }
 
     // 获取当前行程信息，用于判断是否需要重新推断货币
+    // 性能优化：查询一次，后续传递给 updateItinerary 复用
     const currentItinerary = await this.itineraryRepository.findById(id);
     if (!currentItinerary) {
       throw new NotFoundException(`行程不存在: ${id}`);
@@ -1106,10 +1107,11 @@ ${dateInstructions}`;
       }
     }
 
-    // 更新行程（如果 updateItinerary 返回 null，说明行程不存在）
+    // 性能优化：传递已查询的实体，避免重复查询
     const updatedItinerary = await this.itineraryRepository.updateItinerary(
       id,
       updateData,
+      currentItinerary, // 传递已查询的实体
     );
 
     if (!updatedItinerary) {
@@ -1261,8 +1263,13 @@ ${dateInstructions}`;
     const calculatedTotalCost = CostCalculator.calculateTotalCost(itineraryDataForCalculation);
 
     // 获取当前行程信息，用于判断是否需要重新推断货币
+    // 性能优化：查询一次，后续传递给 updateItineraryWithDays 复用
     const currentItinerary = await this.itineraryRepository.findById(id);
-    const needsCurrencyUpdate = currentItinerary && 
+    if (!currentItinerary) {
+      throw new NotFoundException(`行程不存在: ${id}`);
+    }
+
+    const needsCurrencyUpdate = 
       itineraryData.destination && 
       itineraryData.destination !== currentItinerary.destination;
 
@@ -1306,9 +1313,11 @@ ${dateInstructions}`;
       updateData.currencyInfo = currency;
     }
 
+    // 性能优化：传递已查询的实体，避免重复查询
     const itinerary = await this.itineraryRepository.updateItineraryWithDays(
       id,
       updateData,
+      currentItinerary, // 传递已查询的实体
     );
 
     if (!itinerary) {
@@ -3438,6 +3447,7 @@ ${dateInstructions}`;
       throw new ForbiddenException('无权修改此行程');
     }
 
+    // 性能优化：查询一次，后续复用
     const itinerary = await this.itineraryRepository.findById(journeyId);
     if (!itinerary) {
       throw new NotFoundException(`行程不存在: ${journeyId}`);
