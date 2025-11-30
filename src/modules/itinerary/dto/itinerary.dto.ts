@@ -548,6 +548,16 @@ export class DeleteItineraryResponseDto {
 
 // 前端提供的完整行程数据格式（包含 itineraryData 和 tasks）
 export class ItineraryTimeSlotDto {
+  @ApiPropertyOptional({ description: '活动ID（slotId，用于编辑/删除活动）', example: 'uuid' })
+  @IsOptional()
+  @IsString()
+  id?: string;
+
+  @ApiPropertyOptional({ description: '天数ID（dayId，用于编辑/删除活动）', example: 'uuid' })
+  @IsOptional()
+  @IsString()
+  dayId?: string;
+
   @ApiProperty({ description: '时间', example: '08:00' })
   @IsString()
   time!: string;

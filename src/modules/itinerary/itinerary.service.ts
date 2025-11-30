@@ -208,7 +208,7 @@ export class ItineraryService {
 
       // 构建AI提示词
       const systemMessage =
-        '你是一个专业的旅行规划师和创意文案师，擅长制定详细、实用的旅行行程，并为每个活动设计生动有趣的标题。请始终以纯JSON格式返回数据，不要添加任何额外的文字说明或解释，确保标题富有创意和吸引力。';
+        '你是一名专业的旅行规划师与创意行程编排师，擅长为每个旅行活动设计具有"动作感""可执行性""场景代入"的标题。请严格按照以下要求生成内容，并始终以纯 JSON 格式返回，不要添加任何解释性文字。';
 
       const prompt = this.buildUserPrompt(
         destination,
@@ -438,6 +438,8 @@ ${dateInstructions}`;
 
     prompt += `
 
+【输出格式】
+
 请按照以下格式返回JSON数据：
 
 {
@@ -448,11 +450,11 @@ ${dateInstructions}`;
       "activities": [
         {
           "time": "09:00",
-          "title": "富有创意的活动标题",
+          "title": "沿火山步道徒步进入裂谷深处",
           "type": "attraction",
           "duration": 120,
           "location": {"lat": 34.9949, "lng": 135.7850},
-          "notes": "详细的游览建议和体验描述",
+          "notes": "从停车场出发，沿标记清晰的火山步道前行约2公里，途中可观察火山岩地貌和地热现象。建议穿着防滑徒步鞋，携带充足饮水和防晒用品。步道前半段较平缓，后半段需小心碎石路面。最佳游览时间为上午9-11点，避开正午高温。适合有一定体力的游客，不适合老人和幼儿。避坑要点：不要偏离标记步道，注意脚下安全。",
           "cost": 400
         }
       ]
@@ -462,23 +464,71 @@ ${dateInstructions}`;
   "summary": "行程摘要"
 }
 
-重要要求：
+【活动字段说明】
 
-1. 活动标题要生动有趣，避免"经典景点游览"、"当地特色美食"等通用词汇
+每个活动（activities数组中的元素）必须包含以下字段：
 
-2. 景点标题要具体化，如"探秘千年古寺"、"漫步胡杨林金色海洋"、"登顶观日出云海"
+1. **"title"**: 活动标题（必须动作导向，见下方详细要求）
+2. **"notes"**: 活动体验说明（≥80字，必须描述具体怎么做、体验过程、行动细节）
+3. **"time"**: 活动开始时间（HH:mm格式，如 "09:00"）
+4. **"duration"**: 活动持续时间（分钟数，如 120）
+5. **"location"**: 活动地点坐标（JSON对象，格式：{"lat": 纬度, "lng": 经度}）
+6. **"type"**: 活动类型（attraction/meal/hotel/shopping/transport/ocean，对应：景点/美食/住宿/购物/交通/海洋活动）
+7. **"cost"**: 预估费用（数字）
 
-3. 美食标题要有诱惑力，如"品味正宗手扒羊肉"、"邂逅蒙古奶茶的醇香"、"寻味街头巷尾小吃"
+【活动标题（必须动作导向）】
 
-4. 活动类型包括：attraction（景点）、meal（餐饮）、hotel（住宿）、shopping（购物）、transport（交通）
+- **以动作为主导**，让用户一眼看到"要做什么"
+- **使用能体现行为、方向、节奏的动词**，如：徒步、攀登、穿越、潜入、漫游、追寻、踏入、登顶、探路、寻味、漫步、骑行、划船、攀爬、探索、寻觅、品尝、制作、体验、参与
+- **标题必须具体，不得模糊**
 
-5. 请确保行程合理，时间安排紧凑但不紧张，包含当地特色景点和美食
+  - ✅ 正确示例：
+    - "沿火山步道徒步进入裂谷深处"
+    - "踏上悬崖步道俯瞰冰川湖"
+    - "在老街夜市寻味炭火羊排"
+    - "攀登古堡石阶探访千年历史"
+    - "潜入珊瑚礁区观赏热带鱼群"
+    - "穿越原始森林寻找隐秘瀑布"
+    - "在传统工坊亲手制作陶艺作品"
+    - "漫步樱花小径捕捉春日光影"
 
-6. 每个活动的notes要详细描述体验内容和实用建议
+  - ❌ 禁止使用：
+    - "经典游览"、"特色美食"、"随便逛逛"、"走走看看"、"体验当地文化"
+    - "城市观光"、"必吃美食"、"当地特色"、"文化体验"等空泛标题
 
-7. 请务必严格按照JSON格式返回，不要添加任何额外的文字说明
+【notes（≥80字）】
 
-注意：请确保返回完整的JSON数据，包含所有${days}天的行程安排。`;
+- **必须描述"具体怎么做、体验过程、行动细节"**
+- **包含以下内容**：
+  - **路线**：如何到达、具体路线、路径指引
+  - **节奏**：活动的时间安排、节奏控制、各阶段时间分配
+  - **注意事项**：安全提醒、时间限制、天气影响、人群情况
+  - **穿着补给建议**：需要携带的物品、装备、证件、服装要求
+  - **适合人群**：适合的年龄段、体力要求、兴趣偏好、技能要求
+  - **避坑要点**：如何获得最佳体验、常见误区、省钱技巧、最佳时机
+
+- **内容必须有画面感，但以行为过程为主，而非抒情**
+- **字数要求：≥80字**，确保内容充实、可执行
+- **禁止出现模板化泛句**，如"体验当地文化"、"感受美景"、"享受美食"等空洞描述
+- **语言要有力度、明确、可执行**，让用户知道具体要做什么、怎么做
+
+【活动类型说明】
+
+- **attraction**：景点（自然景观、历史遗迹、博物馆、地标建筑等）
+- **meal**：美食（餐厅、小吃、特色美食体验等）
+- **hotel**：住宿（酒店、民宿、特色住宿等）
+- **shopping**：购物（市集、商店、手工艺品等）
+- **transport**：交通（机场接送、城际交通、市内交通等）
+- **ocean**：海洋活动（浮潜、潜水、海上运动等）
+
+【其他要求】
+
+1. 请确保行程合理，时间安排紧凑但不紧张，包含当地特色景点和美食
+2. 请务必严格按照JSON格式返回，不要添加任何额外的文字说明
+3. 请确保返回完整的JSON数据，包含所有${days}天的行程安排
+4. 每个活动都应该有明确的开始时间（time字段），时间安排要合理，避免冲突
+5. 坐标（location）应该尽可能准确，如果无法确定精确坐标，可以使用目的地中心坐标
+6. 保持语言有力度、明确、可执行`;
 
     return prompt;
   }
@@ -1537,9 +1587,12 @@ ${dateInstructions}`;
     // 先将实体活动转换为 DTO 格式，再转换为 timeSlots
     const daysWithTimeSlots: ItineraryDayWithTimeSlotsDto[] = daysArray.map(
       (day, index) => {
-        // 将实体活动转换为 DTO 格式
-        const activitiesDto: ItineraryActivityDto[] = (day.activities || []).map(
-          (act) => ({
+        // 将实体活动转换为 DTO 格式，并提取ID
+        const activitiesDto: ItineraryActivityDto[] = [];
+        const activityIds: string[] = [];
+        
+        (day.activities || []).forEach((act) => {
+          activitiesDto.push({
             time: DataValidator.fixTime(act.time, '09:00'),
             title: DataValidator.fixString(act.title, '未命名活动'),
             type: DataValidator.fixActivityType(act.type, 'attraction') as
@@ -1554,13 +1607,14 @@ ${dateInstructions}`;
             notes: DataValidator.fixString(act.notes, ''),
             cost: DataValidator.fixNumber(act.cost, 0, 0),
             details: act.details,
-          }),
-        );
+          });
+          activityIds.push(act.id); // 保存活动ID
+        });
 
         return {
           day: DataValidator.fixNumber(day.day, index + 1, 1), // 天数从1开始
           date: DataValidator.fixDate(day.date as Date | string),
-          timeSlots: this.convertActivitiesToTimeSlots(activitiesDto),
+          timeSlots: this.convertActivitiesToTimeSlots(activitiesDto, day.id, activityIds),
         };
       },
     );
@@ -2029,8 +2083,10 @@ ${dateInstructions}`;
    */
   private convertActivitiesToTimeSlots(
     activities: ItineraryActivityDto[],
+    dayId?: string,
+    activityIds?: string[],
   ): ItineraryTimeSlotDto[] {
-    return activities.map((act) => {
+    return activities.map((act, index) => {
       // 使用 DataValidator 修复所有字段
       const fixedTitle = DataValidator.fixString(act.title, '未命名活动');
       const fixedNotes = DataValidator.fixString(act.notes, '');
@@ -2043,6 +2099,8 @@ ${dateInstructions}`;
       };
 
       return {
+        id: activityIds?.[index], // 活动ID（slotId，用于编辑/删除）
+        dayId: dayId, // 天数ID（用于编辑/删除）
         time: DataValidator.fixTime(act.time, '09:00'),
         title: fixedTitle,
         activity: fixedTitle, // 与 title 相同，保留以兼容前端
@@ -2198,11 +2256,12 @@ ${dateInstructions}`;
         food?: string;
         tips?: string;
       }) || undefined,
-      days: daysArray.map((day) => ({
-        day: day.day,
-        date: formatDayDate(day.date as Date | string),
-        timeSlots: this.convertActivitiesToTimeSlots(
-          (day.activities || []).map((act) => ({
+      days: daysArray.map((day) => {
+        const activitiesDto: ItineraryActivityDto[] = [];
+        const activityIds: string[] = [];
+        
+        (day.activities || []).forEach((act) => {
+          activitiesDto.push({
             time: act.time,
             title: act.title,
             type: act.type as
@@ -2210,15 +2269,23 @@ ${dateInstructions}`;
               | 'meal'
               | 'hotel'
               | 'shopping'
-              | 'transport',
+              | 'transport'
+              | 'ocean',
             duration: act.duration,
             location: act.location,
             notes: act.notes || '',
             cost: act.cost || 0,
             details: (act as any).details,
-          })),
-        ),
-      })),
+          });
+          activityIds.push(act.id); // 保存活动ID
+        });
+
+        return {
+          day: day.day,
+          date: formatDayDate(day.date as Date | string),
+          timeSlots: this.convertActivitiesToTimeSlots(activitiesDto, day.id, activityIds),
+        };
+      }),
       totalCost: entity.totalCost ? Number(entity.totalCost) : 0,
       summary: entity.summary || '',
     };
