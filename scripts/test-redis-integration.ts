@@ -265,7 +265,9 @@ async function testKeyspaceStats() {
 
 async function main() {
   console.log('🔍 Redis 集成测试\n');
-  console.log(`   配置: ${redisUrl.replace(/:[^:@]+@/, ':****@')}\n`);
+  if (redisUrl) {
+    console.log(`   配置: ${redisUrl.replace(/:[^:@]+@/, ':****@')}\n`);
+  }
   
   redis.on('error', (error) => {
     console.error('❌ Redis 连接错误:', error.message);
