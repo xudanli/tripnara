@@ -201,7 +201,7 @@ export class DestinationsV1Controller {
   @ApiOperation({
     summary: '准确地理编码（支持自然语言）',
     description:
-      '使用 AI + Mapbox 进行地理编码，支持自然语言描述（如"那个有很多鹿的日本公园"）',
+      '使用 AI + Mapbox 进行地理编码，支持自然语言描述（如"那个有很多鹿的日本公园"）。可通过 context 参数提供位置上下文以提高搜索准确度。',
   })
   @ApiBody({ type: AccurateGeocodeRequestDto })
   @ApiOkResponse({ type: AccurateGeocodeResponseDto })
@@ -215,14 +215,18 @@ export class DestinationsV1Controller {
       // 强制使用 AI 辅助
       result = await this.accurateGeocodingService.searchComplexLocation(
         dto.query,
+        dto.context,
       );
       usedAI = true;
     } else {
       // 智能搜索：先尝试直接查询，失败则使用 AI
-      // 先尝试直接查询
-      const directResult = await this.accurateGeocodingService.getCoordinates(
-        dto.query,
-      );
+      // 先尝试直接查询（如果有 context，也尝试拼接查询）
+      const directResult = dto.context
+        ? await this.accurateGeocodingService.getCoordinates(
+            dto.query,
+            dto.context,
+          ) || await this.accurateGeocodingService.getCoordinates(dto.query)
+        : await this.accurateGeocodingService.getCoordinates(dto.query);
       
       if (directResult) {
         // 直接查询成功，不需要 AI
@@ -232,6 +236,7 @@ export class DestinationsV1Controller {
         // 直接查询失败，使用 AI 辅助
         result = await this.accurateGeocodingService.searchComplexLocation(
           dto.query,
+          dto.context,
         );
         usedAI = true;
       }

@@ -303,6 +303,14 @@ export class AccurateGeocodeRequestDto {
   @IsOptional()
   @IsBoolean()
   useAI?: boolean;
+
+  @ApiPropertyOptional({
+    description: '位置上下文（行程目的地或当前城市），用于提高搜索准确度',
+    example: '东京',
+  })
+  @IsOptional()
+  @IsString()
+  context?: string;
 }
 
 /**

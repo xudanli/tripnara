@@ -29,7 +29,8 @@
 ```json
 {
   "query": "那个有很多鹿的日本公园",
-  "useAI": false
+  "useAI": false,
+  "context": "日本"
 }
 ```
 
@@ -39,6 +40,7 @@
 |------|------|------|------|------|
 | `query` | string | 是 | 地点查询文本（支持自然语言描述，最少2个字符） | `"那个有很多鹿的日本公园"` 或 `"奈良公园"` |
 | `useAI` | boolean | 否 | 是否强制使用 AI 辅助（默认 `false`，自动判断） | `false` |
+| `context` | string | 否 | 位置上下文（行程目的地或当前城市），用于提高搜索准确度，避免同名地点冲突 | `"东京"` 或 `"日本"` |
 
 **`useAI` 参数说明**：
 - `false`（默认）：智能模式，先尝试直接 Mapbox 查询，失败则自动使用 AI 辅助
@@ -97,11 +99,20 @@ curl -X POST "http://localhost:3000/api/v1/destinations/geocode/accurate" \
     "query": "奈良公园"
   }'
 
-# 自然语言查询（智能模式）
+# 自然语言查询（智能模式，带位置上下文）
 curl -X POST "http://localhost:3000/api/v1/destinations/geocode/accurate" \
   -H "Content-Type: application/json" \
   -d '{
-    "query": "那个有很多鹿的日本公园"
+    "query": "那个有很多鹿的日本公园",
+    "context": "日本"
+  }'
+
+# 使用位置上下文避免同名地点冲突
+curl -X POST "http://localhost:3000/api/v1/destinations/geocode/accurate" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "中央公园",
+    "context": "东京"
   }'
 
 # 强制使用 AI 辅助
@@ -259,22 +270,32 @@ if (result) {
 #### 智能搜索模式（`useAI: false`，默认）
 
 1. **第一步**：直接调用 Mapbox Geocoding API 查询
+   - 如果提供了 `context`，先尝试拼接查询（`query, context`）
    - 如果成功，直接返回结果（`usedAI: false`）
    - 如果失败，进入第二步
 
-2. **第二步**：使用 AI 提取标准地名
-   - 调用 DeepSeek LLM，从自然语言描述中提取标准地点名称
-   - 例如："那个有很多鹿的日本公园" → "奈良公园"
+2. **第二步**：使用 AI 提取标准地名和位置提示
+   - 调用 DeepSeek LLM，从自然语言描述中提取标准地点名称和位置线索
+   - AI 返回 JSON 格式：`{ standard_name, location_hint, confidence }`
+   - 例如："那个有很多鹿的日本公园" → `{ standard_name: "奈良公园", location_hint: "奈良, 日本", confidence: "high" }`
 
-3. **第三步**：使用提取的标准地名再次调用 Mapbox API
+3. **第三步**：使用提取的标准地名和位置提示调用 Mapbox API
+   - 优先使用 AI 提取的 `location_hint`，其次使用传入的 `context`
+   - 查询格式：`标准地名, 位置提示`（如 "奈良公园, 奈良, 日本"）
    - 如果成功，返回结果（`usedAI: true`）
    - 如果失败，返回 `{ success: false }`
 
 #### 强制 AI 模式（`useAI: true`）
 
-1. **直接使用 AI 提取标准地名**
-2. **使用提取的标准地名调用 Mapbox API**
+1. **直接使用 AI 提取标准地名和位置提示**
+2. **使用提取的标准地名和位置提示调用 Mapbox API**
 3. **返回结果**（`usedAI: true`）
+
+#### 位置上下文（`context`）的作用
+
+- **避免同名地点冲突**：例如查询"中央公园"，如果 `context: "东京"`，会优先搜索东京的中央公园，而不是纽约的
+- **提高搜索准确度**：AI 会结合 `context` 信息，更准确地提取地点名称
+- **优化 Mapbox 查询**：将 `context` 或 AI 提取的 `location_hint` 拼接到查询中，提高 Mapbox 的命中率
 
 ### 使用场景
 
@@ -311,9 +332,12 @@ if (result) {
    - 建议在输入框下方显示提示："支持自然语言描述，如'那个有很多鹿的日本公园'"
 
 4. **缓存策略**：
-   - 相同查询的结果可以本地缓存
-   - 标准地名的查询结果可以长期缓存（如 24 小时）
-   - AI 辅助的查询结果可以短期缓存（如 1 小时）
+   - **后端不做缓存**：每次请求都会实时调用 Mapbox API 和 AI 服务，确保结果的实时性和准确性
+   - **前端缓存**（可选）：如果需要优化性能，可以在前端实现本地缓存
+     - 相同查询的结果可以本地缓存
+     - 标准地名的查询结果可以长期缓存（如 24 小时）
+     - AI 辅助的查询结果可以短期缓存（如 1 小时）
+   - **注意**：由于后端不做缓存，相同查询的多次请求都会消耗 API 配额
 
 5. **降级方案**：
    - 如果接口返回 `success: false`，可以：
@@ -369,15 +393,17 @@ async function addActivityFromDescription(description: string) {
 
 ### AI 意图识别示例
 
-以下是一些 AI 可以识别的自然语言描述示例：
+以下是一些 AI 可以识别的自然语言描述示例（包含位置提示）：
 
-| 用户输入 | AI 提取的标准地名 | 说明 |
-|---------|-----------------|------|
-| "那个有很多鹿的日本公园" | 奈良公园 | 著名景点特征识别 |
-| "哈佛大学附近的那个有名的红砖美术馆" | 哈佛艺术博物馆 | 相对位置 + 特征识别 |
-| "巴黎那个铁塔" | 埃菲尔铁塔 | 城市 + 地标识别 |
-| "东京那个看樱花的地方" | 上野公园 | 城市 + 活动特征识别 |
-| "瑞士那个最高的山峰" | 马特洪峰 | 国家 + 特征识别 |
+| 用户输入 | Context | AI 提取结果 | 说明 |
+|---------|---------|------------|------|
+| "那个有很多鹿的日本公园" | - | `{ standard_name: "奈良公园", location_hint: "奈良, 日本", confidence: "high" }` | 著名景点特征识别 |
+| "哈佛大学附近的那个有名的红砖美术馆" | - | `{ standard_name: "哈佛艺术博物馆", location_hint: "Cambridge, MA, USA", confidence: "high" }` | 相对位置 + 特征识别 |
+| "巴黎那个铁塔" | - | `{ standard_name: "埃菲尔铁塔", location_hint: "巴黎, 法国", confidence: "high" }` | 城市 + 地标识别 |
+| "东京那个看樱花的地方" | - | `{ standard_name: "上野公园", location_hint: "东京, 日本", confidence: "high" }` | 城市 + 活动特征识别 |
+| "冰岛看钻石的地方" | - | `{ standard_name: "钻石沙滩", location_hint: "冰岛", confidence: "medium" }` | 国家 + 特征识别 |
+| "中央公园" | "东京" | `{ standard_name: "中央公园", location_hint: "东京, 日本", confidence: "high" }` | 使用 context 避免同名冲突 |
+| "最好吃的拉面" | "东京" | `{ standard_name: "一兰拉面", location_hint: "东京, 日本", confidence: "medium" }` | 结合 context 提高准确性 |
 
 ### 注意事项
 
@@ -386,4 +412,7 @@ async function addActivityFromDescription(description: string) {
 3. **准确性**：标准地名查询准确性高，自然语言描述依赖于 AI 的理解能力
 4. **成本考虑**：AI 辅助查询会消耗 LLM API 配额，建议合理使用
 5. **语言支持**：目前主要支持中文自然语言描述，其他语言可能需要调整 AI 提示词
+6. **无缓存机制**：**后端不做任何缓存**，每次请求都会实时调用 Mapbox API 和 AI 服务。相同查询的多次请求都会消耗 API 配额，建议前端实现本地缓存以优化性能
+7. **位置上下文建议**：强烈建议在查询时提供 `context` 参数（如行程目的地），可以显著提高搜索准确度，避免同名地点冲突
+8. **AI 输出格式**：AI 使用 JSON 格式返回结果，包含 `standard_name`（标准地名）、`location_hint`（位置提示）和 `confidence`（置信度）字段
 
