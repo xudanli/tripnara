@@ -138,21 +138,22 @@ export class ItineraryGenerationService {
           .replace(/```/g, '') // 去掉 ```
           .trim(); // 去掉首尾空格
 
-        // 尝试找到 JSON 对象的开始和结束位置
+        // 尝试找到 JSON 对象的开始位置
         const jsonStartIndex = jsonString.search(/[{\[]/);
         if (jsonStartIndex > 0) {
           // 如果 JSON 前面有废话，去掉
           jsonString = jsonString.substring(jsonStartIndex);
         }
 
-        // 尝试找到 JSON 对象的结束位置（从后往前找）
+        // 🛠️ 改进：从前往后解析，找到完整的 JSON 结束位置
         let jsonEndIndex = jsonString.length;
         let braceCount = 0;
         let bracketCount = 0;
         let inString = false;
         let escapeNext = false;
+        let foundStart = false;
 
-        for (let i = jsonString.length - 1; i >= 0; i--) {
+        for (let i = 0; i < jsonString.length; i++) {
           const char = jsonString[i];
 
           if (escapeNext) {
@@ -174,40 +175,92 @@ export class ItineraryGenerationService {
             continue;
           }
 
-          if (char === '}') {
+          // 记录 JSON 开始字符
+          if ((char === '{' || char === '[') && !foundStart) {
+            foundStart = true;
+          }
+
+          if (char === '{') {
             braceCount++;
-          } else if (char === '{') {
+          } else if (char === '}') {
             braceCount--;
-            if (braceCount === 0 && bracketCount === 0) {
+            // 如果所有括号都匹配了，这就是 JSON 的结束位置
+            if (braceCount === 0 && bracketCount === 0 && foundStart) {
               jsonEndIndex = i + 1;
               break;
             }
-          } else if (char === ']') {
-            bracketCount++;
           } else if (char === '[') {
+            bracketCount++;
+          } else if (char === ']') {
             bracketCount--;
-            if (braceCount === 0 && bracketCount === 0) {
+            // 如果所有括号都匹配了，这就是 JSON 的结束位置
+            if (braceCount === 0 && bracketCount === 0 && foundStart) {
               jsonEndIndex = i + 1;
               break;
             }
           }
         }
 
-        if (jsonEndIndex < jsonString.length) {
-          // 如果 JSON 后面有废话，去掉
+        // 如果找到了完整的 JSON，截取它
+        if (jsonEndIndex < jsonString.length && foundStart) {
           jsonString = jsonString.substring(0, jsonEndIndex);
+        }
+
+        // 验证 JSON 是否完整（检查括号是否匹配）
+        if (braceCount !== 0 || bracketCount !== 0) {
+          const errorMsg = `JSON不完整（括号不匹配：braceCount=${braceCount}, bracketCount=${bracketCount}）。可能是响应被截断。`;
+          this.logger.error(errorMsg, {
+            braceCount,
+            bracketCount,
+            jsonStringLength: jsonString.length,
+            preview: jsonString.substring(0, 500),
+            rawResponseLength: rawResponse.length,
+            rawResponsePreview: rawResponse.substring(0, 500),
+          });
+          throw new BadRequestException(
+            'AI返回的JSON不完整，可能是响应被截断。请重试或减少行程天数。',
+          );
         }
 
         // 尝试解析 JSON
         try {
+          // 如果 JSON 字符串太短或不完整，直接报错
+          if (jsonString.length < 10) {
+            throw new Error(
+              `JSON字符串太短（${jsonString.length}字符），可能是提取失败。原始响应预览: ${rawResponse.substring(0, 200)}`,
+            );
+          }
+
+          // 如果没找到 JSON 开始字符，说明提取失败
+          if (!foundStart) {
+            throw new Error(
+              `未找到有效的JSON开始字符（{或[）。原始响应预览: ${rawResponse.substring(0, 500)}`,
+            );
+          }
+
           aiResponse = JSON.parse(jsonString);
         } catch (parseError) {
+          // 记录更详细的错误信息
+          const errorMessage =
+            parseError instanceof Error ? parseError.message : String(parseError);
+          
           this.logger.error('JSON解析失败，尝试修复或重试', {
-            error: parseError instanceof Error ? parseError.message : parseError,
-            jsonString: jsonString.substring(0, 500), // 只记录前500字符
+            error: errorMessage,
+            jsonStringLength: jsonString.length,
+            jsonStringPreview: jsonString.substring(0, 500), // 只记录前500字符
+            rawResponseLength: rawResponse.length,
+            rawResponsePreview: rawResponse.substring(0, 500), // 原始响应预览
           });
+
+          // 如果 JSON 不完整（比如被截断），提供更友好的错误信息
+          if (errorMessage.includes('Unexpected end') || errorMessage.includes('end of JSON')) {
+            throw new BadRequestException(
+              'AI返回的JSON不完整，可能是响应被截断。请重试或减少行程天数。',
+            );
+          }
+
           throw new BadRequestException(
-            'AI返回格式异常，无法解析JSON。请重试。',
+            `AI返回格式异常，无法解析JSON: ${errorMessage}。请重试。`,
           );
         }
 
