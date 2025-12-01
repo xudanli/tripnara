@@ -132,136 +132,45 @@ export class ItineraryGenerationService {
           json: false, // 先设为 false，拿原始文本自己处理
         });
 
-        // 🛠️ 修复逻辑：清理 Markdown 标记和前后废话
+        // =================================================================
+        // 🛠️ 优化后的 JSON 提取逻辑 (Robust JSON Extraction)
+        // =================================================================
+        
+        // 1. 清理 Markdown 标记
         let jsonString = rawResponse
-          .replace(/```json/gi, '') // 去掉 ```json (不区分大小写)
-          .replace(/```/g, '') // 去掉 ```
-          .trim(); // 去掉首尾空格
+          .replace(/```json/gi, '')
+          .replace(/```/g, '')
+          .trim();
 
-        // 尝试找到 JSON 对象的开始位置
-        const jsonStartIndex = jsonString.search(/[{\[]/);
-        if (jsonStartIndex > 0) {
-          // 如果 JSON 前面有废话，去掉
-          jsonString = jsonString.substring(jsonStartIndex);
-        }
+        // 2. 简单粗暴但有效的提取：找第一个 '{' 和最后一个 '}'
+        // 这能有效忽略掉 LLM 在 JSON 之前或之后的废话，以及中间的示例 JSON
+        const firstOpen = jsonString.indexOf('{');
+        const lastClose = jsonString.lastIndexOf('}');
 
-        // 🛠️ 改进：从前往后解析，找到完整的 JSON 结束位置
-        let jsonEndIndex = jsonString.length;
-        let braceCount = 0;
-        let bracketCount = 0;
-        let inString = false;
-        let escapeNext = false;
-        let foundStart = false;
-
-        for (let i = 0; i < jsonString.length; i++) {
-          const char = jsonString[i];
-
-          if (escapeNext) {
-            escapeNext = false;
-            continue;
-          }
-
-          if (char === '\\') {
-            escapeNext = true;
-            continue;
-          }
-
-          if (char === '"') {
-            inString = !inString;
-            continue;
-          }
-
-          if (inString) {
-            continue;
-          }
-
-          // 记录 JSON 开始字符
-          if ((char === '{' || char === '[') && !foundStart) {
-            foundStart = true;
-          }
-
-          if (char === '{') {
-            braceCount++;
-          } else if (char === '}') {
-            braceCount--;
-            // 如果所有括号都匹配了，这就是 JSON 的结束位置
-            if (braceCount === 0 && bracketCount === 0 && foundStart) {
-              jsonEndIndex = i + 1;
-              break;
-            }
-          } else if (char === '[') {
-            bracketCount++;
-          } else if (char === ']') {
-            bracketCount--;
-            // 如果所有括号都匹配了，这就是 JSON 的结束位置
-            if (braceCount === 0 && bracketCount === 0 && foundStart) {
-              jsonEndIndex = i + 1;
-              break;
-            }
-          }
-        }
-
-        // 如果找到了完整的 JSON，截取它
-        if (jsonEndIndex < jsonString.length && foundStart) {
-          jsonString = jsonString.substring(0, jsonEndIndex);
-        }
-
-        // 验证 JSON 是否完整（检查括号是否匹配）
-        if (braceCount !== 0 || bracketCount !== 0) {
-          const errorMsg = `JSON不完整（括号不匹配：braceCount=${braceCount}, bracketCount=${bracketCount}）。可能是响应被截断。`;
-          this.logger.error(errorMsg, {
-            braceCount,
-            bracketCount,
-            jsonStringLength: jsonString.length,
-            preview: jsonString.substring(0, 500),
-            rawResponseLength: rawResponse.length,
-            rawResponsePreview: rawResponse.substring(0, 500),
+        if (firstOpen !== -1 && lastClose !== -1 && lastClose > firstOpen) {
+          jsonString = jsonString.substring(firstOpen, lastClose + 1);
+        } else {
+          // 没找到成对的大括号，记录错误并抛出
+          this.logger.error('无法提取有效的 JSON 结构', { 
+            preview: rawResponse.substring(0, 500) 
           });
           throw new BadRequestException(
-            'AI返回的JSON不完整，可能是响应被截断。请重试或减少行程天数。',
+            'AI返回的数据不包含有效的JSON结构，请重试。',
           );
         }
 
-        // 尝试解析 JSON
+        // 3. 尝试解析
         try {
-          // 如果 JSON 字符串太短或不完整，直接报错
-          if (jsonString.length < 10) {
-            throw new Error(
-              `JSON字符串太短（${jsonString.length}字符），可能是提取失败。原始响应预览: ${rawResponse.substring(0, 200)}`,
-            );
-          }
-
-          // 如果没找到 JSON 开始字符，说明提取失败
-          if (!foundStart) {
-            throw new Error(
-              `未找到有效的JSON开始字符（{或[）。原始响应预览: ${rawResponse.substring(0, 500)}`,
-            );
-          }
-
           aiResponse = JSON.parse(jsonString);
         } catch (parseError) {
-          // 记录更详细的错误信息
-          const errorMessage =
-            parseError instanceof Error ? parseError.message : String(parseError);
-          
-          this.logger.error('JSON解析失败，尝试修复或重试', {
+          const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
+          // 记录详细日志以便调试
+          this.logger.error('JSON 解析失败', {
             error: errorMessage,
-            jsonStringLength: jsonString.length,
-            jsonStringPreview: jsonString.substring(0, 500), // 只记录前500字符
-            rawResponseLength: rawResponse.length,
-            rawResponsePreview: rawResponse.substring(0, 500), // 原始响应预览
+            extractedJsonPreview: jsonString.substring(0, 200) + '...', // 只记录开头
+            rawResponsePreview: rawResponse.substring(0, 200) + '...'
           });
-
-          // 如果 JSON 不完整（比如被截断），提供更友好的错误信息
-          if (errorMessage.includes('Unexpected end') || errorMessage.includes('end of JSON')) {
-            throw new BadRequestException(
-              'AI返回的JSON不完整，可能是响应被截断。请重试或减少行程天数。',
-            );
-          }
-
-          throw new BadRequestException(
-            `AI返回格式异常，无法解析JSON: ${errorMessage}。请重试。`,
-          );
+          throw new BadRequestException('AI返回的数据格式无法解析，请重试');
         }
 
         const duration = Date.now() - startTime;
@@ -575,8 +484,14 @@ export class ItineraryGenerationService {
     aiResponse: AiItineraryResponse,
     expectedDays?: number,
   ): ItineraryDataDto {
-    // 验证响应结构
+    // 🛠️ 增强验证日志：如果缺少 days，打印实际收到的 keys
     if (!aiResponse.days || !Array.isArray(aiResponse.days)) {
+      this.logger.error('Invalid AI Response Structure', {
+        receivedKeys: Object.keys(aiResponse),
+        hasDays: !!aiResponse.days,
+        isDaysArray: Array.isArray(aiResponse.days),
+        responsePreview: JSON.stringify(aiResponse).substring(0, 500),
+      });
       throw new Error('AI响应缺少days字段或格式不正确');
     }
 
