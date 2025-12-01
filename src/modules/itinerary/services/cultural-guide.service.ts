@@ -2,7 +2,7 @@ import { Injectable, Logger, BadRequestException, NotFoundException } from '@nes
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { LlmService } from '../../llm/llm.service';
-import { ItineraryRepository } from '../persistence/repositories/itinerary/itinerary.repository';
+import { ItineraryRepository } from '../../persistence/repositories/itinerary/itinerary.repository';
 import { CulturalGuideResponseDto } from '../dto/itinerary.dto';
 
 @Injectable()
