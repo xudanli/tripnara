@@ -133,7 +133,7 @@ export class ItineraryGenerationService {
         });
 
         // =================================================================
-        // 🛠️ 优化后的 JSON 提取逻辑 (Robust JSON Extraction)
+        // 🛠️ 修复后的 JSON 提取逻辑 (支持 Object 和 Array)
         // =================================================================
         
         // 1. 清理 Markdown 标记
@@ -142,15 +142,15 @@ export class ItineraryGenerationService {
           .replace(/```/g, '')
           .trim();
 
-        // 2. 简单粗暴但有效的提取：找第一个 '{' 和最后一个 '}'
-        // 这能有效忽略掉 LLM 在 JSON 之前或之后的废话，以及中间的示例 JSON
-        const firstOpen = jsonString.indexOf('{');
-        const lastClose = jsonString.lastIndexOf('}');
+        // 2. 查找 JSON 的起始位置（可能是 '{' 也可能是 '['）
+        const firstOpenBrace = jsonString.indexOf('{');
+        const firstOpenBracket = jsonString.indexOf('[');
+        
+        let startIndex = -1;
+        let endIndex = -1;
 
-        if (firstOpen !== -1 && lastClose !== -1 && lastClose > firstOpen) {
-          jsonString = jsonString.substring(firstOpen, lastClose + 1);
-        } else {
-          // 没找到成对的大括号，记录错误并抛出
+        // 确定是谁先开始的
+        if (firstOpenBrace === -1 && firstOpenBracket === -1) {
           this.logger.error('无法提取有效的 JSON 结构', { 
             preview: rawResponse.substring(0, 500) 
           });
@@ -159,18 +159,57 @@ export class ItineraryGenerationService {
           );
         }
 
+        // 如果两者都有，取最前面的；如果只有一个，取那个
+        if (firstOpenBrace !== -1 && (firstOpenBracket === -1 || firstOpenBrace < firstOpenBracket)) {
+          // 情况 A: 是个对象 {...}
+          startIndex = firstOpenBrace;
+          endIndex = jsonString.lastIndexOf('}');
+        } else {
+          // 情况 B: 是个数组 [...]
+          startIndex = firstOpenBracket;
+          endIndex = jsonString.lastIndexOf(']');
+        }
+
+        if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
+          jsonString = jsonString.substring(startIndex, endIndex + 1);
+        } else {
+          this.logger.error('JSON 括号不匹配', { 
+            startIndex,
+            endIndex,
+            preview: rawResponse.substring(0, 500) 
+          });
+          throw new BadRequestException(
+            'AI返回的数据不包含有效的JSON结构，请重试。',
+          );
+        }
+
         // 3. 尝试解析
+        let parsedData: any;
         try {
-          aiResponse = JSON.parse(jsonString);
+          parsedData = JSON.parse(jsonString);
         } catch (parseError) {
           const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
           // 记录详细日志以便调试
           this.logger.error('JSON 解析失败', {
             error: errorMessage,
-            extractedJsonPreview: jsonString.substring(0, 200) + '...', // 只记录开头
+            extractedJsonPreview: jsonString.substring(0, 200) + '...',
             rawResponsePreview: rawResponse.substring(0, 200) + '...'
           });
           throw new BadRequestException('AI返回的数据格式无法解析，请重试');
+        }
+
+        // 4. 结构标准化 (Normalization)
+        // 如果 AI 返回的是数组 [...]，我们手动把它包装成 { days: [...] }
+        if (Array.isArray(parsedData)) {
+          this.logger.warn('AI返回了数组格式，正在自动修正为对象格式');
+          aiResponse = {
+            days: parsedData,
+            totalCost: 0, // 数组模式下通常没有 totalCost，后续会自动计算
+            summary: '',  // 数组模式下没有 summary
+            practicalInfo: {}
+          };
+        } else {
+          aiResponse = parsedData;
         }
 
         const duration = Date.now() - startTime;
