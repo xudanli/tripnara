@@ -2671,3 +2671,61 @@ export class CulturalGuideResponseDto {
   generatedAt!: string;
 }
 
+/**
+ * 目的地实用信息数据 DTO
+ */
+export class LocalEssentialsDataDto {
+  @ApiProperty({
+    description: '官方语言及常用问候语',
+    example: '冰岛语（Íslenska）。常用问候：你好 - Halló / Góðan daginn，谢谢 - Takk / Þakka þér',
+  })
+  language!: string;
+
+  @ApiProperty({
+    description: '汇率估算',
+    example: '1 ISK ≈ 0.05 CNY（约20冰岛克朗 = 1人民币）',
+  })
+  currencyRate!: string;
+
+  @ApiProperty({
+    description: '时区（GMT/UTC格式）',
+    example: 'GMT+0 或 UTC+0',
+  })
+  timeZone!: string;
+
+  @ApiProperty({
+    description: '插座类型',
+    example: 'Type C, 220V（欧式两圆插）',
+  })
+  powerOutlet!: string;
+
+  @ApiProperty({
+    description: '报警/急救电话',
+    example: '112（紧急电话，报警、消防、急救通用）',
+  })
+  emergencyNumber!: string;
+}
+
+/**
+ * 目的地实用信息响应 DTO
+ */
+export class LocalEssentialsResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({ description: '目的地名称', example: '冰岛' })
+  destination!: string;
+
+  @ApiProperty({
+    description: '实用信息',
+    type: LocalEssentialsDataDto,
+  })
+  localEssentials!: LocalEssentialsDataDto;
+
+  @ApiProperty({ description: '是否来自缓存', example: false })
+  fromCache!: boolean;
+
+  @ApiProperty({ description: '生成时间', example: '2025-12-01T12:00:00Z' })
+  generatedAt!: string;
+}
+

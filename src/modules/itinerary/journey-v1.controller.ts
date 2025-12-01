@@ -20,6 +20,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ItineraryService } from './itinerary.service';
 import { JourneyAssistantService } from './services/journey-assistant.service';
 import { CulturalGuideService } from './services/cultural-guide.service';
+import { LocalEssentialsService } from './services/local-essentials.service';
 import {
   GenerateItineraryRequestDto,
   GenerateItineraryResponseDto,
@@ -77,6 +78,7 @@ import {
   JourneyAssistantChatResponseDto,
   GetConversationHistoryResponseDto,
   CulturalGuideResponseDto,
+  LocalEssentialsResponseDto,
 } from './dto/itinerary.dto';
 
 @ApiTags('Journey V1')
@@ -89,6 +91,7 @@ export class JourneyV1Controller {
     private readonly itineraryService: ItineraryService,
     private readonly journeyAssistantService: JourneyAssistantService,
     private readonly culturalGuideService: CulturalGuideService,
+    private readonly localEssentialsService: LocalEssentialsService,
   ) {}
 
   @Post('generate')
@@ -1085,6 +1088,36 @@ export class JourneyV1Controller {
     @CurrentUser() user: { userId: string },
   ): Promise<CulturalGuideResponseDto> {
     return this.culturalGuideService.getCulturalGuide(journeyId, user.userId);
+  }
+
+  // ========== 目的地实用信息接口 ==========
+
+  @Get(':journeyId/local-essentials')
+  @ApiOperation({
+    summary: '获取目的地实用信息',
+    description: '获取指定行程目的地的实用信息，包括语言、汇率、时区、插座类型、紧急电话等。结果会缓存30天。',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiParam({
+    name: 'journeyId',
+    description: '行程ID',
+    example: 'uuid',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '获取成功',
+    type: LocalEssentialsResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: '行程不存在',
+  })
+  async getLocalEssentials(
+    @Param('journeyId') journeyId: string,
+    @CurrentUser() user: { userId: string },
+  ): Promise<LocalEssentialsResponseDto> {
+    return this.localEssentialsService.getLocalEssentials(journeyId, user.userId);
   }
 }
 
