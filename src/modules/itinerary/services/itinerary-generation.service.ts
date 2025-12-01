@@ -118,19 +118,98 @@ export class ItineraryGenerationService {
       let aiResponse: AiItineraryResponse;
 
       try {
-        aiResponse = await this.llmService.chatCompletionJson<AiItineraryResponse>(
-          {
-            provider: 'deepseek',
-            model: 'deepseek-chat',
-            messages: [
-              { role: 'system', content: systemMessage },
-              { role: 'user', content: prompt },
-            ],
-            temperature: 0.7,
-            maxOutputTokens: 8000,
-            json: true,
-          },
-        );
+        // 🛠️ 增强健壮性：先获取原始文本，自己处理 JSON 解析
+        // 因为 DeepSeek 有时 json 模式不稳定，可能返回 Markdown 格式或前后有废话
+        const rawResponse = await this.llmService.chatCompletion({
+          provider: 'deepseek',
+          model: 'deepseek-chat',
+          messages: [
+            { role: 'system', content: systemMessage },
+            { role: 'user', content: prompt },
+          ],
+          temperature: 0.7,
+          maxOutputTokens: 8000,
+          json: false, // 先设为 false，拿原始文本自己处理
+        });
+
+        // 🛠️ 修复逻辑：清理 Markdown 标记和前后废话
+        let jsonString = rawResponse
+          .replace(/```json/gi, '') // 去掉 ```json (不区分大小写)
+          .replace(/```/g, '') // 去掉 ```
+          .trim(); // 去掉首尾空格
+
+        // 尝试找到 JSON 对象的开始和结束位置
+        const jsonStartIndex = jsonString.search(/[{\[]/);
+        if (jsonStartIndex > 0) {
+          // 如果 JSON 前面有废话，去掉
+          jsonString = jsonString.substring(jsonStartIndex);
+        }
+
+        // 尝试找到 JSON 对象的结束位置（从后往前找）
+        let jsonEndIndex = jsonString.length;
+        let braceCount = 0;
+        let bracketCount = 0;
+        let inString = false;
+        let escapeNext = false;
+
+        for (let i = jsonString.length - 1; i >= 0; i--) {
+          const char = jsonString[i];
+
+          if (escapeNext) {
+            escapeNext = false;
+            continue;
+          }
+
+          if (char === '\\') {
+            escapeNext = true;
+            continue;
+          }
+
+          if (char === '"') {
+            inString = !inString;
+            continue;
+          }
+
+          if (inString) {
+            continue;
+          }
+
+          if (char === '}') {
+            braceCount++;
+          } else if (char === '{') {
+            braceCount--;
+            if (braceCount === 0 && bracketCount === 0) {
+              jsonEndIndex = i + 1;
+              break;
+            }
+          } else if (char === ']') {
+            bracketCount++;
+          } else if (char === '[') {
+            bracketCount--;
+            if (braceCount === 0 && bracketCount === 0) {
+              jsonEndIndex = i + 1;
+              break;
+            }
+          }
+        }
+
+        if (jsonEndIndex < jsonString.length) {
+          // 如果 JSON 后面有废话，去掉
+          jsonString = jsonString.substring(0, jsonEndIndex);
+        }
+
+        // 尝试解析 JSON
+        try {
+          aiResponse = JSON.parse(jsonString);
+        } catch (parseError) {
+          this.logger.error('JSON解析失败，尝试修复或重试', {
+            error: parseError instanceof Error ? parseError.message : parseError,
+            jsonString: jsonString.substring(0, 500), // 只记录前500字符
+          });
+          throw new BadRequestException(
+            'AI返回格式异常，无法解析JSON。请重试。',
+          );
+        }
 
         const duration = Date.now() - startTime;
         this.logger.log(
@@ -152,6 +231,11 @@ export class ItineraryGenerationService {
           throw new BadRequestException(
             `行程生成超时（${Math.round(duration / 1000)}秒）。请稍后重试，或减少行程天数。`,
           );
+        }
+
+        // 如果是 BadRequestException（如 JSON 解析失败），直接抛出
+        if (error instanceof BadRequestException) {
+          throw error;
         }
 
         throw new BadRequestException(
