@@ -2651,3 +2651,23 @@ export class GetConversationHistoryResponseDto {
   totalCount!: number;
 }
 
+/**
+ * 文化红黑榜响应 DTO
+ */
+export class CulturalGuideResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({ description: '目的地名称', example: '冰岛' })
+  destination!: string;
+
+  @ApiProperty({ description: '文化红黑榜内容（Markdown格式）', example: '# 冰岛文化红黑榜\n\n## ✅ 推荐做法\n...' })
+  content!: string;
+
+  @ApiProperty({ description: '是否来自缓存', example: false })
+  fromCache!: boolean;
+
+  @ApiProperty({ description: '生成时间', example: '2025-12-01T12:00:00Z' })
+  generatedAt!: string;
+}
+

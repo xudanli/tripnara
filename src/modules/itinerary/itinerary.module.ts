@@ -9,6 +9,7 @@ import { ItineraryMapper } from './services/itinerary.mapper';
 import { ItineraryGenerationService } from './services/itinerary-generation.service';
 import { JourneyTaskService } from './services/journey-task.service';
 import { JourneyExpenseService } from './services/journey-expense.service';
+import { CulturalGuideService } from './services/cultural-guide.service';
 import { LlmModule } from '../llm/llm.module';
 import { PreferencesModule } from '../preferences/preferences.module';
 import { PersistenceModule } from '../persistence/persistence.module';
@@ -35,6 +36,7 @@ import { AiSafetyNoticeCacheEntity } from '../persistence/entities/ai-log.entity
     ItineraryGenerationService,
     JourneyTaskService,
     JourneyExpenseService,
+    CulturalGuideService,
   ],
   exports: [ItineraryService, JourneyAssistantService],
 })

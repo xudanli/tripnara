@@ -19,6 +19,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ItineraryService } from './itinerary.service';
 import { JourneyAssistantService } from './services/journey-assistant.service';
+import { CulturalGuideService } from './services/cultural-guide.service';
 import {
   GenerateItineraryRequestDto,
   GenerateItineraryResponseDto,
@@ -75,6 +76,7 @@ import {
   JourneyAssistantChatRequestDto,
   JourneyAssistantChatResponseDto,
   GetConversationHistoryResponseDto,
+  CulturalGuideResponseDto,
 } from './dto/itinerary.dto';
 
 @ApiTags('Journey V1')
@@ -86,6 +88,7 @@ export class JourneyV1Controller {
   constructor(
     private readonly itineraryService: ItineraryService,
     private readonly journeyAssistantService: JourneyAssistantService,
+    private readonly culturalGuideService: CulturalGuideService,
   ) {}
 
   @Post('generate')
@@ -1052,6 +1055,36 @@ export class JourneyV1Controller {
       conversationId,
       user.userId,
     );
+  }
+
+  // ========== 文化红黑榜接口 ==========
+
+  @Get(':journeyId/cultural-guide')
+  @ApiOperation({
+    summary: '获取目的地文化红黑榜',
+    description: '获取指定行程目的地的文化红黑榜，包括推荐做法、禁忌行为等。结果会缓存30天。',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiParam({
+    name: 'journeyId',
+    description: '行程ID',
+    example: 'uuid',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '获取成功',
+    type: CulturalGuideResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: '行程不存在',
+  })
+  async getCulturalGuide(
+    @Param('journeyId') journeyId: string,
+    @CurrentUser() user: { userId: string },
+  ): Promise<CulturalGuideResponseDto> {
+    return this.culturalGuideService.getCulturalGuide(journeyId, user.userId);
   }
 }
 
