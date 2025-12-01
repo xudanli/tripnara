@@ -11,6 +11,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { firstValueFrom } from 'rxjs';
 import { isAxiosError } from 'axios';
+import Redis from 'ioredis';
 import { MediaAssetEntity } from '../persistence/entities/reference.entity';
 import {
   SearchImageRequestDto,
@@ -122,6 +123,9 @@ export class MediaService {
   private readonly unsplashApiUrl = 'https://api.unsplash.com';
   private readonly pexelsApiKey?: string;
   private readonly pexelsApiUrl = 'https://api.pexels.com/v1';
+  private readonly redisClient?: Redis;
+  private readonly useRedisCache: boolean;
+  private readonly mediaCacheTtlSeconds = 24 * 60 * 60; // 24小时（图片资源缓存）
 
   constructor(
     private readonly configService: ConfigService,
@@ -147,14 +151,80 @@ export class MediaService {
         this.logger.debug('Pexels API key 未配置（可选）- 如需使用图片/视频搜索功能，请设置环境变量 PEXELS_API_KEY');
       }
     }
+
+    // 初始化 Redis 客户端（用于媒体资源缓存）
+    const redisUrl = this.configService.get<string>('REDIS_URL');
+    if (redisUrl) {
+      try {
+        const url = new URL(redisUrl);
+        const password = url.password || undefined;
+        const host = url.hostname;
+        const port = parseInt(url.port || '6379', 10);
+
+        this.redisClient = new Redis({
+          host,
+          port,
+          password,
+          ...(url.username && url.username !== 'default'
+            ? { username: url.username }
+            : {}),
+          keepAlive: 1000,
+          connectTimeout: 10000,
+          maxRetriesPerRequest: null,
+          enableReadyCheck: false,
+          lazyConnect: false,
+          retryStrategy: (times) => {
+            if (times > 3) {
+              return null;
+            }
+            return Math.min(times * 200, 2000);
+          },
+        });
+
+        this.redisClient.on('error', (error) => {
+          this.logger.warn('Redis connection error in MediaService:', error.message);
+        });
+
+        this.redisClient.on('connect', () => {
+          this.logger.log('Redis connected for media cache');
+        });
+
+        this.useRedisCache = true;
+        this.logger.log('Redis cache enabled for MediaService');
+      } catch (error) {
+        this.logger.warn('Failed to initialize Redis for MediaService:', error);
+        this.useRedisCache = false;
+      }
+    } else {
+      this.useRedisCache = false;
+      this.logger.warn('REDIS_URL not configured, media cache disabled');
+    }
   }
 
   /**
    * 搜索图片
+   * 🛡️ 优化：添加 Redis 缓存，防止 Unsplash 限流
    */
   async searchImage(dto: SearchImageRequestDto): Promise<SearchImageResponseDto> {
     const limit = dto.limit || 10;
     const provider = dto.provider || 'all';
+    
+    // 🛡️ 优先从 Redis 缓存读取
+    const cacheKey = `media:images:${dto.query.toLowerCase()}:${provider}:${limit}:${dto.orientation || 'all'}`;
+    
+    if (this.useRedisCache && this.redisClient) {
+      try {
+        const cached = await this.redisClient.get(cacheKey);
+        if (cached) {
+          this.logger.debug(`Media cache hit for: ${dto.query}`);
+          return JSON.parse(cached);
+        }
+      } catch (error) {
+        this.logger.warn('Failed to read media from cache:', error);
+        // 缓存读取失败，继续调用 API
+      }
+    }
+
     const images: ImageItemDto[] = [];
 
     try {
@@ -194,10 +264,23 @@ export class MediaService {
       // 限制返回数量
       const limitedImages = images.slice(0, limit);
 
-      return {
+      const result = {
         data: limitedImages,
         total: images.length,
       };
+
+      // 🛡️ 写入缓存（异步，不阻塞）
+      if (this.useRedisCache && this.redisClient) {
+        this.redisClient.setex(
+          cacheKey,
+          this.mediaCacheTtlSeconds,
+          JSON.stringify(result),
+        ).catch((error) => {
+          this.logger.warn('Failed to cache media result:', error);
+        });
+      }
+
+      return result;
     } catch (error) {
       this.logger.error(`图片搜索失败: ${error}`);
       throw new HttpException(
@@ -209,19 +292,49 @@ export class MediaService {
 
   /**
    * 搜索视频
+   * 🛡️ 优化：添加 Redis 缓存
    */
   async searchVideo(dto: SearchVideoRequestDto): Promise<SearchVideoResponseDto> {
     const limit = dto.limit || 10;
     const provider = dto.provider || 'all';
 
+    // 🛡️ 优先从 Redis 缓存读取
+    const cacheKey = `media:videos:${dto.query.toLowerCase()}:${provider}:${limit}`;
+    
+    if (this.useRedisCache && this.redisClient) {
+      try {
+        const cached = await this.redisClient.get(cacheKey);
+        if (cached) {
+          this.logger.debug(`Video cache hit for: ${dto.query}`);
+          return JSON.parse(cached);
+        }
+      } catch (error) {
+        this.logger.warn('Failed to read video from cache:', error);
+        // 缓存读取失败，继续调用 API
+      }
+    }
+
     try {
       if (provider === 'pexels' || provider === 'all') {
         if (this.pexelsApiKey) {
           const videos = await this.searchPexelsVideo(dto.query, limit);
-          return {
+          const result = {
             data: videos,
             total: videos.length,
           };
+
+          // 🛡️ 写入缓存（异步，不阻塞）
+          if (this.useRedisCache && this.redisClient) {
+            this.redisClient.setex(
+              cacheKey,
+              this.mediaCacheTtlSeconds,
+              JSON.stringify(result),
+            ).catch((error) => {
+              this.logger.warn('Failed to cache video result:', error);
+            });
+          }
+
+          return result;
         } else {
           this.logger.debug('Pexels API key 未配置，无法搜索视频。如需使用此功能，请设置环境变量 PEXELS_API_KEY');
         }

@@ -14,6 +14,7 @@ import {
   createCipheriv,
   createDecipheriv,
 } from 'crypto';
+import Redis from 'ioredis';
 import {
   UserEntity,
   UserAuthProviderEntity,
@@ -41,6 +42,9 @@ export class AuthService {
   private readonly sessionTtlMs = 7 * 24 * 60 * 60 * 1000;
   private readonly googleTokenExchangeTimeout = 60000; // 60秒超时（增加超时时间以应对网络延迟）
   private readonly googleTokenExchangeMaxRetries = 3; // 最多重试3次
+  private readonly redisClient?: Redis;
+  private readonly useRedisCache: boolean;
+  private readonly userProfileCacheTtlSeconds = 60 * 60; // 1小时
 
   constructor(
     @InjectRepository(UserEntity)
@@ -85,6 +89,54 @@ export class AuthService {
       });
     } else {
       throw new Error('Google OAuth 环境变量未正确配置');
+    }
+
+    // 初始化 Redis 客户端（用于用户信息缓存）
+    const redisUrl = this.configService.get<string>('REDIS_URL');
+    if (redisUrl) {
+      try {
+        const url = new URL(redisUrl);
+        const password = url.password || undefined;
+        const host = url.hostname;
+        const port = parseInt(url.port || '6379', 10);
+
+        this.redisClient = new Redis({
+          host,
+          port,
+          password,
+          ...(url.username && url.username !== 'default'
+            ? { username: url.username }
+            : {}),
+          keepAlive: 1000,
+          connectTimeout: 10000,
+          maxRetriesPerRequest: null,
+          enableReadyCheck: false,
+          lazyConnect: false,
+          retryStrategy: (times) => {
+            if (times > 3) {
+              return null;
+            }
+            return Math.min(times * 200, 2000);
+          },
+        });
+
+        this.redisClient.on('error', (error) => {
+          this.logger.warn('Redis connection error in AuthService:', error.message);
+        });
+
+        this.redisClient.on('connect', () => {
+          this.logger.log('Redis connected for user profile cache');
+        });
+
+        this.useRedisCache = true;
+        this.logger.log('Redis cache enabled for user profile');
+      } catch (error) {
+        this.logger.warn('Failed to initialize Redis for AuthService:', error);
+        this.useRedisCache = false;
+      }
+    } else {
+      this.useRedisCache = false;
+      this.logger.warn('REDIS_URL not configured, user profile cache disabled');
     }
   }
 
@@ -173,6 +225,14 @@ export class AuthService {
     }
 
     const user = await this.upsertUserFromGoogleProfile(googlePayload, idToken);
+    
+    // 🔥 登录成功后写入 Redis 缓存
+    if (this.useRedisCache && this.redisClient) {
+      this.cacheUserProfile(user).catch((error) => {
+        this.logger.warn('Failed to cache user profile after login:', error);
+      });
+    }
+
     const sessionToken = this.issueAppSession(user);
 
     res.cookie(this.sessionCookieName, sessionToken, {
@@ -215,8 +275,35 @@ export class AuthService {
 
   /**
    * 验证 JWT token
+   * 🔥 优化：优先从 Redis 缓存读取用户信息，减少数据库查询
    */
   async validateUser(payload: { userId: string; email?: string }) {
+    // 优先从 Redis 缓存读取
+    if (this.useRedisCache && this.redisClient) {
+      try {
+        const cacheKey = `user:profile:${payload.userId}`;
+        const cached = await this.redisClient.get(cacheKey);
+        if (cached) {
+          const userData = JSON.parse(cached);
+          // 构造 UserEntity 对象（仅包含必要字段）
+          return {
+            id: userData.id,
+            email: userData.email,
+            phone: userData.phone,
+            nickname: userData.nickname,
+            avatarUrl: userData.avatarUrl,
+            preferredLanguage: userData.preferredLanguage,
+            createdAt: new Date(userData.createdAt),
+            updatedAt: new Date(userData.updatedAt),
+          } as UserEntity;
+        }
+      } catch (error) {
+        this.logger.warn('Failed to read user profile from cache:', error);
+        // 缓存读取失败，继续查询数据库
+      }
+    }
+
+    // 缓存未命中，查询数据库
     const user = await this.userRepository.findOne({
       where: { id: payload.userId },
     });
@@ -225,13 +312,46 @@ export class AuthService {
       throw new UnauthorizedException('用户不存在');
     }
 
+    // 写入缓存（异步，不阻塞）
+    if (this.useRedisCache && this.redisClient) {
+      this.cacheUserProfile(user).catch((error) => {
+        this.logger.warn('Failed to cache user profile:', error);
+      });
+    }
+
     return user;
   }
 
   /**
    * 获取当前用户信息（供外部调用）
+   * 🔥 优化：优先从 Redis 缓存读取
    */
   async getCurrentUser(userId: string) {
+    // 优先从 Redis 缓存读取
+    if (this.useRedisCache && this.redisClient) {
+      try {
+        const cacheKey = `user:profile:${userId}`;
+        const cached = await this.redisClient.get(cacheKey);
+        if (cached) {
+          const userData = JSON.parse(cached);
+          return {
+            id: userData.id,
+            email: userData.email,
+            phone: userData.phone,
+            nickname: userData.nickname,
+            avatarUrl: userData.avatarUrl,
+            preferredLanguage: userData.preferredLanguage,
+            createdAt: new Date(userData.createdAt),
+            updatedAt: new Date(userData.updatedAt),
+          };
+        }
+      } catch (error) {
+        this.logger.warn('Failed to read user profile from cache:', error);
+        // 缓存读取失败，继续查询数据库
+      }
+    }
+
+    // 缓存未命中，查询数据库
     const user = await this.userRepository.findOne({
       where: { id: userId },
     });
@@ -240,7 +360,7 @@ export class AuthService {
       throw new UnauthorizedException('用户不存在');
     }
 
-    return {
+    const userProfile = {
       id: user.id,
       email: user.email,
       phone: user.phone,
@@ -250,6 +370,15 @@ export class AuthService {
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
+
+    // 写入缓存（异步，不阻塞）
+    if (this.useRedisCache && this.redisClient) {
+      this.cacheUserProfile(user).catch((error) => {
+        this.logger.warn('Failed to cache user profile:', error);
+      });
+    }
+
+    return userProfile;
   }
 
   private async upsertUserFromGoogleProfile(
@@ -282,6 +411,12 @@ export class AuthService {
       }
       if (shouldUpdate) {
         await this.userRepository.save(user);
+        // 🔥 用户信息更新后，清除/更新 Redis 缓存
+        if (this.useRedisCache && this.redisClient) {
+          this.invalidateUserProfileCache(user.id).catch((error) => {
+            this.logger.warn('Failed to invalidate user profile cache:', error);
+          });
+        }
       }
     } else {
       if (authProvider && !authProvider.user) {
@@ -316,6 +451,13 @@ export class AuthService {
         authToken,
       });
       await this.authProviderRepository.save(authProvider);
+    }
+
+    // 🔥 新用户创建或用户信息更新后，清除/更新缓存
+    if (this.useRedisCache && this.redisClient) {
+      this.invalidateUserProfileCache(user.id).catch((error) => {
+        this.logger.warn('Failed to invalidate user profile cache:', error);
+      });
     }
 
     return user;
@@ -512,6 +654,60 @@ export class AuthService {
 
   private isSecureCookie() {
     return this.configService.get<string>('NODE_ENV') !== 'development';
+  }
+
+  /**
+   * 缓存用户信息到 Redis
+   */
+  private async cacheUserProfile(user: UserEntity): Promise<void> {
+    if (!this.useRedisCache || !this.redisClient) {
+      return;
+    }
+
+    try {
+      const cacheKey = `user:profile:${user.id}`;
+      const userData = {
+        id: user.id,
+        email: user.email,
+        phone: user.phone,
+        nickname: user.nickname,
+        avatarUrl: user.avatarUrl,
+        preferredLanguage: user.preferredLanguage,
+        createdAt: user.createdAt.toISOString(),
+        updatedAt: user.updatedAt.toISOString(),
+      };
+      await this.redisClient.setex(
+        cacheKey,
+        this.userProfileCacheTtlSeconds,
+        JSON.stringify(userData),
+      );
+    } catch (error) {
+      this.logger.warn('Failed to cache user profile:', error);
+    }
+  }
+
+  /**
+   * 清除用户信息缓存（当用户更新资料时调用）
+   */
+  private async invalidateUserProfileCache(userId: string): Promise<void> {
+    if (!this.useRedisCache || !this.redisClient) {
+      return;
+    }
+
+    try {
+      const cacheKey = `user:profile:${userId}`;
+      await this.redisClient.del(cacheKey);
+      this.logger.debug(`User profile cache invalidated for user: ${userId}`);
+    } catch (error) {
+      this.logger.warn('Failed to invalidate user profile cache:', error);
+    }
+  }
+
+  /**
+   * 清除用户信息缓存（供外部调用，例如用户更新资料时）
+   */
+  async clearUserProfileCache(userId: string): Promise<void> {
+    await this.invalidateUserProfileCache(userId);
   }
 }
 

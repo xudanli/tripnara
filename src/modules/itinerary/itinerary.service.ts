@@ -5,6 +5,7 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ErrorHandler } from '../../utils/errorHandler';
 import { LlmService } from '../llm/llm.service';
 import { PreferencesService } from '../preferences/preferences.service';
@@ -16,6 +17,7 @@ import { JourneyExpenseService } from './services/journey-expense.service';
 import { JourneyTemplateRepository } from '../persistence/repositories/journey-template/journey-template.repository';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import Redis from 'ioredis';
 import { PreparationProfileEntity } from '../persistence/entities/reference.entity';
 import { AiSafetyNoticeCacheEntity } from '../persistence/entities/ai-log.entity';
 import * as crypto from 'crypto';
@@ -138,6 +140,9 @@ interface AiItineraryResponse {
 @Injectable()
 export class ItineraryService {
   private readonly logger = new Logger(ItineraryService.name);
+  private readonly redisClient?: Redis;
+  private readonly useRedisCache: boolean;
+  private readonly safetyNoticeCacheTtlSeconds = 7 * 24 * 60 * 60; // 7天（安全状况可能变化，不宜永久）
 
   constructor(
     private readonly llmService: LlmService,
@@ -150,11 +155,60 @@ export class ItineraryService {
     private readonly itineraryGenerationService: ItineraryGenerationService,
     private readonly journeyTaskService: JourneyTaskService,
     private readonly journeyExpenseService: JourneyExpenseService,
+    private readonly configService: ConfigService,
     @InjectRepository(PreparationProfileEntity)
     private readonly preparationProfileRepository: Repository<PreparationProfileEntity>,
     @InjectRepository(AiSafetyNoticeCacheEntity)
     private readonly safetyNoticeCacheRepository: Repository<AiSafetyNoticeCacheEntity>,
-  ) {}
+  ) {
+    // 初始化 Redis 客户端（用于安全提示缓存）
+    const redisUrl = this.configService.get<string>('REDIS_URL');
+    if (redisUrl) {
+      try {
+        const url = new URL(redisUrl);
+        const password = url.password || undefined;
+        const host = url.hostname;
+        const port = parseInt(url.port || '6379', 10);
+
+        this.redisClient = new Redis({
+          host,
+          port,
+          password,
+          ...(url.username && url.username !== 'default'
+            ? { username: url.username }
+            : {}),
+          keepAlive: 1000,
+          connectTimeout: 10000,
+          maxRetriesPerRequest: null,
+          enableReadyCheck: false,
+          lazyConnect: false,
+          retryStrategy: (times) => {
+            if (times > 3) {
+              return null;
+            }
+            return Math.min(times * 200, 2000);
+          },
+        });
+
+        this.redisClient.on('error', (error) => {
+          this.logger.warn('Redis connection error in ItineraryService:', error.message);
+        });
+
+        this.redisClient.on('connect', () => {
+          this.logger.log('Redis connected for safety notice cache');
+        });
+
+        this.useRedisCache = true;
+        this.logger.log('Redis cache enabled for safety notice');
+      } catch (error) {
+        this.logger.warn('Failed to initialize Redis for ItineraryService:', error);
+        this.useRedisCache = false;
+      }
+    } else {
+      this.useRedisCache = false;
+      this.logger.warn('REDIS_URL not configured, safety notice cache disabled');
+    }
+  }
 
   async generateItinerary(
     dto: GenerateItineraryRequestDto,
@@ -2836,9 +2890,34 @@ export class ItineraryService {
 
     // 构建缓存键
     const cacheKey = this.buildSafetyNoticeCacheKey(destination, lang, summary);
+    const redisCacheKey = `content:safety:${destination.toLowerCase()}:${lang}`;
 
-    // 如果不强制刷新，先检查缓存
+    // ⚡ 优化：如果不强制刷新，优先从 Redis 缓存读取
     if (!forceRefresh) {
+      if (this.useRedisCache && this.redisClient) {
+        try {
+          const cached = await this.redisClient.get(redisCacheKey);
+          if (cached) {
+            const cachedData = JSON.parse(cached);
+            this.logger.debug(`Safety notice cache hit from Redis for: ${destination}`);
+            return {
+              success: true,
+              data: {
+                noticeText: cachedData.noticeText,
+                lang: cachedData.lang,
+                fromCache: true,
+                generatedAt: cachedData.generatedAt,
+              },
+              message: '安全提示（来自缓存）',
+            };
+          }
+        } catch (error) {
+          this.logger.warn('Failed to read safety notice from Redis cache:', error);
+          // 缓存读取失败，继续查询数据库
+        }
+      }
+
+      // 回退到数据库缓存
       const cached = await this.safetyNoticeCacheRepository.findOne({
         where: { cacheKey },
       });
@@ -2849,6 +2928,17 @@ export class ItineraryService {
         const cacheTTL = 7 * 24 * 60 * 60 * 1000; // 7天
 
         if (cacheAge < cacheTTL) {
+          // 同时写入 Redis（异步，不阻塞）
+          if (this.useRedisCache && this.redisClient) {
+            this.cacheSafetyNoticeToRedis(redisCacheKey, {
+              noticeText: cached.noticeText,
+              lang: cached.lang,
+              generatedAt: cached.updatedAt.toISOString(),
+            }).catch((error) => {
+              this.logger.warn('Failed to cache safety notice to Redis:', error);
+            });
+          }
+
           return {
             success: true,
             data: {
@@ -2865,8 +2955,20 @@ export class ItineraryService {
 
     // 生成新的安全提示
     const noticeText = await this.generateSafetyNoticeWithAI(destination, summary, lang);
+    const generatedAt = new Date().toISOString();
 
-    // 保存或更新缓存
+    // ⚡ 写入 Redis 缓存（优先）
+    if (this.useRedisCache && this.redisClient) {
+      this.cacheSafetyNoticeToRedis(redisCacheKey, {
+        noticeText,
+        lang,
+        generatedAt,
+      }).catch((error) => {
+        this.logger.warn('Failed to cache safety notice to Redis:', error);
+      });
+    }
+
+    // 保存或更新数据库缓存（作为备份）
     let cacheEntity = await this.safetyNoticeCacheRepository.findOne({
       where: { cacheKey },
     });
@@ -2894,7 +2996,7 @@ export class ItineraryService {
         noticeText,
         lang,
         fromCache: false,
-        generatedAt: new Date().toISOString(),
+        generatedAt,
       },
       message: '安全提示生成成功',
     };
@@ -2923,9 +3025,34 @@ export class ItineraryService {
     const destination = itinerary.destination || '未知目的地';
     const summary = itinerary.summary || '';
     const cacheKey = this.buildSafetyNoticeCacheKey(destination, lang, summary);
+    const redisCacheKey = `content:safety:${destination.toLowerCase()}:${lang}`;
 
-    // 如果不强制刷新，先检查缓存
+    // ⚡ 优化：如果不强制刷新，优先从 Redis 缓存读取
     if (!forceRefresh) {
+      if (this.useRedisCache && this.redisClient) {
+        try {
+          const cached = await this.redisClient.get(redisCacheKey);
+          if (cached) {
+            const cachedData = JSON.parse(cached);
+            this.logger.debug(`Safety notice cache hit from Redis for: ${destination}`);
+            return {
+              success: true,
+              data: {
+                noticeText: cachedData.noticeText,
+                lang: cachedData.lang,
+                fromCache: true,
+                generatedAt: cachedData.generatedAt,
+              },
+              message: '安全提示（来自缓存）',
+            };
+          }
+        } catch (error) {
+          this.logger.warn('Failed to read safety notice from Redis cache:', error);
+          // 缓存读取失败，继续查询数据库
+        }
+      }
+
+      // 回退到数据库缓存
       const cached = await this.safetyNoticeCacheRepository.findOne({
         where: { cacheKey },
       });
@@ -2936,6 +3063,17 @@ export class ItineraryService {
         const cacheTTL = 7 * 24 * 60 * 60 * 1000; // 7天
 
         if (cacheAge < cacheTTL) {
+          // 同时写入 Redis（异步，不阻塞）
+          if (this.useRedisCache && this.redisClient) {
+            this.cacheSafetyNoticeToRedis(redisCacheKey, {
+              noticeText: cached.noticeText,
+              lang: cached.lang,
+              generatedAt: cached.updatedAt.toISOString(),
+            }).catch((error) => {
+              this.logger.warn('Failed to cache safety notice to Redis:', error);
+            });
+          }
+
           return {
             success: true,
             data: {
@@ -2952,8 +3090,20 @@ export class ItineraryService {
 
     // 生成新的安全提示
     const noticeText = await this.generateSafetyNoticeWithAI(destination, summary, lang);
+    const generatedAt = new Date().toISOString();
 
-    // 保存或更新缓存
+    // ⚡ 写入 Redis 缓存（优先）
+    if (this.useRedisCache && this.redisClient) {
+      this.cacheSafetyNoticeToRedis(redisCacheKey, {
+        noticeText,
+        lang,
+        generatedAt,
+      }).catch((error) => {
+        this.logger.warn('Failed to cache safety notice to Redis:', error);
+      });
+    }
+
+    // 保存或更新数据库缓存（作为备份）
     let cacheEntity = await this.safetyNoticeCacheRepository.findOne({
       where: { cacheKey },
     });
@@ -3042,6 +3192,28 @@ export class ItineraryService {
   /**
    * 构建安全提示缓存键
    */
+  /**
+   * 缓存安全提示到 Redis
+   */
+  private async cacheSafetyNoticeToRedis(
+    cacheKey: string,
+    data: { noticeText: string; lang: string; generatedAt: string },
+  ): Promise<void> {
+    if (!this.useRedisCache || !this.redisClient) {
+      return;
+    }
+
+    try {
+      await this.redisClient.setex(
+        cacheKey,
+        this.safetyNoticeCacheTtlSeconds,
+        JSON.stringify(data),
+      );
+    } catch (error) {
+      this.logger.warn('Failed to cache safety notice to Redis:', error);
+    }
+  }
+
   private buildSafetyNoticeCacheKey(
     destination: string,
     lang: string,
