@@ -11,8 +11,6 @@ describe('ExternalService', () => {
   const config = {
     get: jest.fn((key: string) => {
       const map: Record<string, string> = {
-        EVENTBRITE_API_TOKEN: 'token',
-        EVENTBRITE_BASE_URL: 'https://www.eventbriteapi.com',
         TRAVEL_ADVISOR_API_KEY: 'rapid-key',
         TRAVEL_ADVISOR_API_HOST: 'travel-advisor.p.rapidapi.com',
         TRAVEL_ADVISOR_BASE_URL: 'https://travel-advisor.p.rapidapi.com',
@@ -21,7 +19,6 @@ describe('ExternalService', () => {
     }),
     getOrThrow: jest.fn((key: string) => {
       const map: Record<string, string> = {
-        EVENTBRITE_BASE_URL: 'https://www.eventbriteapi.com',
         TRAVEL_ADVISOR_API_HOST: 'travel-advisor.p.rapidapi.com',
         TRAVEL_ADVISOR_BASE_URL: 'https://travel-advisor.p.rapidapi.com',
       };
@@ -39,13 +36,6 @@ describe('ExternalService', () => {
     }).compile();
 
     service = module.get<ExternalService>(ExternalService);
-  });
-
-  it('caches event searches', async () => {
-    mockedAxios.get.mockResolvedValue({ data: { events: [1] } });
-    await service.searchEvents('深圳');
-    await service.searchEvents('深圳');
-    expect(mockedAxios.get).toHaveBeenCalledTimes(1);
   });
 
   it('caches location searches', async () => {

@@ -37,8 +37,6 @@ export class ExternalService {
   private readonly circuitBreakers = new Map<string, CircuitBreakerState>();
   private readonly circuitBreakerOpenDuration = 60 * 60 * 1000; // 1小时
 
-  private readonly eventbriteToken: string;
-  private readonly eventbriteBaseUrl: string;
   private readonly travelAdvisorApiKey: string;
   private readonly travelAdvisorApiHost: string;
   private readonly travelAdvisorBaseUrl: string;
@@ -46,11 +44,6 @@ export class ExternalService {
   private readonly googleCx?: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.eventbriteToken =
-      this.configService.get<string>('EVENTBRITE_API_TOKEN') ?? '';
-    this.eventbriteBaseUrl = this.configService.getOrThrow<string>(
-      'EVENTBRITE_BASE_URL',
-    );
     this.travelAdvisorApiKey =
       this.configService.get<string>('TRAVEL_ADVISOR_API_KEY') ?? '';
     this.travelAdvisorApiHost =
@@ -66,63 +59,6 @@ export class ExternalService {
       this.configService.get<string>('GUIDES_GOOGLE_CX');
     this.maxRetries = this.configService.get<number>('EXTERNAL_API_MAX_RETRIES', 3);
     this.retryDelayMs = this.configService.get<number>('EXTERNAL_API_RETRY_DELAY_MS', 1000);
-  }
-
-  async searchEvents(location: string) {
-    if (!this.eventbriteToken) {
-      throw new HttpException(
-        {
-          message: 'EVENTBRITE_TOKEN_MISSING',
-        },
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-    const cacheKey = `eventbrite:${location.toLowerCase()}`;
-    const cached = this.getFromCache(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    try {
-      // Ensure base URL includes /v3 if not already present
-      let baseUrl = this.eventbriteBaseUrl;
-      if (!baseUrl.endsWith('/v3') && !baseUrl.endsWith('/v3/')) {
-        baseUrl = baseUrl.endsWith('/') ? `${baseUrl}v3` : `${baseUrl}/v3`;
-      }
-      
-      const searchUrl = new URL('/events/search/', baseUrl).toString();
-      const data = await this.executeWithRetry(
-        () => axios.get(searchUrl, {
-        params: {
-          'location.address': location,
-          expand: 'venue',
-        },
-        headers: {
-          Authorization: `Bearer ${this.eventbriteToken}`,
-        },
-        }),
-        'Eventbrite',
-      );
-      
-      this.setCache(cacheKey, data.data);
-      return data.data;
-    } catch (error) {
-      const status = (error as AxiosError)?.response?.status;
-      const errorMessage = status === 404 
-        ? 'EVENTBRITE_ENDPOINT_NOT_FOUND'
-        : status === 401 || status === 403
-        ? 'EVENTBRITE_AUTH_FAILED'
-        : 'EVENTBRITE_SERVICE_UNAVAILABLE';
-      
-      this.logger.error(
-        `Eventbrite API error (status: ${status})`,
-        (error as any)?.response?.data ?? error,
-      );
-      throw new HttpException(
-        { message: errorMessage },
-        HttpStatus.BAD_GATEWAY,
-      );
-    }
   }
 
   async searchLocations(query: string) {

@@ -1,13 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, MinLength, IsNumber, IsOptional } from 'class-validator';
 
-export class EventSearchQueryDto {
-  @ApiProperty({ description: '地点，例如 "深圳"', example: '深圳' })
-  @IsString()
-  @MinLength(1)
-  location!: string;
-}
-
 export class LocationSearchQueryDto {
   @ApiProperty({ description: '目的地关键字', example: '拉萨' })
   @IsString()

@@ -21,33 +21,6 @@ const envSchema = z.object({
   EXTERNAL_API_RETRY_DELAY_MS: z.coerce.number().int().positive().optional(),
   MAPBOX_ACCESS_TOKEN: z.string().min(1).optional(),
   MAPBOX_BASE_URL: z.string().url().optional(),
-  EVENTBRITE_API_TOKEN: z.string().min(1).optional(),
-  EVENTBRITE_BASE_URL: z
-    .string()
-    .url()
-    .optional()
-    .default('https://www.eventbriteapi.com/v3'),
-  EVENTBRITE_CLIENT_ID: z.string().min(1).optional(),
-  EVENTBRITE_CLIENT_SECRET: z.string().min(1).optional(),
-  EVENTBRITE_AUTH_URL: z
-    .string()
-    .url()
-    .optional()
-    .default('https://www.eventbrite.com/oauth/authorize'),
-  EVENTBRITE_TOKEN_URL: z
-    .string()
-    .url()
-    .optional()
-    .default('https://www.eventbrite.com/oauth/token'),
-  EVENTBRITE_REDIRECT_URI: z.string().url().optional(),
-  EVENTBRITE_SUCCESS_REDIRECT: z
-    .string()
-    .optional()
-    .default('/settings/integrations?eventbrite=connected'),
-  EVENTBRITE_FAILURE_REDIRECT: z
-    .string()
-    .optional()
-    .default('/settings/integrations?eventbrite=error'),
   TRAVEL_ADVISOR_API_KEY: z.string().min(1).optional(),
   TRAVEL_ADVISOR_API_HOST: z
     .string()

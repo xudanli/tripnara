@@ -3,9 +3,9 @@ import { HttpModule } from '@nestjs/axios';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DestinationEntity } from '../persistence/entities/reference.entity';
 import { GeocodeService } from './services/geocode.service';
+import { AccurateGeocodingService } from './services/accurate-geocoding.service';
 import { TransportService } from './services/transport.service';
 import { AltitudeService } from './services/altitude.service';
-import { FestivalService } from './services/festival.service';
 import { WeatherService } from './services/weather.service';
 import { PoiService } from './services/poi.service';
 import { DestinationController } from './destination.controller';
@@ -13,12 +13,14 @@ import { DestinationsV1Controller } from './destinations-v1.controller';
 import { TransportV1Controller } from './transport-v1.controller';
 import { PoiV1Controller } from './poi-v1.controller';
 import { ExternalModule } from '../external/external.module';
+import { LlmModule } from '../llm/llm.module';
 
 @Module({
   imports: [
     HttpModule,
     TypeOrmModule.forFeature([DestinationEntity]),
     ExternalModule,
+    LlmModule,
   ],
   controllers: [
     DestinationController,
@@ -28,12 +30,17 @@ import { ExternalModule } from '../external/external.module';
   ],
   providers: [
     GeocodeService,
+    AccurateGeocodingService,
     TransportService,
     AltitudeService,
-    FestivalService,
     WeatherService,
     PoiService,
   ],
-  exports: [GeocodeService, TransportService, AltitudeService, FestivalService],
+  exports: [
+    GeocodeService,
+    AccurateGeocodingService,
+    TransportService,
+    AltitudeService,
+  ],
 })
 export class DestinationModule {}

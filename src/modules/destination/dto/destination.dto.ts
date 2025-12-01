@@ -151,77 +151,6 @@ export class TransportResponseDto {
   options!: TransportOptionDetailDto[];
 }
 
-export class EventsRequestDto {
-  @ApiProperty({
-    description: 'Canonical destination name used to fetch events.',
-  })
-  @IsString()
-  destination!: string;
-
-  @ApiPropertyOptional({
-    description: 'ISO date filter for events starting after this time.',
-  })
-  @IsOptional()
-  @IsDateString()
-  startDate?: string;
-
-  @ApiPropertyOptional({
-    description: 'ISO date filter for events ending before this time.',
-  })
-  @IsOptional()
-  @IsDateString()
-  endDate?: string;
-
-  @ApiPropertyOptional({
-    description: 'Optional category filter (music, food, etc.).',
-  })
-  @IsOptional()
-  @IsString()
-  category?: string;
-}
-
-export class FestivalEventDto {
-  @ApiProperty({ description: 'Event identifier from the upstream provider.' })
-  @IsString()
-  id!: string;
-
-  @ApiProperty({ description: 'Event display name.' })
-  @IsString()
-  name!: string;
-
-  @ApiProperty({ description: 'Start date/time in ISO format.' })
-  @IsDateString()
-  startDate!: string;
-
-  @ApiPropertyOptional({ description: 'End date/time in ISO format.' })
-  @IsOptional()
-  @IsDateString()
-  endDate?: string;
-
-  @ApiPropertyOptional({ description: 'Event landing page URL.' })
-  @IsOptional()
-  @IsString()
-  url?: string;
-
-  @ApiPropertyOptional({
-    description: 'Venue or location metadata.',
-    type: Object,
-  })
-  @IsOptional()
-  @IsObject()
-  venue?: Record<string, unknown>;
-}
-
-export class EventsResponseDto {
-  @ApiProperty({
-    description: 'Festival or event listings.',
-    type: () => [FestivalEventDto],
-  })
-  @IsArray()
-  @Type(() => FestivalEventDto)
-  events!: FestivalEventDto[];
-}
-
 export class ReverseGeocodeQueryDto {
   @ApiProperty({
     description: '经度（longitude）',
@@ -353,4 +282,81 @@ export class HighAltitudeResponseDto {
   @IsOptional()
   @IsString()
   note?: string;
+}
+
+/**
+ * 准确地理编码请求 DTO
+ */
+export class AccurateGeocodeRequestDto {
+  @ApiProperty({
+    description: '地点查询文本（支持自然语言描述）',
+    example: '那个有很多鹿的日本公园',
+  })
+  @IsString()
+  @MinLength(2)
+  query!: string;
+
+  @ApiPropertyOptional({
+    description: '是否使用 AI 辅助（默认自动判断）',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  useAI?: boolean;
+}
+
+/**
+ * 准确地理编码响应 DTO
+ */
+export class AccurateGeocodeResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiPropertyOptional({
+    description: '地点名称',
+    example: '奈良公园',
+  })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional({
+    description: '完整地址',
+    example: '奈良公园, 奈良县, 日本',
+  })
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @ApiPropertyOptional({
+    description: '坐标信息',
+    type: CoordinateDto,
+  })
+  @IsOptional()
+  @Type(() => CoordinateDto)
+  location?: CoordinateDto;
+
+  @ApiPropertyOptional({
+    description: '国家代码',
+    example: 'JP',
+  })
+  @IsOptional()
+  @IsString()
+  countryCode?: string;
+
+  @ApiPropertyOptional({
+    description: '地点类型',
+    example: 'poi',
+  })
+  @IsOptional()
+  @IsString()
+  placeType?: string;
+
+  @ApiPropertyOptional({
+    description: '是否使用了 AI 辅助',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  usedAI?: boolean;
 }

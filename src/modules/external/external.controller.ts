@@ -10,7 +10,6 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags, ApiOkResponse, ApiQuery } from '@nestjs/swagger';
 import { ExternalService } from './external.service';
 import {
-  EventSearchQueryDto,
   LocationSearchQueryDto,
   AttractionDetailsParamDto,
   AttractionDetailsQueryDto,
@@ -26,14 +25,6 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 @Controller('external')
 export class ExternalController {
   constructor(private readonly externalService: ExternalService) {}
-
-  @Get('events')
-  @ApiOperation({ summary: '搜索 Eventbrite 活动' })
-  @ApiOkResponse({ description: '返回 Eventbrite 活动列表', schema: { type: 'object', properties: { data: { type: 'object' } } } })
-  async searchEvents(@Query() query: EventSearchQueryDto) {
-    const data = await this.externalService.searchEvents(query.location);
-    return { data };
-  }
 
   @Get('locations')
   @ApiOperation({ 

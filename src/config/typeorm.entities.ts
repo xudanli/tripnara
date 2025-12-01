@@ -31,7 +31,6 @@ import {
   VisaUnionCountryEntity,
   VisaPolicyHistoryEntity,
 } from '../modules/persistence/entities/visa.entity';
-import { EventbriteConnectionEntity } from '../modules/persistence/entities/eventbrite-connection.entity';
 import {
   ItineraryEntity,
   ItineraryDayEntity,
@@ -55,7 +54,6 @@ export const TYPEORM_ENTITIES = [
   UserAuthProviderEntity,
   UserSettingEntity,
   UserPreferenceEntity,
-  EventbriteConnectionEntity,
   AiRequestLogEntity,
   AiGenerationJobEntity,
   AiSafetyNoticeCacheEntity,

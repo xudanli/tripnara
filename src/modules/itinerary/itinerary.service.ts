@@ -1219,7 +1219,7 @@ export class ItineraryService {
       currency: currency?.code,
       currencyInfo: currency,
       preferences: entity.preferences as any,
-      practicalInfo: entity.practicalInfo as any, // 返回实用信息
+      practicalInfo: this.filterPracticalInfo(entity.practicalInfo), // 返回实用信息（已移除 plugType 和 currency）
       status: entity.status,
       createdAt:
         entity.createdAt instanceof Date
@@ -3190,8 +3190,28 @@ export class ItineraryService {
   }
 
   /**
-   * 构建安全提示缓存键
+   * 过滤 practicalInfo，移除已废弃的 plugType 和 currency 字段
+   * 这些字段现在由 local-essentials 接口提供
    */
+  private filterPracticalInfo(
+    practicalInfo?: Record<string, unknown> | null,
+  ): Record<string, unknown> | undefined {
+    if (!practicalInfo) {
+      return undefined;
+    }
+
+    // 创建新对象，排除 plugType 和 currency 字段
+    const filtered: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(practicalInfo)) {
+      if (key !== 'plugType' && key !== 'currency') {
+        filtered[key] = value;
+      }
+    }
+
+    // 如果过滤后对象为空，返回 undefined
+    return Object.keys(filtered).length > 0 ? filtered : undefined;
+  }
+
   /**
    * 缓存安全提示到 Redis
    */

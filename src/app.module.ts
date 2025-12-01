@@ -16,7 +16,6 @@ import { VisaModule } from './modules/visa/visa.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { PreferencesModule } from './modules/preferences/preferences.module';
 import { ExternalModule } from './modules/external/external.module';
-import { EventbriteModule } from './modules/eventbrite/eventbrite.module';
 import { ItineraryModule } from './modules/itinerary/itinerary.module';
 import { LocationModule } from './modules/location/location.module';
 import { TravelModule } from './modules/travel/travel.module';
@@ -101,7 +100,6 @@ const resolveEnvFilePaths = (): string[] => {
     AuthModule,
     PreferencesModule,
     ExternalModule,
-    EventbriteModule,
     ItineraryModule,
     LocationModule,
     TravelModule,

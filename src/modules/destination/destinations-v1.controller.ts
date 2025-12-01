@@ -4,9 +4,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { NotFoundException } from '@nestjs/common';
 import { DestinationEntity } from '../persistence/entities/reference.entity';
-import { FestivalService } from './services/festival.service';
 import { WeatherService } from './services/weather.service';
-import { EventsRequestDto, EventsResponseDto } from './dto/destination.dto';
+import { AccurateGeocodingService } from './services/accurate-geocoding.service';
+import {
+  AccurateGeocodeRequestDto,
+  AccurateGeocodeResponseDto,
+} from './dto/destination.dto';
 
 @ApiTags('Destinations V1')
 @Controller('v1/destinations')
@@ -15,44 +18,9 @@ export class DestinationsV1Controller {
   constructor(
     @InjectRepository(DestinationEntity)
     private readonly destinationRepository: Repository<DestinationEntity>,
-    private readonly festivalService: FestivalService,
     private readonly weatherService: WeatherService,
+    private readonly accurateGeocodingService: AccurateGeocodingService,
   ) {}
-
-  @Get(':id/events')
-  @ApiOperation({
-    summary: '获取目的地活动信息',
-    description: '根据目的地ID获取活动信息（Eventbrite 等）',
-  })
-  @ApiParam({ name: 'id', description: '目的地ID（UUID）' })
-  @ApiQuery({ name: 'startDate', required: false, description: '开始日期（ISO格式）' })
-  @ApiQuery({ name: 'endDate', required: false, description: '结束日期（ISO格式）' })
-  @ApiQuery({ name: 'category', required: false, description: '活动类别' })
-  async getDestinationEvents(
-    @Param('id') id: string,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('category') category?: string,
-  ): Promise<EventsResponseDto> {
-    // 根据ID查找目的地
-    const destination = await this.destinationRepository.findOne({
-      where: { id },
-    });
-
-    if (!destination) {
-      throw new NotFoundException(`目的地不存在: ${id}`);
-    }
-
-    // 使用目的地名称查询活动
-    const dto: EventsRequestDto = {
-      destination: destination.name,
-      startDate,
-      endDate,
-      category,
-    };
-
-    return this.festivalService.listEvents(dto);
-  }
 
   @Get(':id/weather')
   @ApiOperation({
@@ -227,6 +195,66 @@ export class DestinationsV1Controller {
       .replace(/^-+/, '') // 移除开头的连字符
       .replace(/-+$/, '') // 移除结尾的连字符
       .substring(0, 150); // 限制长度
+  }
+
+  @Post('geocode/accurate')
+  @ApiOperation({
+    summary: '准确地理编码（支持自然语言）',
+    description:
+      '使用 AI + Mapbox 进行地理编码，支持自然语言描述（如"那个有很多鹿的日本公园"）',
+  })
+  @ApiBody({ type: AccurateGeocodeRequestDto })
+  @ApiOkResponse({ type: AccurateGeocodeResponseDto })
+  async accurateGeocode(
+    @Body() dto: AccurateGeocodeRequestDto,
+  ): Promise<AccurateGeocodeResponseDto> {
+    let result;
+    let usedAI = false;
+
+    if (dto.useAI) {
+      // 强制使用 AI 辅助
+      result = await this.accurateGeocodingService.searchComplexLocation(
+        dto.query,
+      );
+      usedAI = true;
+    } else {
+      // 智能搜索：先尝试直接查询，失败则使用 AI
+      // 先尝试直接查询
+      const directResult = await this.accurateGeocodingService.getCoordinates(
+        dto.query,
+      );
+      
+      if (directResult) {
+        // 直接查询成功，不需要 AI
+        result = directResult;
+        usedAI = false;
+      } else {
+        // 直接查询失败，使用 AI 辅助
+        result = await this.accurateGeocodingService.searchComplexLocation(
+          dto.query,
+        );
+        usedAI = true;
+      }
+    }
+
+    if (!result) {
+      return {
+        success: false,
+      };
+    }
+
+    return {
+      success: true,
+      name: result.name,
+      address: result.address,
+      location: {
+        latitude: result.location.lat,
+        longitude: result.location.lng,
+      },
+      countryCode: result.countryCode,
+      placeType: result.placeType,
+      usedAI,
+    };
   }
 }
 

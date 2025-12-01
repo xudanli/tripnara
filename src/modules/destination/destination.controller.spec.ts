@@ -3,9 +3,7 @@ import { DestinationController } from './destination.controller';
 import { GeocodeService } from './services/geocode.service';
 import { TransportService } from './services/transport.service';
 import { AltitudeService } from './services/altitude.service';
-import { FestivalService } from './services/festival.service';
 import {
-  EventsRequestDto,
   GeocodeLookupDto,
   TransportRequestDto,
 } from './dto/destination.dto';
@@ -19,9 +17,6 @@ const mockTransportService = {
 const mockAltitudeService = {
   evaluateDestination: jest.fn(),
 };
-const mockFestivalService = {
-  listEvents: jest.fn(),
-};
 
 describe('DestinationController', () => {
   let controller: DestinationController;
@@ -33,7 +28,6 @@ describe('DestinationController', () => {
         { provide: GeocodeService, useValue: mockGeocodeService },
         { provide: TransportService, useValue: mockTransportService },
         { provide: AltitudeService, useValue: mockAltitudeService },
-        { provide: FestivalService, useValue: mockFestivalService },
       ],
     }).compile();
 
@@ -61,15 +55,6 @@ describe('DestinationController', () => {
 
     await expect(controller.transport(dto)).resolves.toEqual(response);
     expect(mockTransportService.calculateRoutes).toHaveBeenCalledWith(dto);
-  });
-
-  it('calls festival service', async () => {
-    const dto: EventsRequestDto = { destination: 'Tokyo' };
-    const response = { events: [] };
-    mockFestivalService.listEvents.mockResolvedValue(response);
-
-    await expect(controller.events(dto)).resolves.toEqual(response);
-    expect(mockFestivalService.listEvents).toHaveBeenCalledWith(dto);
   });
 
   it('calls altitude service', async () => {
