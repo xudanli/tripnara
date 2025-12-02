@@ -76,6 +76,9 @@ export class JourneyAssistantService {
           0,
         ) || 0;
 
+      // 检查是否有活动数据
+      const hasActivities = totalTimeSlots > 0;
+
       this.logger.debug(
         `[AI Assistant] 行程数据完整性检查: 目的地=${destinationName}, 天数=${itineraryDetail.daysCount}, 总时间段=${totalTimeSlots}`,
       );
@@ -201,7 +204,6 @@ export class JourneyAssistantService {
 
       // 尝试从回复中提取修改建议
       let modifications: ModificationSuggestionDto[] | undefined;
-      const hasActivities = totalTimeSlots > 0;
 
       if (hasActivities) {
         modifications = this.extractModifications(responseText);
