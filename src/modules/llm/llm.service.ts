@@ -371,6 +371,16 @@ export class LlmService {
         ),
       );
 
+      // 添加调试日志：打印完整的 REST API 响应（仅对 Gemini）
+      if (options.provider === 'gemini') {
+        try {
+          const responseString = JSON.stringify(response.data, null, 2);
+          this.logger.debug(`Gemini REST API Raw Response: ${responseString}`);
+        } catch (logError) {
+          this.logger.warn(`Failed to stringify Gemini REST API response: ${logError instanceof Error ? logError.message : logError}`);
+        }
+      }
+
       return response.data;
     } catch (error: unknown) {
       // Handle redirect loop errors specifically
@@ -414,17 +424,33 @@ export class LlmService {
         }
         
         if (status === 401 || status === 403) {
-          this.logger.error(
-            `Gemini API 认证失败 (${status}): 请检查 GEMINI_API_KEY 是否正确配置`,
-          );
+          // 打印完整的错误响应以便调试
+          try {
+            const errorString = JSON.stringify(errorData, null, 2);
+            this.logger.error(
+              `Gemini API 认证失败 (${status}): 请检查 GEMINI_API_KEY 是否正确配置\n完整错误响应: ${errorString}`,
+            );
+          } catch (logError) {
+            this.logger.error(
+              `Gemini API 认证失败 (${status}): 请检查 GEMINI_API_KEY 是否正确配置\n错误数据: ${String(errorData)}`,
+            );
+          }
           throw new Error(
-            `Gemini API 认证失败 (${status}): 请检查 API key 是否正确配置`,
+            `Gemini API 认证失败 (${status}): 请检查 API key 是否正确配置。错误详情: ${JSON.stringify(errorData)}`,
           );
         }
         
-        this.logger.error(
-          `LLM API 请求失败 (${status} ${statusText}): ${JSON.stringify(errorData)}`,
-        );
+        // 打印完整的错误响应以便调试
+        try {
+          const errorString = JSON.stringify(errorData, null, 2);
+          this.logger.error(
+            `LLM API 请求失败 (${status} ${statusText}):\n完整错误响应: ${errorString}`,
+          );
+        } catch (logError) {
+          this.logger.error(
+            `LLM API 请求失败 (${status} ${statusText}): ${String(errorData)}`,
+          );
+        }
         throw new Error(
           `LLM API 请求失败: ${status} ${statusText} - ${errorData?.error?.message || error.message}`,
         );
@@ -542,6 +568,24 @@ export class LlmService {
           });
         }
 
+        // 添加调试日志：打印完整的 API 响应
+        try {
+          const responseString = JSON.stringify(response, (key, value) => {
+            // 避免循环引用
+            if (typeof value === 'object' && value !== null) {
+              if (key === 'parent' || key === 'client') {
+                return '[Circular]';
+              }
+            }
+            return value;
+          }, 2);
+          this.logger.debug(`Gemini Raw Response (model: ${model}): ${responseString}`);
+        } catch (logError) {
+          this.logger.warn(`Failed to stringify Gemini response: ${logError instanceof Error ? logError.message : logError}`);
+          // 尝试打印基本信息
+          this.logger.debug(`Gemini Response type: ${typeof response}, has response: ${!!response?.response}`);
+        }
+
         // 提取响应文本
         // SDK 响应格式：response.response.text() 或 response.response.candidates[0].content.parts[0].text
         const responseData = response.response;
@@ -561,6 +605,21 @@ export class LlmService {
         } as GeminiResponse;
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
+        
+        // 添加详细的错误日志：打印完整的错误对象
+        try {
+          const errorString = JSON.stringify(error, Object.getOwnPropertyNames(error), 2);
+          this.logger.error(`Gemini SDK Error Details (model: ${model}): ${errorString}`);
+        } catch (logError) {
+          // 如果无法序列化，至少打印错误的基本信息
+          this.logger.error(`Gemini SDK Error (model: ${model}):`, {
+            message: lastError.message,
+            stack: lastError.stack,
+            name: lastError.name,
+            error: String(error),
+          });
+        }
+        
         this.logger.warn(
           `Gemini SDK call failed with model ${model}: ${lastError.message}`,
         );
