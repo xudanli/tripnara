@@ -3411,6 +3411,7 @@ export class ItineraryService {
     journeyId: string,
     userId: string,
     day?: number,
+    language?: string,
   ): Promise<{
     success: boolean;
     journeyId: string;
@@ -3503,6 +3504,7 @@ export class ItineraryService {
           cost: act.cost,
         }));
 
+        const userLanguage = language || 'zh-CN';
         const summary = await this.generateDailySummaryWithAI(
           destination,
           {
@@ -3510,6 +3512,7 @@ export class ItineraryService {
             date: dateStr,
             activities,
           },
+          userLanguage,
           userId, // 传递 userId 以从用户偏好读取模型选择
         );
 
@@ -3548,6 +3551,7 @@ export class ItineraryService {
         cost?: number;
       }>;
     },
+    language: string = 'zh-CN',
     userId?: string, // 可选：用户ID，用于从用户偏好读取模型选择
   ): Promise<string> {
     try {

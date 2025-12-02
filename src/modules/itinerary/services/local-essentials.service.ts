@@ -80,6 +80,7 @@ export class LocalEssentialsService {
   async getLocalEssentials(
     journeyId: string,
     userId?: string,
+    language?: string,
   ): Promise<LocalEssentialsResponseDto> {
     // 检查行程是否存在
     const itinerary = await this.itineraryRepository.findById(journeyId);
@@ -96,12 +97,13 @@ export class LocalEssentialsService {
     }
 
     const destination = itinerary.destination;
-    const cacheKey = this.getCacheKey(destination);
+    const userLanguage = language || 'zh-CN';
+    const cacheKey = this.getCacheKey(destination, userLanguage);
 
     // 尝试从缓存获取
     const cached = await this.getFromCache(cacheKey);
     if (cached) {
-      this.logger.debug(`Local essentials cache hit for: ${destination}`);
+      this.logger.debug(`Local essentials cache hit for: ${destination} (${userLanguage})`);
       return {
         success: true,
         destination,
@@ -112,8 +114,8 @@ export class LocalEssentialsService {
     }
 
     // 缓存未命中，生成新的实用信息
-    this.logger.log(`Generating local essentials for destination: ${destination}`);
-    const localEssentials = await this.generateLocalEssentialsWithAI(destination);
+    this.logger.log(`Generating local essentials for destination: ${destination} (${userLanguage})`);
+    const localEssentials = await this.generateLocalEssentialsWithAI(destination, userLanguage);
 
     // 保存到缓存
     await this.setCache(cacheKey, localEssentials);
@@ -132,10 +134,27 @@ export class LocalEssentialsService {
    */
   private async generateLocalEssentialsWithAI(
     destination: string,
+    language: string = 'zh-CN',
   ): Promise<LocalEssentialsData> {
-    const systemMessage = `你是一个专业的旅行信息助手，擅长提供准确的目的地实用信息。请始终以JSON格式返回数据。`;
+    const isEnglish = language === 'en-US' || language === 'en';
+    
+    const systemMessage = isEnglish
+      ? `You are a professional travel information assistant, skilled at providing accurate destination practical information. Please always return data in JSON format.`
+      : `你是一个专业的旅行信息助手，擅长提供准确的目的地实用信息。请始终以JSON格式返回数据。`;
 
-    const prompt = `请为目的地 **${destination}** 提供以下实用信息，并以JSON格式返回：
+    const prompt = isEnglish
+      ? `Please provide the following practical information for destination **${destination}** and return it in JSON format:
+
+{
+  "language": "Official language and common greetings (not only the language, but also a greeting like hello/thank you)",
+  "currencyRate": "Currency exchange rate estimate (provide approximate exchange ratio, e.g., 1 USD ≈ 7.2 CNY)",
+  "timeZone": "Time zone (provide in GMT/UTC format, e.g., GMT+8 or UTC+0)",
+  "powerOutlet": "Power outlet type (specify Type A/B/C, etc., e.g., Type C, 220V)",
+  "emergencyNumber": "Police/ambulance phone number (provide the local specific number, e.g., 110, 119)"
+}
+
+Please ensure the return is valid JSON format, all fields are string type.`
+      : `请为目的地 **${destination}** 提供以下实用信息，并以JSON格式返回：
 
 {
   "language": "官方语言及常用问候语（不仅要写语言，还要写一句你好/谢谢）",
@@ -200,8 +219,8 @@ export class LocalEssentialsService {
   /**
    * 生成缓存键
    */
-  private getCacheKey(destination: string): string {
-    return `local-essentials:${destination.toLowerCase().trim()}`;
+  private getCacheKey(destination: string, language: string = 'zh-CN'): string {
+    return `local-essentials:${destination.toLowerCase().trim()}:${language}`;
   }
 
   /**

@@ -44,11 +44,13 @@ export class TravelSummaryService {
 
       // 尝试使用AI生成摘要
       try {
+        const userLanguage = dto.language || 'zh-CN';
         const aiSummary = await this.generateSummaryWithAI(
           dto.destination,
           analysis.days,
           analysis.activityTypes,
           analysis.activitySummaries,
+          userLanguage,
         );
 
         return {
@@ -165,6 +167,7 @@ export class TravelSummaryService {
     days: number,
     activityTypes: ActivityStats[],
     activitySummaries: ActivitySummary[],
+    language: string = 'zh-CN',
   ): Promise<string> {
     // 边界检查：如果没有活动数据，抛出异常使用模板回退
     if (activityTypes.length === 0 || activitySummaries.length === 0) {
@@ -175,19 +178,39 @@ export class TravelSummaryService {
     }
 
     // 构建类型摘要
+    const isEnglish = language === 'en-US' || language === 'en';
     const typeSummary = activityTypes
-      .map((stat) => `${stat.type}: ${stat.count}个`)
+      .map((stat) => isEnglish ? `${stat.type}: ${stat.count}` : `${stat.type}: ${stat.count}个`)
       .join(', ');
 
     // 构建活动摘要
     const activitySummary = activitySummaries
       .map(
         (act) =>
-          `第${act.day}天：${act.title} - ${(act.description || '').substring(0, 30)}...`,
+          isEnglish
+            ? `Day ${act.day}: ${act.title} - ${(act.description || '').substring(0, 30)}...`
+            : `第${act.day}天：${act.title} - ${(act.description || '').substring(0, 30)}...`,
       )
       .join('\n');
 
-    const prompt = `请为以下${days}天的${destination}旅行行程生成一个生动、吸引人的中文摘要，要求：
+    const prompt = isEnglish
+      ? `Please generate a vivid and attractive English summary for the following ${days}-day travel itinerary to ${destination}, with the following requirements:
+
+1. Keep the length between 100-150 words
+2. Use vivid and engaging language
+3. Highlight the highlights and unique features of the trip
+4. Reflect the richness and diversity of the itinerary
+5. Use positive and upbeat vocabulary
+
+Trip Information:
+- Destination: ${destination}
+- Days: ${days} days
+- Activity Type Distribution: ${typeSummary}
+- Main Activities:
+${activitySummary}
+
+Please generate an attractive travel summary:`
+      : `请为以下${days}天的${destination}旅行行程生成一个生动、吸引人的中文摘要，要求：
 
 1. 长度控制在100-150字之间
 2. 语言要生动有趣，富有感染力

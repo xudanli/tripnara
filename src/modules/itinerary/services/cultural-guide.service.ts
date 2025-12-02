@@ -69,7 +69,11 @@ export class CulturalGuideService {
   /**
    * 获取目的地的文化红黑榜
    */
-  async getCulturalGuide(journeyId: string, userId?: string): Promise<CulturalGuideResponseDto> {
+  async getCulturalGuide(
+    journeyId: string,
+    userId?: string,
+    language?: string,
+  ): Promise<CulturalGuideResponseDto> {
     // 检查行程是否存在
     const itinerary = await this.itineraryRepository.findById(journeyId);
     if (!itinerary) {
@@ -85,12 +89,13 @@ export class CulturalGuideService {
     }
 
     const destination = itinerary.destination;
-    const cacheKey = this.getCacheKey(destination);
+    const userLanguage = language || 'zh-CN';
+    const cacheKey = this.getCacheKey(destination, userLanguage);
 
     // 尝试从缓存获取
     const cached = await this.getFromCache(cacheKey);
     if (cached) {
-      this.logger.debug(`Cultural guide cache hit for: ${destination}`);
+      this.logger.debug(`Cultural guide cache hit for: ${destination} (${userLanguage})`);
       return {
         success: true,
         destination,
@@ -101,8 +106,8 @@ export class CulturalGuideService {
     }
 
     // 缓存未命中，生成新的文化红黑榜
-    this.logger.log(`Generating cultural guide for destination: ${destination}`);
-    const content = await this.generateCulturalGuideWithAI(itinerary, userId);
+    this.logger.log(`Generating cultural guide for destination: ${destination} (${userLanguage})`);
+    const content = await this.generateCulturalGuideWithAI(itinerary, userId, userLanguage);
 
     // 保存到缓存
     await this.setCache(cacheKey, content);
@@ -122,8 +127,27 @@ export class CulturalGuideService {
   private async generateCulturalGuideWithAI(
     itinerary: any,
     userId?: string, // 可选：用户ID，用于从用户偏好读取模型选择
+    language: string = 'zh-CN',
   ): Promise<string> {
-    const systemMessage = `你是 **tripnara 首席旅行管家 (Senior Concierge) Nara**。你拥有 20 年的高端定制旅行经验。
+    const isEnglish = language === 'en-US' || language === 'en';
+    
+    const systemMessage = isEnglish
+      ? `You are **tripnara Senior Concierge Nara**. You have 20 years of experience in high-end customized travel.
+
+Your core ability is to provide users with **"high signal-to-noise ratio"** cultural advice. Users have limited time during travel and don't like reading lengthy articles.
+
+**Your Output Standards:**
+
+1. **Extremely Concise**: Only provide the most critical, essential, and authentic information. No fluff.
+
+2. **Visually Friendly**: Make full use of Emojis and Markdown formatting to create an easy-to-read list similar to "Xiaohongshu" or "high-end magazines".
+
+3. **Clear Structure**: Strictly distinguish between "Red List (Must-Do)" and "Black List (Taboos)".
+
+4. **Tone**: Professional, elegant, direct.
+
+Please always respond in English.`
+      : `你是 **tripnara 首席旅行管家 (Senior Concierge) Nara**。你拥有 20 年的高端定制旅行经验。
 
 你的核心能力是为用户提供**"高信噪比"**的文化建议。用户在旅行途中时间宝贵，不喜欢阅读长篇大论。
 
@@ -139,7 +163,53 @@ export class CulturalGuideService {
 
 请始终使用简体中文回答。`;
 
-    const prompt = `当前上下文：
+    const prompt = isEnglish
+      ? `Current Context:
+
+The user is about to travel to **${itinerary.destination}**.
+
+Trip Summary: ${itinerary.summary || 'None'}
+
+Please generate a **concise "Cultural Red and Black List"** for this destination. Please ignore common sense (such as "don't litter") and focus only on the destination's **unique** cultural pain points and highlights.
+
+Please strictly follow the Markdown format below, without any opening or closing remarks:
+
+### 🔴 Red List: Act Like a Local (Top 4)
+
+*(Please list 4 authentic behaviors/etiquettes that can most enhance the travel experience, each no more than 20 words, with key actions **bolded**)*
+
+- [Emoji] **Key Phrase**: Brief explanation.
+
+- [Emoji] **Key Phrase**: Brief explanation.
+
+- [Emoji] **Key Phrase**: Brief explanation.
+
+- [Emoji] **Key Phrase**: Brief explanation.
+
+### ⚫ Black List: Don't Step on Landmines (Top 4)
+
+*(Please list 4 taboos that are most likely to offend locals or cause embarrassment, each no more than 20 words, with key taboos **bolded**)*
+
+- [Emoji] **Key Phrase**: Brief explanation.
+
+- [Emoji] **Key Phrase**: Brief explanation.
+
+- [Emoji] **Key Phrase**: Brief explanation.
+
+- [Emoji] **Key Phrase**: Brief explanation.
+
+### 💡 Nara's Survival Guide
+
+*(Please display the following information in short key-value pairs)*
+
+> 💰 **Tipping Rules**: (One sentence explaining how much to tip at restaurants/hotels/taxis)
+
+> 👗 **Dress Code Red Lines**: (The most core dress requirements for this destination, such as religious sites/fine dining restaurants)
+
+> ⚡ **Power Outlet**: (e.g., Type A 110V, adapter needed)
+
+> 🚨 **Emergency Help**: (Local police/ambulance phone number)`
+      : `当前上下文：
 
 用户即将前往 **${itinerary.destination}** 旅行。
 
@@ -149,7 +219,7 @@ export class CulturalGuideService {
 
 请严格按照以下 Markdown 格式输出，不要包含任何开场白或结束语：
 
-### 🔴 红榜：像当地人一样 (Top 8)
+### 🔴 红榜：像当地人一样 (Top 4)
 
 *(请列出 4 个最能提升旅行体验的地道行为/礼仪，每条不超过 20 字，关键动作**加粗**)*
 
@@ -161,7 +231,7 @@ export class CulturalGuideService {
 
 - [Emoji] **关键短语**：简短解释。
 
-### ⚫ 黑榜：千万别踩雷 (Top 8)
+### ⚫ 黑榜：千万别踩雷 (Top 4)
 
 *(请列出 4 个最容易冒犯当地人或导致尴尬的禁忌，每条不超过 20 字，关键雷点**加粗**)*
 
@@ -188,11 +258,11 @@ export class CulturalGuideService {
     try {
       const response = await this.llmService.chatCompletion(
         await this.llmService.buildChatCompletionOptions({
-          messages: [
-            { role: 'system', content: systemMessage },
-            { role: 'user', content: prompt },
-          ],
-          temperature: 0.7,
+        messages: [
+          { role: 'system', content: systemMessage },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.7,
           maxOutputTokens: 1500, // 精简版内容，减少 token 限制
           provider: 'deepseek', // 强制使用 DeepSeek-V3（文化习俗理解，多语言表现优秀）
           model: 'deepseek-chat', // DeepSeek-V3 模型
@@ -211,8 +281,8 @@ export class CulturalGuideService {
   /**
    * 生成缓存键
    */
-  private getCacheKey(destination: string): string {
-    return `cultural-guide:${destination.toLowerCase().trim()}`;
+  private getCacheKey(destination: string, language: string = 'zh-CN'): string {
+    return `cultural-guide:${destination.toLowerCase().trim()}:${language}`;
   }
 
   /**

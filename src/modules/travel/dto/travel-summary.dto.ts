@@ -6,6 +6,7 @@ import {
   ValidateNested,
   IsOptional,
   IsNumber,
+  IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -78,6 +79,17 @@ export class GenerateTravelSummaryRequestDto {
   @ApiProperty({ description: '目的地', example: '瑞士琉森' })
   @IsString()
   destination!: string;
+
+  @ApiPropertyOptional({
+    description: '语言代码，用于生成对应语言的旅行摘要',
+    example: 'en-US',
+    enum: ['zh-CN', 'en-US', 'en'],
+    default: 'zh-CN',
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['zh-CN', 'en-US', 'en'])
+  language?: string;
 }
 
 export class TravelSummaryDataDto {

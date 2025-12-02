@@ -14,7 +14,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { RawBodyPipe } from './pipes/raw-body.pipe';
-import { ApiBearerAuth, ApiOperation, ApiTags, ApiParam, ApiResponse, ApiBody } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags, ApiParam, ApiResponse, ApiBody, ApiQuery } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ItineraryService } from './itinerary.service';
@@ -984,6 +984,7 @@ export class JourneyV1Controller {
       journeyId,
       user.userId,
       dto.day,
+      dto.language,
     );
   }
 
@@ -1083,11 +1084,23 @@ export class JourneyV1Controller {
     status: 404,
     description: '行程不存在',
   })
+  @ApiQuery({
+    name: 'language',
+    required: false,
+    description: '语言代码，用于生成对应语言的文化红黑榜',
+    enum: ['zh-CN', 'en-US', 'en'],
+    example: 'zh-CN',
+  })
   async getCulturalGuide(
     @Param('journeyId') journeyId: string,
     @CurrentUser() user: { userId: string },
+    @Query('language') language?: string,
   ): Promise<CulturalGuideResponseDto> {
-    return this.culturalGuideService.getCulturalGuide(journeyId, user.userId);
+    return this.culturalGuideService.getCulturalGuide(
+      journeyId,
+      user.userId,
+      language,
+    );
   }
 
   // ========== 目的地实用信息接口 ==========

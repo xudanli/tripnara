@@ -2427,6 +2427,17 @@ export class GenerateDailySummariesRequestDto {
   @IsNumber()
   @Min(1)
   day?: number;
+
+  @ApiPropertyOptional({
+    description: '语言代码，用于生成对应语言的每日概要',
+    example: 'en-US',
+    enum: ['zh-CN', 'en-US', 'en'],
+    default: 'zh-CN',
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['zh-CN', 'en-US', 'en'])
+  language?: string;
 }
 
 /**
