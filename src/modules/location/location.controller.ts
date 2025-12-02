@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Logger,
   Param,
   Post,
   UseGuards,
@@ -27,6 +28,8 @@ import {
 @Controller('location')
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class LocationController {
+  private readonly logger = new Logger(LocationController.name);
+
   constructor(
     private readonly locationService: LocationService,
     private readonly queueService: QueueService,
@@ -80,7 +83,6 @@ export class LocationController {
       return {
         success: true,
         jobId,
-        message: '任务已加入队列',
       };
     } catch (error) {
       // 🔥 如果队列服务不可用，返回友好的错误信息
