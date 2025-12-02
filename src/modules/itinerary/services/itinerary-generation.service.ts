@@ -133,7 +133,7 @@ export class ItineraryGenerationService {
             ],
             temperature: 0.7,
             maxOutputTokens: 8000,
-            json: false, // 先设为 false，拿原始文本自己处理
+          json: false, // 先设为 false，拿原始文本自己处理
             provider: 'deepseek', // 强制使用 DeepSeek-V3（核心行程生成需要复杂逻辑推理）
             model: 'deepseek-chat', // DeepSeek-V3 模型
           }),
@@ -427,7 +427,7 @@ export class ItineraryGenerationService {
       if (isEnglish) {
         parts.push(`Interests: ${preferences.interests.join(', ')}`);
       } else {
-        parts.push(`兴趣：${preferences.interests.join('、')}`);
+      parts.push(`兴趣：${preferences.interests.join('、')}`);
       }
     }
 
@@ -442,14 +442,14 @@ export class ItineraryGenerationService {
           `Budget: ${budgetMap[preferences.budget as string] || preferences.budget}`,
         );
       } else {
-        const budgetMap: Record<string, string> = {
-          low: '经济型',
-          medium: '中等',
-          high: '豪华型',
-        };
-        parts.push(
-          `预算：${budgetMap[preferences.budget as string] || preferences.budget}`,
-        );
+      const budgetMap: Record<string, string> = {
+        low: '经济型',
+        medium: '中等',
+        high: '豪华型',
+      };
+      parts.push(
+        `预算：${budgetMap[preferences.budget as string] || preferences.budget}`,
+      );
       }
     }
 
@@ -464,14 +464,14 @@ export class ItineraryGenerationService {
           `Travel Style: ${styleMap[preferences.travelStyle as string] || preferences.travelStyle}`,
         );
       } else {
-        const styleMap: Record<string, string> = {
-          relaxed: '轻松休闲',
-          moderate: '适中节奏',
-          intensive: '紧凑充实',
-        };
-        parts.push(
-          `旅行风格：${styleMap[preferences.travelStyle as string] || preferences.travelStyle}`,
-        );
+      const styleMap: Record<string, string> = {
+        relaxed: '轻松休闲',
+        moderate: '适中节奏',
+        intensive: '紧凑充实',
+      };
+      parts.push(
+        `旅行风格：${styleMap[preferences.travelStyle as string] || preferences.travelStyle}`,
+      );
       }
     }
 
@@ -497,9 +497,9 @@ export class ItineraryGenerationService {
           `Please focus on arranging activities and attractions related to ${preferences.interests.join(', ')}`,
         );
       } else {
-        guidance.push(
-          `请重点安排与${preferences.interests.join('、')}相关的活动和景点`,
-        );
+      guidance.push(
+        `请重点安排与${preferences.interests.join('、')}相关的活动和景点`,
+      );
       }
     }
 
@@ -507,13 +507,13 @@ export class ItineraryGenerationService {
       if (isEnglish) {
         guidance.push('Prioritize cost-effective attractions and restaurants, control overall expenses');
       } else {
-        guidance.push('优先选择性价比高的景点和餐厅，控制整体费用');
+      guidance.push('优先选择性价比高的景点和餐厅，控制整体费用');
       }
     } else if (preferences.budget === 'high') {
       if (isEnglish) {
         guidance.push('Can choose high-end attractions, specialty restaurants, and premium experiences');
       } else {
-        guidance.push('可以选择高端景点、特色餐厅和优质体验');
+      guidance.push('可以选择高端景点、特色餐厅和优质体验');
       }
     }
 
@@ -521,13 +521,13 @@ export class ItineraryGenerationService {
       if (isEnglish) {
         guidance.push('Time arrangement should be relaxed, leaving plenty of time for rest and free activities');
       } else {
-        guidance.push('时间安排要宽松，留出充足的休息和自由活动时间');
+      guidance.push('时间安排要宽松，留出充足的休息和自由活动时间');
       }
     } else if (preferences.travelStyle === 'intensive') {
       if (isEnglish) {
         guidance.push('Can arrange more activities to make full use of each day');
       } else {
-        guidance.push('可以安排更多活动，充分利用每一天的时间');
+      guidance.push('可以安排更多活动，充分利用每一天的时间');
       }
     }
 
@@ -557,9 +557,9 @@ export class ItineraryGenerationService {
           `Day ${i + 1}: ${currentDate.toISOString().split('T')[0]}`,
         );
       } else {
-        dates.push(
-          `第${i + 1}天：${currentDate.toISOString().split('T')[0]}`,
-        );
+      dates.push(
+        `第${i + 1}天：${currentDate.toISOString().split('T')[0]}`,
+      );
       }
     }
 

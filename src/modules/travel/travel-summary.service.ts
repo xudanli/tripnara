@@ -236,17 +236,17 @@ ${activitySummary}
     try {
       summary = await this.llmService.chatCompletion(
         await this.llmService.buildChatCompletionOptions({
-          messages: [
-            {
-              role: 'system',
-              content: '你是一个专业的AI助手，能够生成高质量的内容。',
-            },
-            { role: 'user', content: prompt },
-          ],
-          temperature: 0.7,
-          maxOutputTokens: 1500,
+        messages: [
+          {
+            role: 'system',
+            content: '你是一个专业的AI助手，能够生成高质量的内容。',
+          },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.7,
+        maxOutputTokens: 1500,
           provider: 'gemini', // 强制使用 Gemini 1.5 Flash（摘要任务，快速响应）
-          model: 'gemini-2.0-flash', // Gemini 2.0 Flash 模型
+          model: 'gemini-2.5-flash', // Gemini 2.5 Flash 模型
         }),
       );
 

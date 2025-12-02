@@ -141,7 +141,7 @@ export class InspirationService {
           temperature: 0.3,
           json: true,
           provider: 'gemini', // 强制使用 Gemini 1.5 Flash（高频低延迟分类任务）
-          model: 'gemini-2.0-flash', // Gemini 2.0 Flash 模型
+          model: 'gemini-2.5-flash', // Gemini 2.5 Flash 模型
         }),
       );
 
@@ -350,12 +350,12 @@ export class InspirationService {
       const response =
         await this.llmService.chatCompletionJson<AiGenerateItineraryResponse>(
           await this.llmService.buildChatCompletionOptions({
-            messages: [
-              { role: 'system', content: systemMessage },
-              { role: 'user', content: userMessage },
-            ],
-            temperature: 0.7,
-            json: true,
+          messages: [
+            { role: 'system', content: systemMessage },
+            { role: 'user', content: userMessage },
+          ],
+          temperature: 0.7,
+          json: true,
             provider: 'deepseek', // 强制使用 DeepSeek-V3（灵感行程生成，低成本高并发）
             model: 'deepseek-chat', // DeepSeek-V3 模型
           }),
@@ -417,12 +417,12 @@ export class InspirationService {
       const response =
         await this.llmService.chatCompletionJson<AiExtractDaysResponse>(
           await this.llmService.buildChatCompletionOptions({
-            messages: [
-              { role: 'system', content: systemMessage },
-              { role: 'user', content: userMessage },
-            ],
-            temperature: 0.1,
-            json: true,
+          messages: [
+            { role: 'system', content: systemMessage },
+            { role: 'user', content: userMessage },
+          ],
+          temperature: 0.1,
+          json: true,
             provider: 'deepseek', // 强制使用 DeepSeek-V3（简单实体抽取，低成本）
             model: 'deepseek-chat', // DeepSeek-V3 模型
           }),

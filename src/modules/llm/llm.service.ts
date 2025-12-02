@@ -339,7 +339,7 @@ export class LlmService {
       // Handle proxy configuration to prevent redirect loops
       const httpsAgent = this.createProxyAgentIfNeeded();
       const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
+              'Content-Type': 'application/json',
       };
 
       // Gemini 使用 query parameter 传递 API key，其他使用 Bearer token
@@ -603,7 +603,7 @@ export class LlmService {
           this.configService.get<string>('GEMINI_BASE_URL') ??
           'https://generativelanguage.googleapis.com/v1beta',
         apiKey: this.configService.get<string>('GEMINI_API_KEY'),
-        defaultModel: 'gemini-2.0-flash', // 优先使用 gemini-2.0-flash，如果失败则降级到 gemini-1.5-flash
+        defaultModel: 'gemini-2.5-flash', // 优先使用 gemini-2.5-flash，如果失败则降级到 gemini-1.5-flash
         supportsJsonMode: false, // Gemini 需要特殊处理 JSON 模式
       };
     }
