@@ -105,15 +105,44 @@ export class LlmService {
           // 初始化 Google GenAI 客户端
           // 优先使用 @google/generative-ai（官方 SDK）
           if (GoogleGenerativeAI) {
-            // 官方 SDK API: new GoogleGenerativeAI(apiKey)
-            this.geminiClient = new GoogleGenerativeAI(geminiApiKey);
-            this.logger.log('Google Generative AI SDK (@google/generative-ai) initialized successfully');
+            try {
+              // 官方 SDK API: new GoogleGenerativeAI(apiKey)
+              // 检查是否是构造函数
+              if (typeof GoogleGenerativeAI === 'function') {
+                this.geminiClient = new GoogleGenerativeAI(geminiApiKey);
+                // 验证客户端是否正确初始化
+                if (this.geminiClient && typeof this.geminiClient.getGenerativeModel === 'function') {
+                  this.logger.log('Google Generative AI SDK (@google/generative-ai) initialized successfully');
+                } else {
+                  throw new Error('SDK client initialized but getGenerativeModel is not a function');
+                }
+              } else {
+                throw new Error('GoogleGenerativeAI is not a constructor');
+              }
+            } catch (error) {
+              this.logger.error(`Failed to initialize @google/generative-ai SDK: ${error instanceof Error ? error.message : error}`);
+              throw error;
+            }
           } else if (GoogleGenAI) {
-            // 备用 SDK API: new GoogleGenAI({ apiKey: '...' })
-            this.geminiClient = new GoogleGenAI({
-              apiKey: geminiApiKey,
-            });
-            this.logger.log('Google GenAI SDK (@google/genai) initialized successfully');
+            try {
+              // 备用 SDK API: new GoogleGenAI({ apiKey: '...' })
+              if (typeof GoogleGenAI === 'function') {
+                this.geminiClient = new GoogleGenAI({
+                  apiKey: geminiApiKey,
+                });
+                // 验证客户端是否正确初始化
+                if (this.geminiClient && typeof this.geminiClient.getGenerativeModel === 'function') {
+                  this.logger.log('Google GenAI SDK (@google/genai) initialized successfully');
+                } else {
+                  throw new Error('SDK client initialized but getGenerativeModel is not a function');
+                }
+              } else {
+                throw new Error('GoogleGenAI is not a constructor');
+              }
+            } catch (error) {
+              this.logger.error(`Failed to initialize @google/genai SDK: ${error instanceof Error ? error.message : error}`);
+              throw error;
+            }
           }
         } else {
           this.logger.warn('GEMINI_API_KEY not configured, Gemini SDK will not be used');
@@ -416,9 +445,12 @@ export class LlmService {
     const modelName = options.model ?? providerConfig.defaultModel;
     
     // 尝试使用 gemini-2.5-flash，如果失败则降级到 gemini-1.5-flash
+    // 注意：如果模型名称是 gemini-1.5-flash，尝试添加 -latest 后缀或使用 gemini-1.5-pro
     const modelsToTry = modelName === 'gemini-2.5-flash' 
-      ? ['gemini-2.5-flash', 'gemini-1.5-flash']
-      : [modelName, 'gemini-1.5-flash'];
+      ? ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-pro']
+      : modelName === 'gemini-1.5-flash'
+      ? ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-1.5-pro', 'gemini-pro']
+      : [modelName, 'gemini-1.5-flash', 'gemini-1.5-pro'];
 
     let lastError: Error | null = null;
 

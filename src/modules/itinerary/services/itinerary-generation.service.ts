@@ -74,12 +74,9 @@ export class ItineraryGenerationService {
       // 获取用户偏好并合并
       const mergedPreferences = await this.getMergedPreferences(dto, userId);
 
-      // 获取用户语言偏好（从用户偏好或请求中获取）
-      // 注意：ItineraryPreferencesDto 可能没有 language 字段，需要从 mergedPreferences 中获取
-      const userLanguage = (mergedPreferences.language as string) || 
-                          (dto.preferences && typeof dto.preferences === 'object' && 'language' in dto.preferences 
-                            ? (dto.preferences as any).language as string 
-                            : undefined) || 
+      // 获取用户语言偏好（优先级：请求参数 > 用户偏好 > 默认值）
+      const userLanguage = dto.language || 
+                          (mergedPreferences.language as string) || 
                           'zh-CN';
 
       // 构建偏好文本和指导（根据语言）

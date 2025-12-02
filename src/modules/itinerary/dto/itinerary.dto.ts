@@ -242,6 +242,17 @@ export class GenerateItineraryRequestDto {
   @ValidateNested()
   @Type(() => IntentDataDto)
   intent?: IntentDataDto;
+
+  @ApiPropertyOptional({
+    description: '语言代码，用于生成对应语言的行程内容',
+    example: 'en-US',
+    enum: ['zh-CN', 'en-US', 'en'],
+    default: 'zh-CN',
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['zh-CN', 'en-US', 'en'])
+  language?: string;
 }
 
 export class ItineraryDataDto {
