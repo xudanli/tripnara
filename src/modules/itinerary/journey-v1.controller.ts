@@ -1126,11 +1126,23 @@ export class JourneyV1Controller {
     status: 404,
     description: '行程不存在',
   })
+  @ApiQuery({
+    name: 'language',
+    required: false,
+    description: '语言代码，用于生成对应语言的本地实用信息',
+    enum: ['zh-CN', 'en-US', 'en'],
+    example: 'zh-CN',
+  })
   async getLocalEssentials(
     @Param('journeyId') journeyId: string,
     @CurrentUser() user: { userId: string },
+    @Query('language') language?: string,
   ): Promise<LocalEssentialsResponseDto> {
-    return this.localEssentialsService.getLocalEssentials(journeyId, user.userId);
+    return this.localEssentialsService.getLocalEssentials(
+      journeyId,
+      user.userId,
+      language,
+    );
   }
 }
 
