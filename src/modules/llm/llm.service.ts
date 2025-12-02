@@ -504,9 +504,13 @@ export class LlmService {
         });
 
         // 构建 generation config
+        // 对于 gemini-2.5-flash，默认使用 4096 以支持思考过程（thoughtsTokenCount）
+        const defaultMaxTokens = (options.model ?? providerConfig.defaultModel)?.includes('2.5') 
+          ? 4096 
+          : 4000;
         const generationConfig: any = {
           temperature: options.temperature ?? 0.7,
-          maxOutputTokens: options.maxOutputTokens ?? 4000,
+          maxOutputTokens: options.maxOutputTokens ?? defaultMaxTokens,
         };
 
         // 处理 system instruction
@@ -735,7 +739,7 @@ export class LlmService {
       contents,
       generationConfig: {
         temperature: options.temperature ?? 0.7,
-        maxOutputTokens: options.maxOutputTokens ?? 4000,
+        maxOutputTokens: options.maxOutputTokens ?? ((options.model ?? providerConfig.defaultModel)?.includes('2.5') ? 4096 : 4000),
       },
     };
 

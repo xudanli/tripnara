@@ -3589,9 +3589,9 @@ ${activitiesText}
           { role: 'user', content: userMessage },
         ],
         temperature: 0.7,
-        maxOutputTokens: 200,
-          provider: 'gemini', // 强制使用 Gemini 1.5 Flash（摘要任务，快速响应）
-          model: 'gemini-2.5-flash', // Gemini 2.5 Flash 模型
+        maxOutputTokens: 4096, // 增加 token 限制以支持 gemini-2.5-flash 的思考过程（thoughtsTokenCount）
+          provider: 'gemini', // 强制使用 Gemini 2.5 Flash（摘要任务，快速响应）
+          model: 'gemini-2.5-flash', // Gemini 2.5 Flash 模型（包含思考过程，需要更多 token）
         }),
       );
 

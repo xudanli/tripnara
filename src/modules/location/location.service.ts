@@ -529,10 +529,10 @@ export class LocationService {
           { role: 'user', content: prompt },
         ],
         temperature: 0.7,
-        maxOutputTokens: 1500,
+        maxOutputTokens: 4096, // 增加 token 限制以支持 gemini-2.5-flash 的思考过程（thoughtsTokenCount）
         json: true,
         provider: 'gemini', // 位置信息服务强制使用 Gemini 模型
-        model: 'gemini-2.5-flash', // 使用 Gemini 2.5 Flash 模型
+        model: 'gemini-2.5-flash', // 使用 Gemini 2.5 Flash 模型（包含思考过程，需要更多 token）
       }),
     );
 

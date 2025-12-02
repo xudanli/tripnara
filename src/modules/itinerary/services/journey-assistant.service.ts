@@ -194,9 +194,9 @@ export class JourneyAssistantService {
         await this.llmService.buildChatCompletionOptions({
         messages,
         temperature: 0.7,
-        maxOutputTokens: 2000,
-          provider: 'gemini', // 强制使用 Gemini 1.5 Flash（极速响应，支持长上下文）
-          model: 'gemini-2.5-flash', // Gemini 2.5 Flash 模型
+        maxOutputTokens: 4096, // 增加 token 限制以支持 gemini-2.5-flash 的思考过程（thoughtsTokenCount）
+          provider: 'gemini', // 强制使用 Gemini 2.5 Flash（极速响应，支持长上下文）
+          model: 'gemini-2.5-flash', // Gemini 2.5 Flash 模型（包含思考过程，需要更多 token）
         }),
       );
 
