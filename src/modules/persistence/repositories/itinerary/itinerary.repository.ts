@@ -94,8 +94,11 @@ export class ItineraryRepository {
   ) {}
 
   /**
-   * 创建行程（使用事务确保数据一致性）
-   * 性能优化：修复事务竞态条件，确保事务提交后再返回结果
+   * 创建行程（使用事务和 cascade 确保数据一致性）
+   * 性能优化：
+   * 1. 利用 TypeORM 的 cascade 功能，一次性创建所有嵌套数据（类似 Prisma 的嵌套写入）
+   * 2. 修复事务竞态条件，确保事务提交后再返回结果
+   * 3. 减少数据库往返次数，提高性能
    */
   async createItinerary(input: CreateItineraryInput): Promise<ItineraryEntity> {
     // 使用事务确保所有数据在同一个事务中提交
@@ -103,10 +106,38 @@ export class ItineraryRepository {
     const result = await this.dataSource.transaction(
       async (manager: EntityManager) => {
         const itineraryRepo = manager.getRepository(ItineraryEntity);
+
+        // 准备嵌套的 days 数据（利用 cascade: true 自动创建关联数据）
         const dayRepo = manager.getRepository(ItineraryDayEntity);
         const activityRepo = manager.getRepository(ItineraryActivityEntity);
 
-        // 创建行程
+        const daysData = (input.daysData || []).map((dayData) => {
+          // 创建 day 实体（包含嵌套的 activities）
+          // TypeORM 的 cascade 会自动处理外键关系（itineraryId 和 dayId）
+          const day = dayRepo.create({
+            day: dayData.day,
+            date: dayData.date,
+            // 利用 cascade: true，嵌套创建 activities
+            // TypeORM 会自动设置 dayId 外键
+            activities: (dayData.activities || []).map((activityData) =>
+              activityRepo.create({
+                time: activityData.time,
+                title: activityData.title,
+                type: activityData.type,
+                duration: activityData.duration,
+                location: activityData.location,
+                notes: activityData.notes,
+                cost: activityData.cost,
+                details: activityData.details,
+              }),
+            ),
+          });
+
+          return day;
+        });
+
+        // 创建行程实体（包含嵌套的 days，days 又包含嵌套的 activities）
+        // 利用 cascade: true，一次性保存所有关联数据
         const itinerary = itineraryRepo.create({
           userId: input.userId,
           destination: input.destination,
@@ -119,76 +150,22 @@ export class ItineraryRepository {
           preferences: input.preferences,
           practicalInfo: input.practicalInfo,
           status: input.status || 'draft',
+          // 嵌套创建 days（利用 cascade: true）
+          days: daysData,
         });
 
+        // 一次性保存 itinerary、days 和 activities（利用 cascade）
         const savedItinerary = await itineraryRepo.save(itinerary);
 
-        // 创建天数
+        const totalDays = savedItinerary.days?.length || 0;
+        const totalActivities = savedItinerary.days?.reduce(
+          (sum, day) => sum + (day.activities?.length || 0),
+          0,
+        ) || 0;
+
         this.logger.log(
-          `[createItinerary] Creating ${input.daysData?.length || 0} days for itinerary ${savedItinerary.id}`,
+          `[createItinerary] Created itinerary ${savedItinerary.id} with ${totalDays} days and ${totalActivities} activities (using cascade)`,
         );
-
-        if (!input.daysData || input.daysData.length === 0) {
-          this.logger.warn(
-            `[createItinerary] WARNING: No days data provided for itinerary ${savedItinerary.id}`,
-          );
-          return savedItinerary;
-        }
-
-        // 批量创建活动（性能优化：减少数据库往返次数）
-        const allActivities: Array<{
-          dayId: string;
-          time: string;
-          title: string;
-          type: 'attraction' | 'meal' | 'hotel' | 'shopping' | 'transport' | 'ocean';
-          duration: number;
-          location: { lat: number; lng: number };
-          notes?: string;
-          cost?: number;
-          details?: Record<string, unknown>;
-        }> = [];
-
-        for (const dayData of input.daysData) {
-          if (!dayData.activities) {
-            dayData.activities = [];
-          }
-
-          const day = dayRepo.create({
-            itineraryId: savedItinerary.id,
-            day: dayData.day,
-            date: dayData.date,
-          });
-          const savedDay = await dayRepo.save(day);
-          this.logger.log(
-            `[createItinerary] Created day ${savedDay.day} (id: ${savedDay.id}) with ${dayData.activities.length} activities`,
-          );
-
-          // 收集活动数据（不立即保存）
-          for (const activityData of dayData.activities) {
-            allActivities.push({
-              dayId: savedDay.id,
-              time: activityData.time,
-              title: activityData.title,
-              type: activityData.type,
-              duration: activityData.duration,
-              location: activityData.location,
-              notes: activityData.notes,
-              cost: activityData.cost,
-              details: activityData.details,
-            });
-          }
-        }
-
-        // 批量保存所有活动（性能优化）
-        if (allActivities.length > 0) {
-          const activityEntities = allActivities.map((activityData) =>
-            activityRepo.create(activityData),
-          );
-          await activityRepo.save(activityEntities);
-          this.logger.log(
-            `[createItinerary] Batch saved ${activityEntities.length} activities`,
-          );
-        }
 
         return savedItinerary;
       },
