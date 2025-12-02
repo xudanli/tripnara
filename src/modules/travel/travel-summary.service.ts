@@ -223,7 +223,7 @@ ${activitySummary}
           temperature: 0.7,
           maxOutputTokens: 1500,
           provider: 'gemini', // 强制使用 Gemini 1.5 Flash（摘要任务，快速响应）
-          model: 'gemini-1.5-flash', // Gemini 1.5 Flash 模型
+          model: 'gemini-1.5-flash-001', // Gemini 1.5 Flash 模型（使用具体版本号）
         }),
       );
 

@@ -126,6 +126,8 @@ export class GeocodeService {
             limit: dto.limit ?? 5,
             language: dto.language,
           },
+          // 显式禁用代理，避免 Mapbox 请求被路由到本地代理
+          proxy: false,
         }),
       );
 
@@ -195,6 +197,8 @@ export class GeocodeService {
             language: dto.language ?? 'zh-CN',
             types: 'country,region,place,locality', // 限制返回类型
           },
+          // 显式禁用代理，避免 Mapbox 请求被路由到本地代理
+          proxy: false,
         }),
       );
 

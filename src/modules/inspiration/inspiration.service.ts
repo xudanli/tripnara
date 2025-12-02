@@ -141,7 +141,7 @@ export class InspirationService {
           temperature: 0.3,
           json: true,
           provider: 'gemini', // 强制使用 Gemini 1.5 Flash（高频低延迟分类任务）
-          model: 'gemini-1.5-flash', // Gemini 1.5 Flash 模型
+          model: 'gemini-1.5-flash-001', // Gemini 1.5 Flash 模型（使用具体版本号）
         }),
       );
 
