@@ -343,11 +343,12 @@ export class LlmService {
 
     if (provider === 'gemini') {
       return {
+        // 使用 v1 正式版接口（更稳定），如果环境变量指定了则使用环境变量
         baseUrl:
           this.configService.get<string>('GEMINI_BASE_URL') ??
-          'https://generativelanguage.googleapis.com/v1beta',
+          'https://generativelanguage.googleapis.com/v1',
         apiKey: this.configService.get<string>('GEMINI_API_KEY'),
-        defaultModel: 'gemini-pro',
+        defaultModel: 'gemini-1.5-flash', // 默认使用 gemini-1.5-flash（不使用 -001 后缀）
         supportsJsonMode: false, // Gemini 需要特殊处理 JSON 模式
       };
     }

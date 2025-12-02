@@ -27,7 +27,8 @@ export class ExpenseEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Column({ type: 'uuid' })
+  // 修复：让 itineraryId 字段映射到 itinerary_id 列，避免字段冲突
+  @Column({ type: 'uuid', name: 'itinerary_id' })
   itineraryId!: string;
 
   @ManyToOne(() => ItineraryEntity, {

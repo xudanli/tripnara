@@ -532,7 +532,7 @@ export class LocationService {
         maxOutputTokens: 1500,
         json: true,
         provider: 'gemini', // 位置信息服务强制使用 Gemini 模型
-        model: 'gemini-1.5-flash-001', // 使用 Gemini 1.5 Flash 模型（使用具体版本号）
+        model: 'gemini-1.5-flash', // 使用 Gemini 1.5 Flash 模型
       }),
     );
 

@@ -97,7 +97,8 @@ export class ItineraryDayEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Column({ type: 'uuid' })
+  // 修复：让 itineraryId 字段映射到 itinerary_id 列，避免字段冲突
+  @Column({ type: 'uuid', name: 'itinerary_id' })
   itineraryId!: string;
 
   @ManyToOne(() => ItineraryEntity, (itinerary) => itinerary.days, {
@@ -130,7 +131,8 @@ export class ItineraryActivityEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Column({ type: 'uuid' })
+  // 修复：让 dayId 字段映射到 day_id 列，避免字段冲突
+  @Column({ type: 'uuid', name: 'day_id' })
   dayId!: string;
 
   @ManyToOne(() => ItineraryDayEntity, (day) => day.activities, {
