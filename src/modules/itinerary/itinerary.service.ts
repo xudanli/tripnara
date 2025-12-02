@@ -3299,12 +3299,12 @@ export class ItineraryService {
     try {
       const noticeText = await this.llmService.chatCompletion(
         await this.llmService.buildChatCompletionOptions({
-          messages: [
-            { role: 'system', content: systemMessage },
-            { role: 'user', content: prompt },
-          ],
-          temperature: 0.7,
-          maxOutputTokens: 1500,
+        messages: [
+          { role: 'system', content: systemMessage },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.7,
+        maxOutputTokens: 1500,
           provider: 'deepseek', // 强制使用 DeepSeek-V3（安全提示基于规则和知识库整合）
           model: 'deepseek-chat', // DeepSeek-V3 模型
         }),
@@ -3580,12 +3580,12 @@ ${activitiesText}
 
       const response = await this.llmService.chatCompletion(
         await this.llmService.buildChatCompletionOptions({
-          messages: [
-            { role: 'system', content: systemMessage },
-            { role: 'user', content: userMessage },
-          ],
-          temperature: 0.7,
-          maxOutputTokens: 200,
+        messages: [
+          { role: 'system', content: systemMessage },
+          { role: 'user', content: userMessage },
+        ],
+        temperature: 0.7,
+        maxOutputTokens: 200,
           provider: 'gemini', // 强制使用 Gemini 1.5 Flash（摘要任务，快速响应）
           model: 'gemini-1.5-flash', // Gemini 1.5 Flash 模型
         }),
