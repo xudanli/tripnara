@@ -142,7 +142,10 @@ export class ItineraryGenerationService {
           .replace(/```/g, '')
           .trim();
 
-        // 2. 查找 JSON 的起始位置（可能是 '{' 也可能是 '['）
+        // 2. 清洗 JSON：修复 AI 生成的中文标点问题
+        jsonString = this.sanitizeJson(jsonString);
+
+        // 3. 查找 JSON 的起始位置（可能是 '{' 也可能是 '['）
         const firstOpenBrace = jsonString.indexOf('{');
         const firstOpenBracket = jsonString.indexOf('[');
         
@@ -183,7 +186,7 @@ export class ItineraryGenerationService {
           );
         }
 
-        // 3. 尝试解析
+        // 4. 尝试解析
         let parsedData: any;
         try {
           parsedData = JSON.parse(jsonString);
@@ -296,6 +299,42 @@ export class ItineraryGenerationService {
         `行程生成失败: ${errorMessage}。请检查网络连接或稍后重试。`,
       );
     }
+  }
+
+  /**
+   * 修复 AI 生成的 JSON 中常见的格式错误
+   * 主要解决中文标点符号导致的 JSON 解析失败问题
+   */
+  private sanitizeJson(jsonString: string): string {
+    if (!jsonString) return '';
+
+    // 1. 去除 Markdown 代码块标记 (```json ... ```)
+    let clean = jsonString.replace(/^```(json)?|```$/g, '').trim();
+
+    // 2. [关键修复] 将中文冒号替换为英文冒号
+    // 策略：只替换 "双引号后紧跟的中文冒号"（JSON key 后的冒号）
+    // 这样可以避免误伤内容文本中的中文冒号
+    clean = clean.replace(/"\s*：/g, '":');
+
+    // 3. [关键修复] 修复中文逗号（在结构分隔符中使用的中文逗号）
+    // 只替换 "双引号/数字/布尔值/括号" 后的中文逗号
+    clean = clean.replace(/(["}\]]|true|false|\d)\s*，/g, '$1,');
+
+    // 4. [额外修复] 修复中文引号（全角引号）
+    // 将中文左引号替换为英文左引号
+    clean = clean.replace(/"/g, '"');
+    // 将中文右引号替换为英文右引号
+    clean = clean.replace(/"/g, '"');
+
+    // 5. [额外修复] 修复中文括号（全角括号）
+    clean = clean.replace(/（/g, '(');
+    clean = clean.replace(/）/g, ')');
+    clean = clean.replace(/【/g, '[');
+    clean = clean.replace(/】/g, ']');
+    clean = clean.replace(/｛/g, '{');
+    clean = clean.replace(/｝/g, '}');
+
+    return clean;
   }
 
   /**
