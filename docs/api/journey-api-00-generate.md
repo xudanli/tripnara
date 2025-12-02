@@ -93,6 +93,7 @@
 ### cURL
 
 ```bash
+# 中文行程（默认）
 curl -X POST "http://localhost:3000/api/v1/journeys/generate" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -H "Content-Type: application/json" \
@@ -100,6 +101,7 @@ curl -X POST "http://localhost:3000/api/v1/journeys/generate" \
     "destination": "瑞士琉森",
     "days": 5,
     "startDate": "2024-06-01",
+    "language": "zh-CN",
     "preferences": {
       "interests": ["自然风光", "户外活动"],
       "budget": "medium",
@@ -111,6 +113,22 @@ curl -X POST "http://localhost:3000/api/v1/journeys/generate" \
       "emotionTone": "calm",
       "description": "用户希望进行摄影探索，寻找自然美景",
       "confidence": 0.85
+    }
+  }'
+
+# 英文行程
+curl -X POST "http://localhost:3000/api/v1/journeys/generate" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "destination": "Paris",
+    "days": 5,
+    "startDate": "2024-06-01",
+    "language": "en-US",
+    "preferences": {
+      "interests": ["culture", "museums"],
+      "budget": "medium",
+      "travelStyle": "relaxed"
     }
   }'
 ```
