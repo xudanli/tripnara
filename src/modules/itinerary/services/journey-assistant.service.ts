@@ -80,13 +80,32 @@ export class JourneyAssistantService {
         `[AI Assistant] 行程数据完整性检查: 目的地=${destinationName}, 天数=${itineraryDetail.daysCount}, 总时间段=${totalTimeSlots}`,
       );
 
-      // 生成对话ID（如果未提供）
-      const conversationId = dto.conversationId || crypto.randomUUID();
+      // 生成对话ID（如果未提供或格式无效）
+      // 验证 UUID 格式：如果提供了 conversationId 但格式无效，自动生成新的 UUID
+      let conversationId: string;
+      if (dto.conversationId) {
+        // 简单的 UUID v4 格式验证
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (uuidRegex.test(dto.conversationId)) {
+          conversationId = dto.conversationId;
+        } else {
+          // 如果提供的 conversationId 格式无效（如占位符 "uuid"），生成新的 UUID
+          this.logger.warn(
+            `Invalid conversationId format: "${dto.conversationId}", generating new UUID`,
+          );
+          conversationId = crypto.randomUUID();
+        }
+      } else {
+        conversationId = crypto.randomUUID();
+      }
       const language = dto.language || 'zh-CN';
 
       // 检测是否为首次对话
+      // 如果 conversationId 是新生成的（未提供或格式无效），且消息是问候语，则视为首次对话
+      const wasConversationIdProvided = dto.conversationId && 
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(dto.conversationId);
       const isFirstMessage =
-        !dto.conversationId &&
+        !wasConversationIdProvided &&
         (!dto.message.trim() ||
           /^(你好|您好|hi|hello|开始|start)$/i.test(dto.message.trim()));
 

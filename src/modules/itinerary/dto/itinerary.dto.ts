@@ -16,6 +16,7 @@ import {
   IsIn,
   IsBoolean,
   IsEnum,
+  IsUUID,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import {
@@ -2471,10 +2472,11 @@ export class JourneyAssistantChatRequestDto {
 
   @ApiPropertyOptional({
     description: '对话ID（用于多轮对话，如果不提供将创建新对话）',
-    example: 'uuid',
+    example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
   })
   @IsOptional()
-  @IsString()
+  @ValidateIf((o) => o.conversationId !== undefined && o.conversationId !== null)
+  @IsUUID(4, { message: 'conversationId 必须是有效的 UUID 格式' })
   conversationId?: string;
 
   @ApiPropertyOptional({
