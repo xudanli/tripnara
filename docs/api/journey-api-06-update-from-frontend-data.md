@@ -41,6 +41,7 @@
     },
     "days": [
       {
+        "id": "day-id-1",
         "day": 1,
         "date": "2025-11-24",
         "timeSlots": [
@@ -186,6 +187,7 @@ curl -X PATCH "http://localhost:3000/api/v1/journeys/04d7126d-219f-49ab-b71a-a59
       "travelStyle": "moderate",
       "days": [
         {
+          "id": "day-id-1",
           "day": 1,
           "date": "2025-11-24",
           "timeSlots": [

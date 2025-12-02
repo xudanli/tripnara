@@ -29,6 +29,7 @@ interface CreateItineraryRequest {
   days: number;              // 旅行天数，范围 1-30
   data: {                    // 行程数据
     days: Array<{            // 每天的行程
+      id?: string;           // 天数ID（UUID，可选）
       day: number;           // 第几天，从1开始
       date: string;           // 日期，格式: "YYYY-MM-DD"
       activities: Array<{     // 活动列表
@@ -150,6 +151,7 @@ curl -X POST http://localhost:3000/api/itinerary \
     "data": {
       "days": [
         {
+          "id": "day-id-1",
           "day": 1,
           "date": "2024-06-01",
           "activities": [
@@ -196,6 +198,7 @@ const response = await fetch('http://localhost:3000/api/itinerary', {
     data: {
       days: [
         {
+          id: 'day-id-1',
           day: 1,
           date: '2024-06-01',
           activities: [
@@ -456,6 +459,7 @@ console.log(`共 ${result.total} 条记录，当前第 ${result.page} 页`);
         ]
       },
       {
+        "id": "day-id-2",
         "day": 2,
         "date": "2024-06-02",
         "activities": [
@@ -499,6 +503,7 @@ console.log(`共 ${result.total} 条记录，当前第 ${result.page} 页`);
 | `data.summary` | string | 行程摘要 |
 | `data.totalCost` | number | 总费用 |
 | `data.days` | array | 每天的行程详情 |
+| `data.days[].id` | string | 天数ID（UUID） |
 | `data.days[].day` | number | 第几天 |
 | `data.days[].date` | string | 日期 |
 | `data.days[].activities` | array | 活动列表 |

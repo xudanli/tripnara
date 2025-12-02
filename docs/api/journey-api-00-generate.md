@@ -149,6 +149,7 @@ curl -X POST "http://localhost:3000/api/v1/journeys/generate" \
   "data": {
     "days": [
       {
+        "id": "day-id-1",
         "day": 1,
         "date": "2024-06-01",
         "activities": [

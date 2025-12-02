@@ -24,6 +24,7 @@
   "data": {
     "days": [
       {
+        "id": "day-id-1",
         "day": 1,
         "date": "2025-11-25",
         "activities": [
@@ -140,6 +141,7 @@ curl -X POST "http://localhost:3000/api/v1/journeys" \
     "data": {
       "days": [
         {
+          "id": "day-id-1",
           "day": 1,
           "date": "2025-11-25",
           "activities": [
@@ -201,6 +203,7 @@ const newJourney = {
   data: {
     days: [
       {
+        id: 'day-id-1',
         day: 1,
         date: '2025-11-25',
         activities: [
@@ -250,6 +253,7 @@ console.log('创建成功:', result);
   "data": {
     "days": [
       {
+        "id": "day-id-1",
         "day": 1,
         "date": "2025-11-25",
         "activities": []
@@ -492,6 +496,7 @@ console.log('创建成功:', result);
   "data": {
     "days": [
       {
+        "id": "day-id-1",
         "day": 1,
         "date": "2025-11-25",
         "activities": [

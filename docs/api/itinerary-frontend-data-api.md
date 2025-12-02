@@ -150,6 +150,7 @@
     "totalCost": 2000,
     "days": [
       {
+        "id": "day-id-1",
         "day": 1,
         "date": "2025-11-21",
         "activities": [
@@ -227,6 +228,7 @@ curl -X POST https://api.example.com/api/itinerary/from-frontend-data \
       "travelStyle": "moderate",
       "days": [
         {
+          "id": "day-id-1",
           "day": 1,
           "date": "2025-11-21",
           "timeSlots": [

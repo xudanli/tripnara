@@ -149,6 +149,7 @@ Authorization: Bearer <your-jwt-token>
   "data": {
     "days": [
       {
+        "id": "day-id-1",
         "day": 1,
         "date": "2025-11-24",
         "activities": [
@@ -285,6 +286,7 @@ Content-Type: application/json
     "travelStyle": "moderate",
     "days": [
       {
+        "id": "day-id-1",
         "day": 1,
         "date": "2025-11-24",
         "timeSlots": [
@@ -430,6 +432,7 @@ Authorization: Bearer <your-jwt-token>
   },
   "days": [
     {
+      "id": "day-id-1",
       "day": 1,
       "date": "2025-11-24",
       "activities": [
