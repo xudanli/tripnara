@@ -444,10 +444,10 @@ export class LlmService {
   ): Promise<GeminiResponse> {
     const modelName = options.model ?? providerConfig.defaultModel;
     
-    // 尝试使用 gemini-2.0-flash，如果失败则降级到 gemini-1.5-flash
+    // 尝试使用 gemini-2.5-flash，如果失败则降级到 gemini-1.5-flash
     // 注意：如果模型名称是 gemini-1.5-flash，尝试添加 -latest 后缀或使用 gemini-1.5-pro
-    const modelsToTry = modelName === 'gemini-2.0-flash' 
-      ? ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro']
+    const modelsToTry = modelName === 'gemini-2.5-flash' 
+      ? ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-pro']
       : modelName === 'gemini-1.5-flash'
       ? ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-1.5-pro', 'gemini-pro']
       : [modelName, 'gemini-1.5-flash', 'gemini-1.5-pro'];
