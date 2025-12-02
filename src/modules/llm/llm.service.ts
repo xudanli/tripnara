@@ -7,10 +7,20 @@ import { HttpsProxyAgent } from 'https-proxy-agent';
 import type { Agent as HttpsAgent } from 'https';
 import { PreferencesService } from '../preferences/preferences.service';
 // 尝试导入 Google GenAI SDK（如果可用）
+// 注意：正确的包名是 @google/generative-ai，但当前使用的是 @google/genai
+// 如果 @google/genai 不存在，尝试 @google/generative-ai
 let GoogleGenAI: any;
+let GoogleGenerativeAI: any;
 try {
-  const genaiModule = require('@google/genai');
-  GoogleGenAI = genaiModule.GoogleGenAI || genaiModule.default?.GoogleGenAI;
+  // 优先尝试 @google/generative-ai（官方 SDK）
+  try {
+    const genaiModule = require('@google/generative-ai');
+    GoogleGenerativeAI = genaiModule.GoogleGenerativeAI || genaiModule.default?.GoogleGenerativeAI || genaiModule.default;
+  } catch (e) {
+    // 如果 @google/generative-ai 不存在，尝试 @google/genai
+    const genaiModule = require('@google/genai');
+    GoogleGenAI = genaiModule.GoogleGenAI || genaiModule.default?.GoogleGenAI;
+  }
 } catch (error) {
   // SDK 未安装或导入失败，将使用 REST API 作为降级方案
 }
@@ -74,7 +84,8 @@ export class LlmService {
     this.maxRetries = this.configService.get<number>('LLM_MAX_RETRIES', 3);
 
     // 初始化 Gemini SDK（如果可用）
-    this.useGeminiSdk = GoogleGenAI !== undefined;
+    // 优先使用 @google/generative-ai（官方 SDK），如果不存在则使用 @google/genai
+    this.useGeminiSdk = GoogleGenerativeAI !== undefined || GoogleGenAI !== undefined;
     if (this.useGeminiSdk) {
       try {
         const geminiApiKey = this.configService.get<string>('GEMINI_API_KEY');
@@ -92,13 +103,21 @@ export class LlmService {
           }
 
           // 初始化 Google GenAI 客户端
-          // SDK API: new GoogleGenAI({ apiKey: '...' })
-          this.geminiClient = new GoogleGenAI({
-            apiKey: geminiApiKey,
-          });
-          this.logger.log('Google GenAI SDK initialized successfully');
+          // 优先使用 @google/generative-ai（官方 SDK）
+          if (GoogleGenerativeAI) {
+            // 官方 SDK API: new GoogleGenerativeAI(apiKey)
+            this.geminiClient = new GoogleGenerativeAI(geminiApiKey);
+            this.logger.log('Google Generative AI SDK (@google/generative-ai) initialized successfully');
+          } else if (GoogleGenAI) {
+            // 备用 SDK API: new GoogleGenAI({ apiKey: '...' })
+            this.geminiClient = new GoogleGenAI({
+              apiKey: geminiApiKey,
+            });
+            this.logger.log('Google GenAI SDK (@google/genai) initialized successfully');
+          }
         } else {
           this.logger.warn('GEMINI_API_KEY not configured, Gemini SDK will not be used');
+          this.useGeminiSdk = false;
         }
       } catch (error) {
         this.logger.warn('Failed to initialize Google GenAI SDK, will use REST API fallback', error);
@@ -381,7 +400,7 @@ export class LlmService {
           `LLM API 请求失败: ${status} ${statusText} - ${errorData?.error?.message || error.message}`,
         );
       }
-      
+
       throw error;
     }
   }
@@ -444,24 +463,52 @@ export class LlmService {
         }
 
         // 调用 SDK
-        // SDK API: client.getGenerativeModel({ model: '...' }).generateContent({ ... })
-        const genModel = this.geminiClient.getGenerativeModel({ 
-          model: model,
-          systemInstruction: systemInstructionParts.length > 0 
-            ? systemInstructionParts.join('\n')
-            : undefined,
-          generationConfig: generationConfig,
-        });
+        // 检查 SDK 类型并正确调用
+        let genModel: any;
+        let response: any;
+        
+        // 检查是否是官方 SDK (@google/generative-ai)
+        // 官方 SDK 的实例有 getGenerativeModel 方法
+        if (typeof this.geminiClient.getGenerativeModel === 'function') {
+          // 官方 SDK API: client.getGenerativeModel({ model: '...', systemInstruction: '...' })
+          genModel = this.geminiClient.getGenerativeModel({ 
+            model: model,
+            systemInstruction: systemInstructionParts.length > 0 
+              ? systemInstructionParts.join('\n')
+              : undefined,
+          });
+          
+          // 构建请求内容
+          const requestContents = contents.map((c) => ({
+            role: c.role,
+            parts: c.parts,
+          }));
 
-        // 构建请求内容
-        const requestContents = contents.map((c) => ({
-          role: c.role,
-          parts: c.parts,
-        }));
+          // 官方 SDK: model.generateContent({ contents, generationConfig })
+          response = await genModel.generateContent({
+            contents: requestContents,
+            generationConfig: generationConfig,
+          });
+        } else {
+          // 备用 SDK 或未知格式，尝试直接调用
+          this.logger.warn('Unknown Gemini SDK format, attempting direct call');
+          genModel = this.geminiClient.getGenerativeModel({ 
+            model: model,
+            systemInstruction: systemInstructionParts.length > 0 
+              ? systemInstructionParts.join('\n')
+              : undefined,
+            generationConfig: generationConfig,
+          });
 
-        const response = await genModel.generateContent({
-          contents: requestContents,
-        });
+          const requestContents = contents.map((c) => ({
+            role: c.role,
+            parts: c.parts,
+          }));
+
+          response = await genModel.generateContent({
+            contents: requestContents,
+          });
+        }
 
         // 提取响应文本
         // SDK 响应格式：response.response.text() 或 response.response.candidates[0].content.parts[0].text
@@ -518,10 +565,11 @@ export class LlmService {
 
     if (provider === 'gemini') {
       return {
-        // 使用 v1 正式版接口（更稳定），如果环境变量指定了则使用环境变量
+        // 使用 v1beta 接口以支持 systemInstruction 字段
+        // 注意：v1 正式版接口不支持 systemInstruction，该功能仅在 v1beta 中可用
         baseUrl:
           this.configService.get<string>('GEMINI_BASE_URL') ??
-          'https://generativelanguage.googleapis.com/v1',
+          'https://generativelanguage.googleapis.com/v1beta',
         apiKey: this.configService.get<string>('GEMINI_API_KEY'),
         defaultModel: 'gemini-2.5-flash', // 优先使用 gemini-2.5-flash，如果失败则降级到 gemini-1.5-flash
         supportsJsonMode: false, // Gemini 需要特殊处理 JSON 模式
