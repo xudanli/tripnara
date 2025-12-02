@@ -149,7 +149,7 @@ export class LocalEssentialsService {
 
     try {
       const response = await this.llmService.chatCompletion(
-        this.llmService.buildChatCompletionOptions({
+        await this.llmService.buildChatCompletionOptions({
           messages: [
             { role: 'system', content: systemMessage },
             { role: 'user', content: prompt },
@@ -157,6 +157,8 @@ export class LocalEssentialsService {
           temperature: 0.7,
           maxOutputTokens: 1000,
           json: false,
+          provider: 'deepseek', // 强制使用 DeepSeek-V3（实用信息提取，结构化输出）
+          model: 'deepseek-chat', // DeepSeek-V3 模型
         }),
       );
 

@@ -212,7 +212,7 @@ ${activitySummary}
 
     try {
       summary = await this.llmService.chatCompletion(
-        this.llmService.buildChatCompletionOptions({
+        await this.llmService.buildChatCompletionOptions({
           messages: [
             {
               role: 'system',
@@ -222,6 +222,8 @@ ${activitySummary}
           ],
           temperature: 0.7,
           maxOutputTokens: 1500,
+          provider: 'gemini', // 强制使用 Gemini 1.5 Flash（摘要任务，快速响应）
+          model: 'gemini-1.5-flash', // Gemini 1.5 Flash 模型
         }),
       );
 

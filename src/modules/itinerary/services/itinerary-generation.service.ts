@@ -119,7 +119,7 @@ export class ItineraryGenerationService {
         // 🛠️ 增强健壮性：先获取原始文本，自己处理 JSON 解析
         // 因为 DeepSeek 有时 json 模式不稳定，可能返回 Markdown 格式或前后有废话
         const rawResponse = await this.llmService.chatCompletion(
-          this.llmService.buildChatCompletionOptions({
+          await this.llmService.buildChatCompletionOptions({
             messages: [
               { role: 'system', content: systemMessage },
               { role: 'user', content: prompt },
@@ -127,6 +127,8 @@ export class ItineraryGenerationService {
             temperature: 0.7,
             maxOutputTokens: 8000,
             json: false, // 先设为 false，拿原始文本自己处理
+            provider: 'deepseek', // 强制使用 DeepSeek-V3（核心行程生成需要复杂逻辑推理）
+            model: 'deepseek-chat', // DeepSeek-V3 模型
           }),
         );
 

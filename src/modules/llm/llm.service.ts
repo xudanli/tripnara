@@ -5,6 +5,7 @@ import { isAxiosError } from 'axios';
 import { firstValueFrom } from 'rxjs';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import type { Agent as HttpsAgent } from 'https';
+import { PreferencesService } from '../preferences/preferences.service';
 
 export type LlmProvider = 'openai' | 'deepseek' | 'gemini';
 
@@ -56,6 +57,7 @@ export class LlmService {
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
+    private readonly preferencesService?: PreferencesService,
   ) {
     // 默认超时：5分钟（300秒），适用于行程生成等长时间任务
     this.timeoutMs = this.configService.get<number>('LLM_TIMEOUT_MS', 300000);
@@ -98,9 +100,23 @@ export class LlmService {
   }
 
   /**
-   * 获取默认的 LLM provider 和 model（从环境变量读取）
+   * 获取默认的 LLM provider（优先从用户偏好读取，否则从环境变量读取）
    */
-  getDefaultProvider(): LlmProvider {
+  async getDefaultProvider(userId?: string): Promise<LlmProvider> {
+    // 如果提供了 userId，尝试从用户偏好读取
+    if (userId && this.preferencesService) {
+      try {
+        const preferences = await this.preferencesService.getPreferences(userId);
+        const userProvider = preferences?.llmProvider as string;
+        if (userProvider && ['openai', 'deepseek', 'gemini'].includes(userProvider)) {
+          return userProvider as LlmProvider;
+        }
+      } catch (error) {
+        this.logger.warn(`Failed to get user preferences for LLM provider: ${error}`);
+      }
+    }
+
+    // 回退到环境变量
     const provider = this.configService.get<string>('LLM_PROVIDER', 'deepseek');
     if (['openai', 'deepseek', 'gemini'].includes(provider)) {
       return provider as LlmProvider;
@@ -109,10 +125,32 @@ export class LlmService {
   }
 
   /**
-   * 获取默认的 LLM model（从环境变量读取）
+   * 获取默认的 LLM model（优先从用户偏好读取，否则从环境变量读取）
    */
-  getDefaultModel(provider?: LlmProvider): string {
-    const actualProvider = provider ?? this.getDefaultProvider();
+  async getDefaultModel(provider?: LlmProvider, userId?: string): Promise<string> {
+    const actualProvider = provider ?? (await this.getDefaultProvider(userId));
+
+    // 如果提供了 userId，尝试从用户偏好读取
+    if (userId && this.preferencesService) {
+      try {
+        const preferences = await this.preferencesService.getPreferences(userId);
+        const userModel = preferences?.llmModel as string;
+        if (userModel) {
+          return userModel;
+        }
+        // 如果用户偏好中有 provider 但没有 model，使用该 provider 的默认模型
+        const userProvider = preferences?.llmProvider as string;
+        if (userProvider && userProvider === actualProvider) {
+          // 用户指定了 provider，但没有指定 model，使用该 provider 的默认模型
+          const providerConfig = this.buildProviderConfig(actualProvider);
+          return providerConfig.defaultModel;
+        }
+      } catch (error) {
+        this.logger.warn(`Failed to get user preferences for LLM model: ${error}`);
+      }
+    }
+
+    // 回退到环境变量
     const modelKey = `LLM_MODEL_${actualProvider.toUpperCase()}`;
     const defaultModel = this.configService.get<string>(modelKey);
 
@@ -127,14 +165,16 @@ export class LlmService {
 
   /**
    * 构建 LLM 调用选项，自动使用默认的 provider 和 model（如果未指定）
+   * 优先从用户偏好读取，如果没有则从环境变量读取
    */
-  buildChatCompletionOptions(
+  async buildChatCompletionOptions(
     options: Partial<LlmChatCompletionOptions> & {
       messages: LlmMessage[];
+      userId?: string; // 可选：用户ID，用于从用户偏好读取模型选择
     },
-  ): LlmChatCompletionOptions {
-    const provider = options.provider ?? this.getDefaultProvider();
-    const model = options.model ?? this.getDefaultModel(provider);
+  ): Promise<LlmChatCompletionOptions> {
+    const provider = options.provider ?? (await this.getDefaultProvider(options.userId));
+    const model = options.model ?? (await this.getDefaultModel(provider, options.userId));
 
     return {
       provider,

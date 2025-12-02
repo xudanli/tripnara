@@ -133,13 +133,15 @@ export class InspirationService {
       userMessage += `\n\n请综合考虑用户的输入、兴趣偏好、预算和天数等信息，分析这个输入的旅行意图。`;
 
       const response = await this.llmService.chatCompletionJson<AiIntentResponse>(
-        this.llmService.buildChatCompletionOptions({
+        await this.llmService.buildChatCompletionOptions({
           messages: [
             { role: 'system', content: systemMessage },
             { role: 'user', content: userMessage },
           ],
           temperature: 0.3,
           json: true,
+          provider: 'gemini', // 强制使用 Gemini 1.5 Flash（高频低延迟分类任务）
+          model: 'gemini-1.5-flash', // Gemini 1.5 Flash 模型
         }),
       );
 
@@ -230,13 +232,15 @@ export class InspirationService {
 
       const response =
         await this.llmService.chatCompletionJson<AiRecommendDestinationsResponse>(
-          this.llmService.buildChatCompletionOptions({
+          await this.llmService.buildChatCompletionOptions({
             messages: [
               { role: 'system', content: systemMessage },
               { role: 'user', content: userMessage },
             ],
             temperature: 0.7,
             json: true,
+            provider: 'gemini', // 强制使用 Gemini 1.5 Pro（推荐需要创造力和联想能力）
+            model: 'gemini-1.5-pro', // Gemini 1.5 Pro 模型
           }),
         );
 
@@ -345,13 +349,15 @@ export class InspirationService {
 
       const response =
         await this.llmService.chatCompletionJson<AiGenerateItineraryResponse>(
-          this.llmService.buildChatCompletionOptions({
+          await this.llmService.buildChatCompletionOptions({
             messages: [
               { role: 'system', content: systemMessage },
               { role: 'user', content: userMessage },
             ],
             temperature: 0.7,
             json: true,
+            provider: 'deepseek', // 强制使用 DeepSeek-V3（灵感行程生成，低成本高并发）
+            model: 'deepseek-chat', // DeepSeek-V3 模型
           }),
         );
 
@@ -410,13 +416,15 @@ export class InspirationService {
 
       const response =
         await this.llmService.chatCompletionJson<AiExtractDaysResponse>(
-          this.llmService.buildChatCompletionOptions({
+          await this.llmService.buildChatCompletionOptions({
             messages: [
               { role: 'system', content: systemMessage },
               { role: 'user', content: userMessage },
             ],
             temperature: 0.1,
             json: true,
+            provider: 'deepseek', // 强制使用 DeepSeek-V3（简单实体抽取，低成本）
+            model: 'deepseek-chat', // DeepSeek-V3 模型
           }),
         );
 

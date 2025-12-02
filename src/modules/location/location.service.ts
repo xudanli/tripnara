@@ -523,7 +523,7 @@ export class LocationService {
     );
 
     const aiResponse = await this.llmService.chatCompletionJson<AiLocationResponse>(
-      this.llmService.buildChatCompletionOptions({
+      await this.llmService.buildChatCompletionOptions({
         messages: [
           { role: 'system', content: systemMessage },
           { role: 'user', content: prompt },
@@ -531,6 +531,8 @@ export class LocationService {
         temperature: 0.7,
         maxOutputTokens: 1500,
         json: true,
+        provider: 'gemini', // 位置信息服务强制使用 Gemini 模型
+        model: 'gemini-1.5-flash', // 使用 Gemini 1.5 Flash 模型（极速响应）
       }),
     );
 

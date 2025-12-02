@@ -2955,7 +2955,7 @@ export class ItineraryService {
       }
     }
 
-    // 生成新的安全提示
+    // 生成新的安全提示（公开接口，没有 userId，使用环境变量配置）
     const noticeText = await this.generateSafetyNoticeWithAI(destination, summary, lang);
     const generatedAt = new Date().toISOString();
 
@@ -3091,7 +3091,7 @@ export class ItineraryService {
     }
 
     // 生成新的安全提示
-    const noticeText = await this.generateSafetyNoticeWithAI(destination, summary, lang);
+    const noticeText = await this.generateSafetyNoticeWithAI(destination, summary, lang, userId);
     const generatedAt = new Date().toISOString();
 
     // ⚡ 写入 Redis 缓存（优先）
@@ -3275,6 +3275,7 @@ export class ItineraryService {
     destination: string,
     summary: string,
     lang: string,
+    userId?: string, // 可选：用户ID，用于从用户偏好读取模型选择
   ): Promise<string> {
     const systemMessage = `你是一个专业的旅行安全顾问，擅长为不同目的地提供详细、实用的安全提示和建议。
 
@@ -3295,13 +3296,15 @@ export class ItineraryService {
 
     try {
       const noticeText = await this.llmService.chatCompletion(
-        this.llmService.buildChatCompletionOptions({
+        await this.llmService.buildChatCompletionOptions({
           messages: [
             { role: 'system', content: systemMessage },
             { role: 'user', content: prompt },
           ],
           temperature: 0.7,
           maxOutputTokens: 1500,
+          provider: 'deepseek', // 强制使用 DeepSeek-V3（安全提示基于规则和知识库整合）
+          model: 'deepseek-chat', // DeepSeek-V3 模型
         }),
       );
 
@@ -3505,6 +3508,7 @@ export class ItineraryService {
             date: dateStr,
             activities,
           },
+          userId, // 传递 userId 以从用户偏好读取模型选择
         );
 
         return {
@@ -3542,6 +3546,7 @@ export class ItineraryService {
         cost?: number;
       }>;
     },
+    userId?: string, // 可选：用户ID，用于从用户偏好读取模型选择
   ): Promise<string> {
     try {
       // 构建活动列表描述
@@ -3572,13 +3577,15 @@ ${activitiesText}
 请为这一天生成一段概要，突出亮点和特色。`;
 
       const response = await this.llmService.chatCompletion(
-        this.llmService.buildChatCompletionOptions({
+        await this.llmService.buildChatCompletionOptions({
           messages: [
             { role: 'system', content: systemMessage },
             { role: 'user', content: userMessage },
           ],
           temperature: 0.7,
           maxOutputTokens: 200,
+          provider: 'gemini', // 强制使用 Gemini 1.5 Flash（摘要任务，快速响应）
+          model: 'gemini-1.5-flash', // Gemini 1.5 Flash 模型
         }),
       );
 

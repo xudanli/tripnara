@@ -167,10 +167,12 @@ export class JourneyAssistantService {
 
       // 调用 LLM 生成回复
       const response = await this.llmService.chatCompletion(
-        this.llmService.buildChatCompletionOptions({
+        await this.llmService.buildChatCompletionOptions({
           messages,
           temperature: 0.7,
           maxOutputTokens: 2000,
+          provider: 'gemini', // 强制使用 Gemini 1.5 Flash（极速响应，支持长上下文）
+          model: 'gemini-1.5-flash', // Gemini 1.5 Flash 模型
         }),
       );
 

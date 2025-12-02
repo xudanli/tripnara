@@ -102,7 +102,7 @@ export class CulturalGuideService {
 
     // 缓存未命中，生成新的文化红黑榜
     this.logger.log(`Generating cultural guide for destination: ${destination}`);
-    const content = await this.generateCulturalGuideWithAI(itinerary);
+    const content = await this.generateCulturalGuideWithAI(itinerary, userId);
 
     // 保存到缓存
     await this.setCache(cacheKey, content);
@@ -119,7 +119,10 @@ export class CulturalGuideService {
   /**
    * 使用 AI 生成文化红黑榜
    */
-  private async generateCulturalGuideWithAI(itinerary: any): Promise<string> {
+  private async generateCulturalGuideWithAI(
+    itinerary: any,
+    userId?: string, // 可选：用户ID，用于从用户偏好读取模型选择
+  ): Promise<string> {
     const systemMessage = `你是 **tripnara 首席旅行管家 (Senior Concierge) Nara**。你拥有 20 年的高端定制旅行经验。
 
 你的核心能力是为用户提供**"高信噪比"**的文化建议。用户在旅行途中时间宝贵，不喜欢阅读长篇大论。
@@ -184,13 +187,15 @@ export class CulturalGuideService {
 
     try {
       const response = await this.llmService.chatCompletion(
-        this.llmService.buildChatCompletionOptions({
+        await this.llmService.buildChatCompletionOptions({
           messages: [
             { role: 'system', content: systemMessage },
             { role: 'user', content: prompt },
           ],
           temperature: 0.7,
           maxOutputTokens: 1500, // 精简版内容，减少 token 限制
+          provider: 'deepseek', // 强制使用 DeepSeek-V3（文化习俗理解，多语言表现优秀）
+          model: 'deepseek-chat', // DeepSeek-V3 模型
         }),
       );
 
