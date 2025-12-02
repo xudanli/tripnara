@@ -74,17 +74,26 @@ export class ItineraryGenerationService {
       // 获取用户偏好并合并
       const mergedPreferences = await this.getMergedPreferences(dto, userId);
 
-      // 构建偏好文本和指导
-      const preferenceText = this.buildPreferenceText(mergedPreferences);
-      const preferenceGuidance = this.buildPreferenceGuidance(mergedPreferences);
+      // 获取用户语言偏好（从用户偏好或请求中获取）
+      // 注意：ItineraryPreferencesDto 可能没有 language 字段，需要从 mergedPreferences 中获取
+      const userLanguage = (mergedPreferences.language as string) || 
+                          (dto.preferences && typeof dto.preferences === 'object' && 'language' in dto.preferences 
+                            ? (dto.preferences as any).language as string 
+                            : undefined) || 
+                          'zh-CN';
+
+      // 构建偏好文本和指导（根据语言）
+      const preferenceText = this.buildPreferenceText(mergedPreferences, userLanguage);
+      const preferenceGuidance = this.buildPreferenceGuidance(mergedPreferences, userLanguage);
       const dateInstructions = this.buildDateInstructions(
         dto.startDate,
         dto.days,
+        userLanguage,
       );
 
-      // 构建AI提示词
+      // 构建AI提示词（根据语言）
       const systemMessage =
-        this.promptService.buildItineraryGenerationSystemMessage();
+        this.promptService.buildItineraryGenerationSystemMessage(userLanguage);
       const prompt = this.promptService.buildItineraryGenerationUserPrompt({
         destination,
         days: dto.days,
@@ -92,6 +101,7 @@ export class ItineraryGenerationService {
         preferenceGuidance,
         dateInstructions,
         startDate: dto.startDate,
+        language: userLanguage,
         intent: dto.intent,
       });
 
@@ -411,35 +421,66 @@ export class ItineraryGenerationService {
    */
   private buildPreferenceText(
     preferences: Record<string, unknown>,
+    language: string = 'zh-CN',
   ): string {
+    const isEnglish = language === 'en-US' || language === 'en';
     const parts: string[] = [];
 
     if (preferences.interests && Array.isArray(preferences.interests)) {
-      parts.push(`兴趣：${preferences.interests.join('、')}`);
+      if (isEnglish) {
+        parts.push(`Interests: ${preferences.interests.join(', ')}`);
+      } else {
+        parts.push(`兴趣：${preferences.interests.join('、')}`);
+      }
     }
 
     if (preferences.budget) {
-      const budgetMap: Record<string, string> = {
-        low: '经济型',
-        medium: '中等',
-        high: '豪华型',
-      };
-      parts.push(
-        `预算：${budgetMap[preferences.budget as string] || preferences.budget}`,
-      );
+      if (isEnglish) {
+        const budgetMap: Record<string, string> = {
+          low: 'Economical',
+          medium: 'Moderate',
+          high: 'Luxury',
+        };
+        parts.push(
+          `Budget: ${budgetMap[preferences.budget as string] || preferences.budget}`,
+        );
+      } else {
+        const budgetMap: Record<string, string> = {
+          low: '经济型',
+          medium: '中等',
+          high: '豪华型',
+        };
+        parts.push(
+          `预算：${budgetMap[preferences.budget as string] || preferences.budget}`,
+        );
+      }
     }
 
     if (preferences.travelStyle) {
-      const styleMap: Record<string, string> = {
-        relaxed: '轻松休闲',
-        moderate: '适中节奏',
-        intensive: '紧凑充实',
-      };
-      parts.push(
-        `旅行风格：${styleMap[preferences.travelStyle as string] || preferences.travelStyle}`,
-      );
+      if (isEnglish) {
+        const styleMap: Record<string, string> = {
+          relaxed: 'Relaxed',
+          moderate: 'Moderate',
+          intensive: 'Intensive',
+        };
+        parts.push(
+          `Travel Style: ${styleMap[preferences.travelStyle as string] || preferences.travelStyle}`,
+        );
+      } else {
+        const styleMap: Record<string, string> = {
+          relaxed: '轻松休闲',
+          moderate: '适中节奏',
+          intensive: '紧凑充实',
+        };
+        parts.push(
+          `旅行风格：${styleMap[preferences.travelStyle as string] || preferences.travelStyle}`,
+        );
+      }
     }
 
+    if (isEnglish) {
+      return parts.length > 0 ? parts.join(', ') : 'No special preferences';
+    }
     return parts.length > 0 ? parts.join('，') : '无特殊偏好';
   }
 
@@ -448,45 +489,86 @@ export class ItineraryGenerationService {
    */
   private buildPreferenceGuidance(
     preferences: Record<string, unknown>,
+    language: string = 'zh-CN',
   ): string {
+    const isEnglish = language === 'en-US' || language === 'en';
     const guidance: string[] = [];
 
     if (preferences.interests && Array.isArray(preferences.interests)) {
-      guidance.push(
-        `请重点安排与${preferences.interests.join('、')}相关的活动和景点`,
-      );
+      if (isEnglish) {
+        guidance.push(
+          `Please focus on arranging activities and attractions related to ${preferences.interests.join(', ')}`,
+        );
+      } else {
+        guidance.push(
+          `请重点安排与${preferences.interests.join('、')}相关的活动和景点`,
+        );
+      }
     }
 
     if (preferences.budget === 'low') {
-      guidance.push('优先选择性价比高的景点和餐厅，控制整体费用');
+      if (isEnglish) {
+        guidance.push('Prioritize cost-effective attractions and restaurants, control overall expenses');
+      } else {
+        guidance.push('优先选择性价比高的景点和餐厅，控制整体费用');
+      }
     } else if (preferences.budget === 'high') {
-      guidance.push('可以选择高端景点、特色餐厅和优质体验');
+      if (isEnglish) {
+        guidance.push('Can choose high-end attractions, specialty restaurants, and premium experiences');
+      } else {
+        guidance.push('可以选择高端景点、特色餐厅和优质体验');
+      }
     }
 
     if (preferences.travelStyle === 'relaxed') {
-      guidance.push('时间安排要宽松，留出充足的休息和自由活动时间');
+      if (isEnglish) {
+        guidance.push('Time arrangement should be relaxed, leaving plenty of time for rest and free activities');
+      } else {
+        guidance.push('时间安排要宽松，留出充足的休息和自由活动时间');
+      }
     } else if (preferences.travelStyle === 'intensive') {
-      guidance.push('可以安排更多活动，充分利用每一天的时间');
+      if (isEnglish) {
+        guidance.push('Can arrange more activities to make full use of each day');
+      } else {
+        guidance.push('可以安排更多活动，充分利用每一天的时间');
+      }
     }
 
+    if (isEnglish) {
+      return guidance.length > 0 ? guidance.join('; ') : '';
+    }
     return guidance.length > 0 ? guidance.join('；') : '';
   }
 
   /**
    * 构建日期说明
    */
-  private buildDateInstructions(startDate: string, days: number): string {
+  private buildDateInstructions(
+    startDate: string,
+    days: number,
+    language: string = 'zh-CN',
+  ): string {
+    const isEnglish = language === 'en-US' || language === 'en';
     const start = new Date(startDate);
     const dates: string[] = [];
 
     for (let i = 0; i < days; i++) {
       const currentDate = new Date(start);
       currentDate.setDate(start.getDate() + i);
-      dates.push(
-        `第${i + 1}天：${currentDate.toISOString().split('T')[0]}`,
-      );
+      if (isEnglish) {
+        dates.push(
+          `Day ${i + 1}: ${currentDate.toISOString().split('T')[0]}`,
+        );
+      } else {
+        dates.push(
+          `第${i + 1}天：${currentDate.toISOString().split('T')[0]}`,
+        );
+      }
     }
 
+    if (isEnglish) {
+      return `Date Arrangement:\n${dates.join('\n')}`;
+    }
     return `日期安排：\n${dates.join('\n')}`;
   }
 

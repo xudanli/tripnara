@@ -119,6 +119,7 @@ export class JourneyAssistantService {
           destinationName,
           hasDaysData,
           daysCount,
+          language,
         );
 
         // 保存欢迎消息
@@ -162,7 +163,8 @@ export class JourneyAssistantService {
       const systemMessage = this.promptService.buildAssistantSystemMessage(
         destinationName,
         simplifiedContext,
-        totalTimeSlots > 0,
+        hasActivities,
+        language,
       );
 
       // 构建消息数组
