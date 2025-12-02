@@ -196,7 +196,7 @@ export class JourneyAssistantService {
           temperature: 0.7,
           maxOutputTokens: 2000,
           provider: 'gemini', // 强制使用 Gemini 1.5 Flash（极速响应，支持长上下文）
-          model: 'gemini-1.5-flash', // Gemini 1.5 Flash 模型
+          model: 'gemini-2.0-flash', // Gemini 2.0 Flash 模型
         }),
       );
 
