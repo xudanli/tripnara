@@ -6,6 +6,14 @@ import { firstValueFrom } from 'rxjs';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import type { Agent as HttpsAgent } from 'https';
 import { PreferencesService } from '../preferences/preferences.service';
+// 尝试导入 Google GenAI SDK（如果可用）
+let GoogleGenAI: any;
+try {
+  const genaiModule = require('@google/genai');
+  GoogleGenAI = genaiModule.GoogleGenAI || genaiModule.default?.GoogleGenAI;
+} catch (error) {
+  // SDK 未安装或导入失败，将使用 REST API 作为降级方案
+}
 
 export type LlmProvider = 'openai' | 'deepseek' | 'gemini';
 
@@ -53,6 +61,8 @@ export class LlmService {
   private readonly logger = new Logger(LlmService.name);
   private readonly timeoutMs: number;
   private readonly maxRetries: number;
+  private geminiClient: any; // GoogleGenAI 客户端实例
+  private readonly useGeminiSdk: boolean; // 是否使用 SDK（如果可用）
 
   constructor(
     private readonly httpService: HttpService,
@@ -62,6 +72,41 @@ export class LlmService {
     // 默认超时：5分钟（300秒），适用于行程生成等长时间任务
     this.timeoutMs = this.configService.get<number>('LLM_TIMEOUT_MS', 300000);
     this.maxRetries = this.configService.get<number>('LLM_MAX_RETRIES', 3);
+
+    // 初始化 Gemini SDK（如果可用）
+    this.useGeminiSdk = GoogleGenAI !== undefined;
+    if (this.useGeminiSdk) {
+      try {
+        const geminiApiKey = this.configService.get<string>('GEMINI_API_KEY');
+        if (geminiApiKey) {
+          // 配置代理环境变量（如果本地代理端口是 9090）
+          const proxyUrl = this.configService.get<string>('HTTP_PROXY') || 
+                          this.configService.get<string>('HTTPS_PROXY') ||
+                          'http://127.0.0.1:9090';
+          
+          // 设置代理环境变量（Node.js fetch 会自动读取）
+          if (proxyUrl && !process.env.HTTPS_PROXY && !process.env.HTTP_PROXY) {
+            process.env.HTTPS_PROXY = proxyUrl;
+            process.env.HTTP_PROXY = proxyUrl;
+            this.logger.log(`Configured proxy for Gemini SDK: ${proxyUrl}`);
+          }
+
+          // 初始化 Google GenAI 客户端
+          // SDK API: new GoogleGenAI({ apiKey: '...' })
+          this.geminiClient = new GoogleGenAI({
+            apiKey: geminiApiKey,
+          });
+          this.logger.log('Google GenAI SDK initialized successfully');
+        } else {
+          this.logger.warn('GEMINI_API_KEY not configured, Gemini SDK will not be used');
+        }
+      } catch (error) {
+        this.logger.warn('Failed to initialize Google GenAI SDK, will use REST API fallback', error);
+        this.useGeminiSdk = false;
+      }
+    } else {
+      this.logger.log('Google GenAI SDK not available, will use REST API');
+    }
   }
 
   async chatCompletion(options: LlmChatCompletionOptions): Promise<string> {
@@ -202,6 +247,18 @@ export class LlmService {
       );
     }
 
+    // 对于 Gemini，优先使用 SDK（如果可用）
+    if (options.provider === 'gemini' && this.useGeminiSdk && this.geminiClient) {
+      try {
+        return await this.executeGeminiWithSdk(options, providerConfig);
+      } catch (error) {
+        this.logger.warn(
+          `Gemini SDK call failed (attempt ${attempt}), falling back to REST API: ${error instanceof Error ? error.message : error}`,
+        );
+        // 降级到 REST API（继续执行下面的代码）
+      }
+    }
+
     const payload = this.buildPayload(options, providerConfig);
 
     try {
@@ -329,6 +386,124 @@ export class LlmService {
     }
   }
 
+  /**
+   * 使用 Google GenAI SDK 调用 Gemini API
+   * 优先尝试 gemini-2.5-flash，如果失败则降级到 gemini-1.5-flash
+   */
+  private async executeGeminiWithSdk(
+    options: LlmChatCompletionOptions,
+    providerConfig: ProviderConfig,
+  ): Promise<GeminiResponse> {
+    const modelName = options.model ?? providerConfig.defaultModel;
+    
+    // 尝试使用 gemini-2.5-flash，如果失败则降级到 gemini-1.5-flash
+    const modelsToTry = modelName === 'gemini-2.5-flash' 
+      ? ['gemini-2.5-flash', 'gemini-1.5-flash']
+      : [modelName, 'gemini-1.5-flash'];
+
+    let lastError: Error | null = null;
+
+    for (const model of modelsToTry) {
+      try {
+        this.logger.debug(`Attempting Gemini SDK call with model: ${model}`);
+
+        // 分离 system message 和普通 messages
+        const systemMessages: string[] = [];
+        const regularMessages = options.messages.filter((msg) => {
+          if (msg.role === 'system') {
+            systemMessages.push(msg.content);
+            return false;
+          }
+          return true;
+        });
+
+        // 构建 contents（Gemini SDK 格式）
+        const contents = regularMessages.map((msg) => {
+          const role = msg.role === 'assistant' ? 'model' : 'user';
+          return {
+            role,
+            parts: [{ text: msg.content }],
+          };
+        });
+
+        // 构建 generation config
+        const generationConfig: any = {
+          temperature: options.temperature ?? 0.7,
+          maxOutputTokens: options.maxOutputTokens ?? 4000,
+        };
+
+        // 处理 system instruction
+        const systemInstructionParts: string[] = [];
+        if (systemMessages.length > 0) {
+          systemInstructionParts.push(...systemMessages);
+        }
+        if (options.json) {
+          systemInstructionParts.push(
+            'You must respond with valid JSON only. Do not include any markdown formatting, code blocks, or explanatory text outside the JSON structure.',
+          );
+        }
+
+        // 调用 SDK
+        // SDK API: client.getGenerativeModel({ model: '...' }).generateContent({ ... })
+        const genModel = this.geminiClient.getGenerativeModel({ 
+          model: model,
+          systemInstruction: systemInstructionParts.length > 0 
+            ? systemInstructionParts.join('\n')
+            : undefined,
+          generationConfig: generationConfig,
+        });
+
+        // 构建请求内容
+        const requestContents = contents.map((c) => ({
+          role: c.role,
+          parts: c.parts,
+        }));
+
+        const response = await genModel.generateContent({
+          contents: requestContents,
+        });
+
+        // 提取响应文本
+        // SDK 响应格式：response.response.text() 或 response.response.candidates[0].content.parts[0].text
+        const responseData = response.response;
+        const text = responseData?.text?.() || 
+                     responseData?.candidates?.[0]?.content?.parts?.[0]?.text || 
+                     '';
+        
+        // 转换为 GeminiResponse 格式（保持与 REST API 响应格式一致）
+        return {
+          candidates: [
+            {
+              content: {
+                parts: [{ text }],
+              },
+            },
+          ],
+        } as GeminiResponse;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        this.logger.warn(
+          `Gemini SDK call failed with model ${model}: ${lastError.message}`,
+        );
+        
+        // 如果是模型未找到错误，尝试下一个模型
+        if (
+          lastError.message.includes('404') ||
+          lastError.message.includes('not found') ||
+          lastError.message.includes('Model not found')
+        ) {
+          continue; // 尝试下一个模型
+        }
+        
+        // 其他错误直接抛出
+        throw lastError;
+      }
+    }
+
+    // 所有模型都失败了
+    throw lastError || new Error('All Gemini models failed');
+  }
+
   private buildProviderConfig(provider: LlmProvider): ProviderConfig {
     if (provider === 'deepseek') {
       return {
@@ -348,7 +523,7 @@ export class LlmService {
           this.configService.get<string>('GEMINI_BASE_URL') ??
           'https://generativelanguage.googleapis.com/v1',
         apiKey: this.configService.get<string>('GEMINI_API_KEY'),
-        defaultModel: 'gemini-1.5-flash', // 默认使用 gemini-1.5-flash（不使用 -001 后缀）
+        defaultModel: 'gemini-2.5-flash', // 优先使用 gemini-2.5-flash，如果失败则降级到 gemini-1.5-flash
         supportsJsonMode: false, // Gemini 需要特殊处理 JSON 模式
       };
     }
