@@ -40,6 +40,7 @@
     "import:countries": "ts-node --transpile-only scripts/import-countries.ts"
   },
   "dependencies": {
+    "@google/genai": "^1.30.0",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/bull": "^11.0.4",
     "@nestjs/common": "^11.0.1",
