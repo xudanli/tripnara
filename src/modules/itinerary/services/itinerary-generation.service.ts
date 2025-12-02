@@ -118,17 +118,17 @@ export class ItineraryGenerationService {
       try {
         // 🛠️ 增强健壮性：先获取原始文本，自己处理 JSON 解析
         // 因为 DeepSeek 有时 json 模式不稳定，可能返回 Markdown 格式或前后有废话
-        const rawResponse = await this.llmService.chatCompletion({
-            provider: 'deepseek',
-            model: 'deepseek-chat',
+        const rawResponse = await this.llmService.chatCompletion(
+          this.llmService.buildChatCompletionOptions({
             messages: [
               { role: 'system', content: systemMessage },
               { role: 'user', content: prompt },
             ],
             temperature: 0.7,
             maxOutputTokens: 8000,
-          json: false, // 先设为 false，拿原始文本自己处理
-        });
+            json: false, // 先设为 false，拿原始文本自己处理
+          }),
+        );
 
         // =================================================================
         // 🛠️ 修复后的 JSON 提取逻辑 (支持 Object 和 Array)

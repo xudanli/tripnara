@@ -183,16 +183,16 @@ export class CulturalGuideService {
 > 🚨 **紧急求助**：(当地报警/急救电话)`;
 
     try {
-      const response = await this.llmService.chatCompletion({
-        provider: 'deepseek',
-        model: 'deepseek-chat',
-        messages: [
-          { role: 'system', content: systemMessage },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.7,
-        maxOutputTokens: 1500, // 精简版内容，减少 token 限制
-      });
+      const response = await this.llmService.chatCompletion(
+        this.llmService.buildChatCompletionOptions({
+          messages: [
+            { role: 'system', content: systemMessage },
+            { role: 'user', content: prompt },
+          ],
+          temperature: 0.7,
+          maxOutputTokens: 1500, // 精简版内容，减少 token 限制
+        }),
+      );
 
       return response.trim();
     } catch (error) {

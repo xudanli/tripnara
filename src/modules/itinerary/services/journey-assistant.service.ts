@@ -166,13 +166,13 @@ export class JourneyAssistantService {
       messages.push({ role: 'user', content: dto.message });
 
       // 调用 LLM 生成回复
-      const response = await this.llmService.chatCompletion({
-        provider: 'deepseek',
-        model: 'deepseek-chat',
-        messages,
-        temperature: 0.7,
-        maxOutputTokens: 2000,
-      });
+      const response = await this.llmService.chatCompletion(
+        this.llmService.buildChatCompletionOptions({
+          messages,
+          temperature: 0.7,
+          maxOutputTokens: 2000,
+        }),
+      );
 
       const responseText = response.trim();
 

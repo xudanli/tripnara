@@ -6,7 +6,7 @@ import { firstValueFrom } from 'rxjs';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import type { Agent as HttpsAgent } from 'https';
 
-export type LlmProvider = 'openai' | 'deepseek';
+export type LlmProvider = 'openai' | 'deepseek' | 'gemini';
 
 export interface LlmMessage {
   role: 'system' | 'user' | 'assistant';
@@ -39,6 +39,14 @@ interface ChatCompletionResponse {
   choices?: ChatResponseChoice[];
 }
 
+interface GeminiResponse {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{ text?: string }>;
+    };
+  }>;
+}
+
 @Injectable()
 export class LlmService {
   private readonly logger = new Logger(LlmService.name);
@@ -56,7 +64,7 @@ export class LlmService {
 
   async chatCompletion(options: LlmChatCompletionOptions): Promise<string> {
     const response = await this.executeRequest(options);
-    const content = this.extractContent(response);
+    const content = this.extractContent(response, options.provider);
 
     if (!content) {
       throw new Error('Empty completion response received from LLM provider');
@@ -89,10 +97,60 @@ export class LlmService {
     throw new Error('Failed to parse JSON after retries');
   }
 
+  /**
+   * 获取默认的 LLM provider 和 model（从环境变量读取）
+   */
+  getDefaultProvider(): LlmProvider {
+    const provider = this.configService.get<string>('LLM_PROVIDER', 'deepseek');
+    if (['openai', 'deepseek', 'gemini'].includes(provider)) {
+      return provider as LlmProvider;
+    }
+    return 'deepseek';
+  }
+
+  /**
+   * 获取默认的 LLM model（从环境变量读取）
+   */
+  getDefaultModel(provider?: LlmProvider): string {
+    const actualProvider = provider ?? this.getDefaultProvider();
+    const modelKey = `LLM_MODEL_${actualProvider.toUpperCase()}`;
+    const defaultModel = this.configService.get<string>(modelKey);
+
+    if (defaultModel) {
+      return defaultModel;
+    }
+
+    // 如果没有配置，使用 provider 的默认模型
+    const providerConfig = this.buildProviderConfig(actualProvider);
+    return providerConfig.defaultModel;
+  }
+
+  /**
+   * 构建 LLM 调用选项，自动使用默认的 provider 和 model（如果未指定）
+   */
+  buildChatCompletionOptions(
+    options: Partial<LlmChatCompletionOptions> & {
+      messages: LlmMessage[];
+    },
+  ): LlmChatCompletionOptions {
+    const provider = options.provider ?? this.getDefaultProvider();
+    const model = options.model ?? this.getDefaultModel(provider);
+
+    return {
+      provider,
+      model,
+      messages: options.messages,
+      temperature: options.temperature,
+      maxOutputTokens: options.maxOutputTokens,
+      json: options.json,
+      metadata: options.metadata,
+    };
+  }
+
   private async executeRequest(
     options: LlmChatCompletionOptions,
     attempt = 1,
-  ): Promise<ChatCompletionResponse> {
+  ): Promise<ChatCompletionResponse | GeminiResponse> {
     const providerConfig = this.buildProviderConfig(options.provider);
     if (!providerConfig.apiKey) {
       throw new Error(`Missing API key for provider "${options.provider}"`);
@@ -113,15 +171,25 @@ export class LlmService {
           `Base URL was using HTTP, converted to HTTPS: ${baseUrl}`,
         );
       }
-      const url = `${baseUrl}/chat/completions`;
+      // Gemini 使用不同的 API 端点
+      const url =
+        options.provider === 'gemini'
+          ? `${baseUrl}/models/${options.model ?? providerConfig.defaultModel}:generateContent?key=${providerConfig.apiKey}`
+          : `${baseUrl}/chat/completions`;
 
       // Handle proxy configuration to prevent redirect loops
       const httpsAgent = this.createProxyAgentIfNeeded();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      // Gemini 使用 query parameter 传递 API key，其他使用 Bearer token
+      if (options.provider !== 'gemini') {
+        headers.Authorization = `Bearer ${providerConfig.apiKey}`;
+      }
+
       const requestConfig: Record<string, unknown> = {
-            headers: {
-              Authorization: `Bearer ${providerConfig.apiKey}`,
-              'Content-Type': 'application/json',
-            },
+        headers,
             timeout: this.timeoutMs,
         maxRedirects: 5, // Allow some redirects but prevent infinite loops
       };
@@ -137,7 +205,11 @@ export class LlmService {
       }
 
       const response = await firstValueFrom(
-        this.httpService.post<ChatCompletionResponse>(url, payload, requestConfig),
+        this.httpService.post<ChatCompletionResponse | GeminiResponse>(
+          url,
+          payload,
+          requestConfig,
+        ),
       );
 
       return response.data;
@@ -182,6 +254,17 @@ export class LlmService {
       };
     }
 
+    if (provider === 'gemini') {
+      return {
+        baseUrl:
+          this.configService.get<string>('GEMINI_BASE_URL') ??
+          'https://generativelanguage.googleapis.com/v1beta',
+        apiKey: this.configService.get<string>('GEMINI_API_KEY'),
+        defaultModel: 'gemini-pro',
+        supportsJsonMode: false, // Gemini 需要特殊处理 JSON 模式
+      };
+    }
+
     return {
       baseUrl:
         this.configService.get<string>('OPENAI_BASE_URL') ??
@@ -196,6 +279,11 @@ export class LlmService {
     options: LlmChatCompletionOptions,
     providerConfig: ProviderConfig,
   ) {
+    // Gemini 使用不同的 API 格式
+    if (options.provider === 'gemini') {
+      return this.buildGeminiPayload(options, providerConfig);
+    }
+
     const payload: Record<string, unknown> = {
       model: options.model ?? providerConfig.defaultModel,
       messages: options.messages,
@@ -217,8 +305,76 @@ export class LlmService {
     return payload;
   }
 
-  private extractContent(response: ChatCompletionResponse): string | undefined {
-    const choice = response.choices?.[0];
+  private buildGeminiPayload(
+    options: LlmChatCompletionOptions,
+    providerConfig: ProviderConfig,
+  ) {
+    // Gemini API 使用不同的格式
+    // 分离 system message 和普通 messages
+    const systemMessages: string[] = [];
+    const regularMessages = options.messages.filter((msg) => {
+      if (msg.role === 'system') {
+        systemMessages.push(msg.content);
+        return false;
+      }
+      return true;
+    });
+
+    // 将 messages 转换为 contents 格式
+    const contents = regularMessages.map((msg) => {
+      const role = msg.role === 'assistant' ? 'model' : 'user';
+      return {
+        role,
+        parts: [{ text: msg.content }],
+      };
+    });
+
+    const payload: Record<string, unknown> = {
+      contents,
+      generationConfig: {
+        temperature: options.temperature ?? 0.7,
+        maxOutputTokens: options.maxOutputTokens ?? 4000,
+      },
+    };
+
+    // 处理 system instruction
+    const systemInstructionParts: string[] = [];
+    
+    // 添加原有的 system messages
+    if (systemMessages.length > 0) {
+      systemInstructionParts.push(...systemMessages);
+    }
+
+    // Gemini 的 JSON 模式需要在 system instruction 中指定
+    if (options.json) {
+      systemInstructionParts.push(
+        'You must respond with valid JSON only. Do not include any markdown formatting, code blocks, or explanatory text outside the JSON structure.',
+      );
+    }
+
+    // 如果有 system instruction，添加到 payload
+    if (systemInstructionParts.length > 0) {
+      payload.systemInstruction = {
+        parts: systemInstructionParts.map((text) => ({ text })),
+      };
+    }
+
+    return payload;
+  }
+
+  private extractContent(
+    response: ChatCompletionResponse | GeminiResponse,
+    provider: LlmProvider,
+  ): string | undefined {
+    // Gemini 使用不同的响应格式
+    if (provider === 'gemini') {
+      const geminiResponse = response as GeminiResponse;
+      return (
+        geminiResponse.candidates?.[0]?.content?.parts?.[0]?.text ?? undefined
+      );
+    }
+
+    const choice = (response as ChatCompletionResponse).choices?.[0];
     return choice?.message?.content ?? choice?.delta?.content ?? undefined;
   }
 

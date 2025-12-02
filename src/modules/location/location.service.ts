@@ -523,9 +523,7 @@ export class LocationService {
     );
 
     const aiResponse = await this.llmService.chatCompletionJson<AiLocationResponse>(
-      {
-        provider: 'deepseek',
-        model: 'deepseek-chat',
+      this.llmService.buildChatCompletionOptions({
         messages: [
           { role: 'system', content: systemMessage },
           { role: 'user', content: prompt },
@@ -533,7 +531,7 @@ export class LocationService {
         temperature: 0.7,
         maxOutputTokens: 1500,
         json: true,
-      },
+      }),
     );
 
     return this.validateAndTransformAiResponse(aiResponse, activityName);

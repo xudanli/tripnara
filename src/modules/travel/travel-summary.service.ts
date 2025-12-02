@@ -211,19 +211,19 @@ ${activitySummary}
     let summary: string;
 
     try {
-      summary = await this.llmService.chatCompletion({
-        provider: 'deepseek',
-        model: 'deepseek-chat',
-        messages: [
-          {
-            role: 'system',
-            content: '你是一个专业的AI助手，能够生成高质量的内容。',
-          },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.7,
-        maxOutputTokens: 1500,
-      });
+      summary = await this.llmService.chatCompletion(
+        this.llmService.buildChatCompletionOptions({
+          messages: [
+            {
+              role: 'system',
+              content: '你是一个专业的AI助手，能够生成高质量的内容。',
+            },
+            { role: 'user', content: prompt },
+          ],
+          temperature: 0.7,
+          maxOutputTokens: 1500,
+        }),
+      );
 
       const duration = Date.now() - startTime;
       this.logger.log(

@@ -148,17 +148,17 @@ export class LocalEssentialsService {
 请确保返回的是有效的JSON格式，所有字段都是字符串类型。`;
 
     try {
-      const response = await this.llmService.chatCompletion({
-        provider: 'deepseek',
-        model: 'deepseek-chat',
-        messages: [
-          { role: 'system', content: systemMessage },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.7,
-        maxOutputTokens: 1000,
-        json: false,
-      });
+      const response = await this.llmService.chatCompletion(
+        this.llmService.buildChatCompletionOptions({
+          messages: [
+            { role: 'system', content: systemMessage },
+            { role: 'user', content: prompt },
+          ],
+          temperature: 0.7,
+          maxOutputTokens: 1000,
+          json: false,
+        }),
+      );
 
       // 提取JSON
       let jsonString = response

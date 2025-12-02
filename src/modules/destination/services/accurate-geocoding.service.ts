@@ -250,9 +250,7 @@ Assistant: {"standard_name": "钻石沙滩", "location_hint": "冰岛", "confide
       }
 
       const response = await this.llmService.chatCompletionJson<AIExtractionResult>(
-        {
-          provider: 'deepseek',
-          model: 'deepseek-chat',
+        this.llmService.buildChatCompletionOptions({
           messages: [
             { role: 'system', content: systemMessage },
             { role: 'user', content: userMessage },
@@ -260,7 +258,7 @@ Assistant: {"standard_name": "钻石沙滩", "location_hint": "冰岛", "confide
           temperature: 0.1, // 降低温度以提高准确性（事实提取任务）
           maxOutputTokens: 100, // JSON 稍微占点字符
           json: true,
-        },
+        }),
       );
 
       // 验证响应

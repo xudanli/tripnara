@@ -200,11 +200,11 @@ ${params.dateInstructions}`;
 
    {
      "days": [
-       {
-         "day": 1,
+  {
+    "day": 1,
          "date": "YYYY-MM-DD",
-         "activities": [
-           {
+    "activities": [
+      {
              "time": "09:00",
              "title": "动词+名词的具象标题",
              "type": "attraction/meal/hotel/shopping/transport/ocean",
@@ -217,9 +217,9 @@ ${params.dateInstructions}`;
                 "insiderTip": "行家建议",
                 "bookingSignal": "预约建议"
              }
-           }
-         ]
-       }
+      }
+    ]
+  }
      ],
      "totalCost": 0,
      "summary": "行程总摘要",

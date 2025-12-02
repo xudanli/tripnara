@@ -133,15 +133,14 @@ export class InspirationService {
       userMessage += `\n\n请综合考虑用户的输入、兴趣偏好、预算和天数等信息，分析这个输入的旅行意图。`;
 
       const response = await this.llmService.chatCompletionJson<AiIntentResponse>(
-        {
-          provider: 'deepseek',
+        this.llmService.buildChatCompletionOptions({
           messages: [
             { role: 'system', content: systemMessage },
             { role: 'user', content: userMessage },
           ],
           temperature: 0.3,
           json: true,
-        },
+        }),
       );
 
       const result: IntentDataDto = {
@@ -231,15 +230,14 @@ export class InspirationService {
 
       const response =
         await this.llmService.chatCompletionJson<AiRecommendDestinationsResponse>(
-          {
-            provider: 'deepseek',
+          this.llmService.buildChatCompletionOptions({
             messages: [
               { role: 'system', content: systemMessage },
               { role: 'user', content: userMessage },
             ],
             temperature: 0.7,
             json: true,
-          },
+          }),
         );
 
       const result: RecommendDestinationsDataDto = {
@@ -346,15 +344,16 @@ export class InspirationService {
       userMessage += `\n\n请生成详细的${days}天行程安排。`;
 
       const response =
-        await this.llmService.chatCompletionJson<AiGenerateItineraryResponse>({
-          provider: 'deepseek',
-          messages: [
-            { role: 'system', content: systemMessage },
-            { role: 'user', content: userMessage },
-          ],
-          temperature: 0.7,
-          json: true,
-        });
+        await this.llmService.chatCompletionJson<AiGenerateItineraryResponse>(
+          this.llmService.buildChatCompletionOptions({
+            messages: [
+              { role: 'system', content: systemMessage },
+              { role: 'user', content: userMessage },
+            ],
+            temperature: 0.7,
+            json: true,
+          }),
+        );
 
       const result: GenerateItineraryDataDto = {
         title: response.title || `${destination} ${days}天行程`,
@@ -410,15 +409,16 @@ export class InspirationService {
 请提取其中的旅行天数。`;
 
       const response =
-        await this.llmService.chatCompletionJson<AiExtractDaysResponse>({
-          provider: 'deepseek',
-          messages: [
-            { role: 'system', content: systemMessage },
-            { role: 'user', content: userMessage },
-          ],
-          temperature: 0.1,
-          json: true,
-        });
+        await this.llmService.chatCompletionJson<AiExtractDaysResponse>(
+          this.llmService.buildChatCompletionOptions({
+            messages: [
+              { role: 'system', content: systemMessage },
+              { role: 'user', content: userMessage },
+            ],
+            temperature: 0.1,
+            json: true,
+          }),
+        );
 
       return {
         success: true,

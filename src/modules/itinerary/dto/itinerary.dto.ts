@@ -155,6 +155,11 @@ export class ItineraryActivityDto {
 }
 
 export class ItineraryDayDto {
+  @ApiPropertyOptional({ description: '天数ID', example: 'uuid' })
+  @IsOptional()
+  @IsString()
+  id?: string;
+
   @ApiProperty({ description: '第几天', example: 1 })
   @IsNumber()
   @Min(1, { message: '天数必须大于 0' })
@@ -653,6 +658,11 @@ export class ItineraryTimeSlotDto {
 }
 
 export class ItineraryDayWithTimeSlotsDto {
+  @ApiPropertyOptional({ description: '天数ID', example: 'uuid' })
+  @IsOptional()
+  @IsString()
+  id?: string;
+
   @ApiProperty({ description: '天数序号', example: 1 })
   @IsNumber()
   day!: number;

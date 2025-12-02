@@ -1156,6 +1156,7 @@ export class ItineraryService {
         });
 
         return {
+          id: day.id, // 添加天数ID字段
           day: DataValidator.fixNumber(day.day, index + 1, 1), // 天数从1开始
           date: DataValidator.fixDate(day.date as Date | string),
           timeSlots: this.convertActivitiesToTimeSlots(activitiesDto, day.id, activityIds),
@@ -1240,6 +1241,7 @@ export class ItineraryService {
 
     // 确保days字段始终是数组，并使用 DataValidator 修复每个字段
     const daysMapped = daysArray.map((day, index) => ({
+      id: day.id, // 添加天数ID字段
       day: DataValidator.fixNumber(day.day, index + 1, 1), // 天数从1开始
       date: DataValidator.fixDate(day.date as Date | string),
       activities: (day.activities || []).map((act) => ({
@@ -3292,16 +3294,16 @@ export class ItineraryService {
 请为这个目的地生成详细的安全提示。`;
 
     try {
-      const noticeText = await this.llmService.chatCompletion({
-        provider: 'deepseek',
-        model: 'deepseek-chat',
-        messages: [
-          { role: 'system', content: systemMessage },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.7,
-        maxOutputTokens: 1500,
-      });
+      const noticeText = await this.llmService.chatCompletion(
+        this.llmService.buildChatCompletionOptions({
+          messages: [
+            { role: 'system', content: systemMessage },
+            { role: 'user', content: prompt },
+          ],
+          temperature: 0.7,
+          maxOutputTokens: 1500,
+        }),
+      );
 
       return noticeText.trim();
     } catch (error) {
@@ -3569,15 +3571,16 @@ ${activitiesText}
 
 请为这一天生成一段概要，突出亮点和特色。`;
 
-      const response = await this.llmService.chatCompletion({
-        provider: 'deepseek',
-        messages: [
-          { role: 'system', content: systemMessage },
-          { role: 'user', content: userMessage },
-        ],
-        temperature: 0.7,
-        maxOutputTokens: 200,
-      });
+      const response = await this.llmService.chatCompletion(
+        this.llmService.buildChatCompletionOptions({
+          messages: [
+            { role: 'system', content: systemMessage },
+            { role: 'user', content: userMessage },
+          ],
+          temperature: 0.7,
+          maxOutputTokens: 200,
+        }),
+      );
 
       // 清理和验证响应
       let summary = response.trim();
