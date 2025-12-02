@@ -75,9 +75,9 @@ async function cleanupOrphanData() {
         const deleteDaysResult = await queryRunner.query(`
           DELETE FROM itinerary_days 
           WHERE itinerary_id IS NULL
-          RETURNING id
         `);
-        const deletedCount = Array.isArray(deleteDaysResult) ? deleteDaysResult.length : 0;
+        // PostgreSQL DELETE 返回受影响的行数（通过 rowCount 属性）
+        const deletedCount = deleteDaysResult?.rowCount || (Array.isArray(deleteDaysResult) ? deleteDaysResult.length : 0);
         console.log(`✅ Deleted ${deletedCount} orphan days`);
       } else {
         console.log('✅ No orphan days found');
@@ -99,9 +99,9 @@ async function cleanupOrphanData() {
         const deleteActivitiesResult = await queryRunner.query(`
           DELETE FROM itinerary_activities 
           WHERE day_id IS NULL
-          RETURNING id
         `);
-        const deletedCount = Array.isArray(deleteActivitiesResult) ? deleteActivitiesResult.length : 0;
+        // PostgreSQL DELETE 返回受影响的行数（通过 rowCount 属性）
+        const deletedCount = deleteActivitiesResult?.rowCount || (Array.isArray(deleteActivitiesResult) ? deleteActivitiesResult.length : 0);
         console.log(`✅ Deleted ${deletedCount} orphan activities`);
       } else {
         console.log('✅ No orphan activities found');
@@ -123,9 +123,9 @@ async function cleanupOrphanData() {
         const deleteExpensesResult = await queryRunner.query(`
           DELETE FROM itinerary_expenses 
           WHERE itinerary_id IS NULL
-          RETURNING id
         `);
-        const deletedCount = Array.isArray(deleteExpensesResult) ? deleteExpensesResult.length : 0;
+        // PostgreSQL DELETE 返回受影响的行数（通过 rowCount 属性）
+        const deletedCount = deleteExpensesResult?.rowCount || (Array.isArray(deleteExpensesResult) ? deleteExpensesResult.length : 0);
         console.log(`✅ Deleted ${deletedCount} orphan expenses`);
       } else {
         console.log('✅ No orphan expenses found');
