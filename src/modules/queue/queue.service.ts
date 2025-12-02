@@ -20,15 +20,36 @@ export class QueueService {
   async enqueueLocationGeneration(
     activities: BatchActivityDto[],
   ): Promise<string> {
-    const job = await this.locationQueue.add('generate-batch', {
-      activities,
-    });
+    try {
+      const job = await this.locationQueue.add('generate-batch', {
+        activities,
+      });
 
-    this.logger.log(
-      `Location generation job enqueued: ${job.id} (${activities.length} activities)`,
-    );
+      this.logger.log(
+        `Location generation job enqueued: ${job.id} (${activities.length} activities)`,
+      );
 
-    return job.id!;
+      return job.id!;
+    } catch (error) {
+      // 🔥 如果 Redis 连接失败，记录错误并抛出更友好的错误信息
+      this.logger.error(
+        `Failed to enqueue location generation job: ${error instanceof Error ? error.message : error}`,
+      );
+      
+      // 检查是否是 Redis 连接错误
+      if (
+        error instanceof Error &&
+        (error.message.includes('MaxRetriesPerRequestError') ||
+          error.message.includes('ECONNREFUSED') ||
+          error.message.includes('Connection'))
+      ) {
+        throw new Error(
+          '队列服务暂时不可用，请检查 Redis 连接配置。如果 Redis 未运行，请启动 Redis 服务或使用同步接口。',
+        );
+      }
+      
+      throw error;
+    }
   }
 
   /**

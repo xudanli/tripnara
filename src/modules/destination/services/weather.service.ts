@@ -185,9 +185,21 @@ export class WeatherService {
     } catch (error) {
       this.logger.error(`WeatherAPI 调用失败: ${error}`);
       if (isAxiosError(error)) {
+        const status = error.response?.status;
+        const statusText = error.response?.statusText || error.message;
+        
+        // 如果是 401 或 403，说明 API key 无效或过期，返回占位符数据而不是抛出错误
+        if (status === 401 || status === 403) {
+          this.logger.warn(
+            `WeatherAPI 认证失败 (${status}): ${statusText}，返回占位符数据`,
+          );
+          return this.getPlaceholderWeather();
+        }
+        
+        // 其他错误，抛出异常
         throw new HttpException(
-          `天气服务调用失败: ${error.response?.statusText || error.message}`,
-          error.response?.status || HttpStatus.BAD_GATEWAY,
+          `天气服务调用失败: ${statusText}`,
+          status || HttpStatus.BAD_GATEWAY,
         );
       }
       throw new HttpException(
@@ -305,9 +317,21 @@ export class WeatherService {
     } catch (error) {
       this.logger.error(`和风天气 API 调用失败: ${error}`);
       if (isAxiosError(error)) {
+        const status = error.response?.status;
+        const statusText = error.response?.statusText || error.message;
+        
+        // 如果是 401 或 403，说明 API key 无效或过期，返回占位符数据而不是抛出错误
+        if (status === 401 || status === 403) {
+          this.logger.warn(
+            `和风天气 API 认证失败 (${status}): ${statusText}，返回占位符数据`,
+          );
+          return this.getPlaceholderWeather();
+        }
+        
+        // 其他错误，抛出异常
         throw new HttpException(
-          `天气服务调用失败: ${error.response?.statusText || error.message}`,
-          error.response?.status || HttpStatus.BAD_GATEWAY,
+          `天气服务调用失败: ${statusText}`,
+          status || HttpStatus.BAD_GATEWAY,
         );
       }
       throw new HttpException(

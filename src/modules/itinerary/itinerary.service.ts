@@ -25,6 +25,7 @@ import { DataValidator } from '../../utils/dataValidator';
 import { CostCalculator } from '../../utils/costCalculator';
 import { CurrencyService } from '../currency/currency.service';
 import { InspirationService } from '../inspiration/inspiration.service';
+import { ExternalService } from '../external/external.service';
 import {
   GenerateItineraryRequestDto,
   GenerateItineraryResponseDto,
@@ -151,6 +152,7 @@ export class ItineraryService {
     private readonly templateRepository: JourneyTemplateRepository,
     private readonly currencyService: CurrencyService,
     private readonly inspirationService: InspirationService,
+    private readonly externalService: ExternalService,
     private readonly journeyAssistantService: JourneyAssistantService,
     private readonly itineraryGenerationService: ItineraryGenerationService,
     private readonly journeyTaskService: JourneyTaskService,
@@ -3672,6 +3674,255 @@ ${activitiesText}
       conversationId,
       userId,
     );
+  }
+
+  // ============================================================
+  // 活动完整性检查与富化
+  // ============================================================
+
+  /**
+   * 检查活动完整性
+   * 收紧判断标准：如果活动只有 tripAdvisorId 但没有 location 数据，必须判定为 false（不完整）
+   * @param activity 活动实体
+   * @returns true 如果活动完整，false 如果不完整
+   */
+  private checkActivityCompleteness(
+    activity: ItineraryActivityEntity,
+  ): boolean {
+    const details = activity.details as Record<string, unknown> | undefined;
+    if (!details) {
+      return false;
+    }
+
+    // 检查是否有位置信息
+    const hasLoc =
+      !!(details.location || details.coordinates) ||
+      !!(activity.location && typeof activity.location === 'object' && 'lat' in activity.location && 'lng' in activity.location);
+    const hasAddr = !!details.address;
+    const hasName = !!details.name || !!activity.title;
+
+    // [关键修正] 收紧判断标准
+    // 以前：if (details.tripAdvisorId) return true;  <-- 这是导致Bug的根源
+    // 现在：即使有ID，如果没有物理位置信息，也视为不完整，需要去爬取/查询
+    const tripAdvisorId = details.tripAdvisorId || details.tripadvisorId;
+    if (tripAdvisorId) {
+      // 如果有 TripAdvisor ID，必须同时有位置信息（location/coordinates）或地址信息才视为完整
+      if (hasLoc || hasAddr) {
+        return true;
+      }
+      // 只有 ID 但没有位置信息，判定为不完整
+      return false;
+    }
+
+    // 其他完整性检查：如果有地址和名称，视为完整
+    if (hasAddr && hasName) {
+      return true;
+    }
+
+    // 如果有位置信息和名称，视为完整
+    if (hasLoc && hasName) {
+      return true;
+    }
+
+    // 默认判定为不完整
+    return false;
+  }
+
+  /**
+   * 获取活动的富化尝试次数
+   * @param activity 活动实体
+   * @returns 富化尝试次数
+   */
+  private getEnrichmentAttempts(
+    activity: ItineraryActivityEntity,
+  ): number {
+    const details = activity.details as Record<string, unknown> | undefined;
+    if (!details) {
+      return 0;
+    }
+    const attempts = details.enrichmentAttempts;
+    if (typeof attempts === 'number') {
+      return attempts;
+    }
+    return 0;
+  }
+
+  /**
+   * 增加活动的富化尝试次数
+   * @param activityId 活动ID
+   * @returns 更新后的尝试次数
+   */
+  private async incrementEnrichmentAttempts(
+    activityId: string,
+  ): Promise<number> {
+    const activity = await this.itineraryRepository['activityRepository'].findOne({
+      where: { id: activityId },
+      select: ['details'],
+    });
+
+    if (!activity) {
+      throw new NotFoundException(`活动不存在: ${activityId}`);
+    }
+
+    const details = (activity.details as Record<string, unknown>) || {};
+    const currentAttempts = this.getEnrichmentAttempts(activity);
+    const newAttempts = currentAttempts + 1;
+
+    // 更新 details 中的 enrichmentAttempts
+    details.enrichmentAttempts = newAttempts;
+
+    await this.itineraryRepository.updateActivity(activityId, {
+      details,
+    });
+
+    this.logger.debug(
+      `活动 ${activityId} 的富化尝试次数已更新为: ${newAttempts}`,
+    );
+
+    return newAttempts;
+  }
+
+  /**
+   * 触发活动位置信息富化（异步）
+   * 检查活动完整性，如果不完整且未超过尝试次数限制，则触发富化流程
+   * @param journeyId 行程ID
+   * @param dayId 天数ID
+   * @param activityId 活动ID
+   * @returns true 如果触发了富化，false 如果不需要富化或已超过尝试次数
+   */
+  async triggerLocationInfoEnrichmentAsync(
+    journeyId: string,
+    dayId: string,
+    activityId: string,
+  ): Promise<boolean> {
+    try {
+      // 获取活动实体
+      const activity = await this.itineraryRepository['activityRepository'].findOne({
+        where: { id: activityId },
+        relations: ['day'],
+      });
+
+      if (!activity) {
+        this.logger.warn(`活动不存在: ${activityId}`);
+        return false;
+      }
+
+      // 检查活动完整性
+      const isComplete = this.checkActivityCompleteness(activity);
+      if (isComplete) {
+        this.logger.debug(`活动 ${activityId} 已完整，无需富化`);
+        return false;
+      }
+
+      // 检查富化尝试次数
+      const attempts = this.getEnrichmentAttempts(activity);
+      const maxAttempts = 3; // 最多尝试3次
+
+      if (attempts >= maxAttempts) {
+        this.logger.warn(
+          `活动 ${activityId} 的富化尝试次数已达上限 (${attempts}/${maxAttempts})，放弃富化`,
+        );
+        return false;
+      }
+
+      // 增加尝试次数
+      await this.incrementEnrichmentAttempts(activityId);
+
+      // 获取活动的 TripAdvisor ID（如果存在）
+      const details = activity.details as Record<string, unknown> | undefined;
+      const tripAdvisorId = details?.tripAdvisorId || details?.tripadvisorId;
+
+      if (tripAdvisorId) {
+        this.logger.log(
+          `触发活动 ${activityId} 的位置信息富化（TripAdvisor ID: ${tripAdvisorId}，尝试次数: ${attempts + 1}/${maxAttempts}）`,
+        );
+
+        try {
+          // 调用 ExternalService 获取景点详情
+          const attractionDetails = await this.externalService.getAttractionDetails(
+            tripAdvisorId as string,
+            'zh-CN',
+          );
+
+          // 更新活动的 details 和 location
+          const updatedDetails = { ...details } as Record<string, unknown>;
+
+          // 更新位置信息
+          if (attractionDetails.coordinates) {
+            updatedDetails.coordinates = attractionDetails.coordinates;
+            updatedDetails.location = attractionDetails.coordinates;
+          }
+
+          // 更新地址信息
+          if (attractionDetails.address) {
+            updatedDetails.address = attractionDetails.address;
+          }
+
+          // 更新名称信息
+          if (attractionDetails.name) {
+            updatedDetails.name = attractionDetails.name;
+          }
+
+          // 更新其他详细信息
+          if (attractionDetails.rating) {
+            updatedDetails.rating = attractionDetails.rating;
+          }
+          if (attractionDetails.openingHours) {
+            updatedDetails.openingHours = attractionDetails.openingHours;
+          }
+          if (attractionDetails.phone) {
+            updatedDetails.phone = attractionDetails.phone;
+          }
+          if (attractionDetails.website) {
+            updatedDetails.website = attractionDetails.website;
+          }
+          if (attractionDetails.description) {
+            updatedDetails.description = attractionDetails.description;
+          }
+          if (attractionDetails.category) {
+            updatedDetails.category = attractionDetails.category;
+          }
+          if (attractionDetails.tripadvisorUrl) {
+            updatedDetails.tripadvisorUrl = attractionDetails.tripadvisorUrl;
+          }
+
+          // 更新活动的 details 和 location（如果获取到了坐标）
+          const updateData: any = {
+            details: updatedDetails,
+          };
+
+          if (attractionDetails.coordinates) {
+            updateData.location = attractionDetails.coordinates;
+          }
+
+          await this.itineraryRepository.updateActivity(activityId, updateData);
+
+          this.logger.log(
+            `活动 ${activityId} 的位置信息富化成功（已更新坐标和详细信息）`,
+          );
+
+          return true;
+        } catch (error) {
+          this.logger.error(
+            `活动 ${activityId} 的位置信息富化失败（TripAdvisor ID: ${tripAdvisorId}）`,
+            error instanceof Error ? error.message : error,
+          );
+          // 即使富化失败，也返回 true，表示已尝试过
+          return true;
+        }
+      } else {
+        this.logger.warn(
+          `活动 ${activityId} 不完整但没有 TripAdvisor ID，无法进行富化`,
+        );
+        return false;
+      }
+    } catch (error) {
+      this.logger.error(
+        `触发活动 ${activityId} 的位置信息富化失败`,
+        error instanceof Error ? error.message : error,
+      );
+      return false;
+    }
   }
 }
 

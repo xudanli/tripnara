@@ -66,20 +66,29 @@ export class LocationController {
   @ApiOperation({
     summary: '异步批量生成活动位置信息',
     description:
-      '将任务加入队列，立即返回 jobId。前端可以通过轮询或 WebSocket 获取任务状态和结果。',
+      '将任务加入队列，立即返回 jobId。前端可以通过轮询或 WebSocket 获取任务状态和结果。如果队列服务不可用，建议使用同步接口。',
   })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   async generateLocationBatchAsync(
     @Body() dto: GenerateLocationBatchRequestDto,
   ): Promise<EnqueueLocationGenerationResponseDto> {
-    const jobId = await this.queueService.enqueueLocationGeneration(
-      dto.activities,
-    );
-    return {
-      success: true,
-      jobId,
-    };
+    try {
+      const jobId = await this.queueService.enqueueLocationGeneration(
+        dto.activities,
+      );
+      return {
+        success: true,
+        jobId,
+        message: '任务已加入队列',
+      };
+    } catch (error) {
+      // 🔥 如果队列服务不可用，返回友好的错误信息
+      this.logger.error(
+        `Failed to enqueue location generation: ${error instanceof Error ? error.message : error}`,
+      );
+      throw error; // 让 NestJS 的异常过滤器处理
+    }
   }
 
   @Get('job/:jobId')

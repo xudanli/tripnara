@@ -34,9 +34,9 @@ import { LocationModule } from '../location/location.module';
             // 修复 Redis 连接崩溃问题
             keepAlive: 1000, // 保持连接活跃
             connectTimeout: 10000, // 连接超时 10 秒
-            maxRetriesPerRequest: null, // 🔥 对于 BullMQ，必须设为 null，让 Bull 自己处理重试
+            maxRetriesPerRequest: 3, // 🔥 限制重试次数，避免无限重试导致错误
             enableReadyCheck: false, // 禁用就绪检查，提高性能
-            lazyConnect: false, // 立即连接
+            lazyConnect: true, // 🔥 改为延迟连接，避免启动时阻塞
             retryStrategy: (times: number) => {
               // 重试策略：最多重试 3 次
               if (times > 3) {
@@ -44,6 +44,17 @@ import { LocationModule } from '../location/location.module';
               }
               return Math.min(times * 200, 2000);
             },
+            // 🔥 添加连接错误处理
+            reconnectOnError: (err: Error) => {
+              const targetError = 'READONLY';
+              if (err.message.includes(targetError)) {
+                // 只对 READONLY 错误进行重连
+                return true;
+              }
+              return false;
+            },
+            // 🔥 添加命令超时
+            commandTimeout: 5000, // 5 秒命令超时
           },
         } as any; // BullModule 配置类型
       },

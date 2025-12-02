@@ -16,6 +16,7 @@ import { PreferencesModule } from '../preferences/preferences.module';
 import { PersistenceModule } from '../persistence/persistence.module';
 import { CurrencyModule } from '../currency/currency.module';
 import { InspirationModule } from '../inspiration/inspiration.module';
+import { ExternalModule } from '../external/external.module';
 import { PreparationProfileEntity } from '../persistence/entities/reference.entity';
 import { AiSafetyNoticeCacheEntity } from '../persistence/entities/ai-log.entity';
 
@@ -26,6 +27,7 @@ import { AiSafetyNoticeCacheEntity } from '../persistence/entities/ai-log.entity
     PersistenceModule,
     CurrencyModule,
     forwardRef(() => InspirationModule),
+    ExternalModule,
     TypeOrmModule.forFeature([PreparationProfileEntity, AiSafetyNoticeCacheEntity]),
   ],
   controllers: [ItineraryV1Controller, JourneyV1Controller],

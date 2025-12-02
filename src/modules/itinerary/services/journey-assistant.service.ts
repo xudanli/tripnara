@@ -312,10 +312,29 @@ export class JourneyAssistantService {
   private async buildItineraryDetail(
     itinerary: ItineraryEntity,
   ): Promise<any> {
+    // 辅助函数：安全地将日期转换为 YYYY-MM-DD 格式
+    const formatDate = (date: Date | string): string => {
+      if (date instanceof Date) {
+        return date.toISOString().split('T')[0];
+      }
+      // 如果是字符串，直接提取日期部分（YYYY-MM-DD）
+      if (typeof date === 'string') {
+        return date.split('T')[0];
+      }
+      // 如果都不是，尝试转换为 Date 对象
+      const dateObj = new Date(date as any);
+      if (!isNaN(dateObj.getTime())) {
+        return dateObj.toISOString().split('T')[0];
+      }
+      // 如果转换失败，返回当前日期
+      this.logger.warn(`无法解析日期: ${date}，使用当前日期`);
+      return new Date().toISOString().split('T')[0];
+    };
+
     // 简化实现：只提取必要字段用于 AI 上下文
     const days = (itinerary.days || []).map((day) => ({
       day: day.day,
-      date: day.date.toISOString().split('T')[0],
+      date: formatDate(day.date),
       timeSlots: (day.activities || []).map((act) => ({
         id: act.id,
         time: act.time,
