@@ -21,6 +21,7 @@
   "destination": "瑞士琉森",
   "days": 5,
   "startDate": "2024-06-01",
+  "language": "zh-CN",
   "preferences": {
     "interests": ["自然风光", "户外活动"],
     "budget": "medium",
