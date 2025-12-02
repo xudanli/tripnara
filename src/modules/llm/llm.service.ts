@@ -193,7 +193,13 @@ export class LlmService {
   ): Promise<ChatCompletionResponse | GeminiResponse> {
     const providerConfig = this.buildProviderConfig(options.provider);
     if (!providerConfig.apiKey) {
-      throw new Error(`Missing API key for provider "${options.provider}"`);
+      const envVarName = 
+        options.provider === 'gemini' ? 'GEMINI_API_KEY' :
+        options.provider === 'deepseek' ? 'DEEPSEEK_API_KEY' :
+        'OPENAI_API_KEY';
+      throw new Error(
+        `Missing API key for provider "${options.provider}". Please set ${envVarName} environment variable.`,
+      );
     }
 
     const payload = this.buildPayload(options, providerConfig);
@@ -212,10 +218,18 @@ export class LlmService {
         );
       }
       // Gemini 使用不同的 API 端点
+      const modelName = options.model ?? providerConfig.defaultModel;
       const url =
         options.provider === 'gemini'
-          ? `${baseUrl}/models/${options.model ?? providerConfig.defaultModel}:generateContent?key=${providerConfig.apiKey}`
+          ? `${baseUrl}/models/${modelName}:generateContent?key=${providerConfig.apiKey}`
           : `${baseUrl}/chat/completions`;
+      
+      // 记录 Gemini API 调用的详细信息（但不记录 API key）
+      if (options.provider === 'gemini') {
+        this.logger.debug(
+          `Calling Gemini API: baseUrl=${baseUrl}, model=${modelName}, url=${url.replace(/key=[^&]+/, 'key=***')}`,
+        );
+      }
 
       // Handle proxy configuration to prevent redirect loops
       const httpsAgent = this.createProxyAgentIfNeeded();
@@ -278,6 +292,39 @@ export class LlmService {
         return this.executeRequest(options, attempt + 1);
       }
 
+      // 改进错误处理，提供更详细的错误信息
+      if (isAxiosError(error)) {
+        const status = error.response?.status;
+        const statusText = error.response?.statusText;
+        const errorData = error.response?.data;
+        
+        if (status === 404) {
+          const modelName = options.model ?? providerConfig.defaultModel;
+          this.logger.error(
+            `Gemini API 404 Not Found: model=${modelName}, baseUrl=${providerConfig.baseUrl}`,
+          );
+          throw new Error(
+            `Gemini API 模型未找到 (404): ${modelName}。请检查模型名称是否正确，或 API key 是否有权限访问该模型。`,
+          );
+        }
+        
+        if (status === 401 || status === 403) {
+          this.logger.error(
+            `Gemini API 认证失败 (${status}): 请检查 GEMINI_API_KEY 是否正确配置`,
+          );
+          throw new Error(
+            `Gemini API 认证失败 (${status}): 请检查 API key 是否正确配置`,
+          );
+        }
+        
+        this.logger.error(
+          `LLM API 请求失败 (${status} ${statusText}): ${JSON.stringify(errorData)}`,
+        );
+        throw new Error(
+          `LLM API 请求失败: ${status} ${statusText} - ${errorData?.error?.message || error.message}`,
+        );
+      }
+      
       throw error;
     }
   }
