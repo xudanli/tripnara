@@ -7,24 +7,47 @@
  * 运行方式：
  *   npm run cleanup:orphan-data
  *   或
- *   ts-node --transpile-only scripts/cleanup-orphan-data.ts
+ *   DATABASE_URL="postgresql://user:password@host:port/database" ts-node --transpile-only scripts/cleanup-orphan-data.ts
  */
 
+import 'reflect-metadata';
 import { DataSource } from 'typeorm';
-import { config } from 'dotenv';
-
-// 加载环境变量
-config();
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { validateEnv } from '../src/config/env.validation';
 
 async function cleanupOrphanData() {
+  // 初始化配置模块
+  ConfigModule.forRoot({
+    isGlobal: true,
+    cache: false,
+    validate: validateEnv,
+  });
+
+  const configService = new ConfigService();
+  
+  // 获取数据库URL（优先使用 DATABASE_URL）
+  const databaseUrl = configService.get<string>('DATABASE_URL');
+
+  if (!databaseUrl) {
+    console.error('❌ 错误: DATABASE_URL 环境变量未设置');
+    console.log('\n请设置 DATABASE_URL 环境变量，格式:');
+    console.log('  postgresql://username:password@host:port/database');
+    console.log('\n示例:');
+    console.log('  export DATABASE_URL="postgresql://postgres:password@localhost:5432/tripmind"');
+    console.log('  npm run cleanup:orphan-data');
+    process.exit(1);
+  }
+
+  // 创建数据源（使用 DATABASE_URL）
+  const normalizedUrl = databaseUrl.startsWith('postgres://') 
+    ? databaseUrl.replace('postgres://', 'postgresql://')
+    : databaseUrl;
+
   const dataSource = new DataSource({
     type: 'postgres',
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '5432', 10),
-    username: process.env.DB_USERNAME || 'postgres',
-    password: process.env.DB_PASSWORD || 'postgres',
-    database: process.env.DB_DATABASE || 'tripmind',
+    url: normalizedUrl,
     logging: false,
+    connectTimeoutMS: 10000,
   });
 
   try {
