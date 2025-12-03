@@ -100,6 +100,11 @@ import {
   WeatherInfoDto,
 } from './dto/itinerary.dto';
 import {
+  GetPackingListRequestDto,
+  GetPackingListResponseDto,
+  PackingListItemDto,
+} from './dto/packing-list.dto';
+import {
   ItineraryEntity,
   ItineraryDayEntity,
   ItineraryActivityEntity,
@@ -4162,6 +4167,173 @@ export class ItineraryService {
       startDate,
       endDate,
       weatherInfo,
+      fromCache: false,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * 获取智能打包清单
+   */
+  async getPackingList(
+    journeyId: string,
+    userId: string,
+    language: string = 'zh-CN',
+  ): Promise<GetPackingListResponseDto> {
+    const itinerary = await this.itineraryRepository.findById(journeyId);
+
+    if (!itinerary) {
+      throw ErrorHandler.notFound('行程', journeyId, { userId });
+    }
+
+    if (itinerary.userId !== userId) {
+      throw ErrorHandler.forbidden('访问', '此行程', { journeyId, userId });
+    }
+
+    // 获取行程的所有天数和活动
+    const days = await this.itineraryRepository.findDaysByItineraryId(journeyId);
+    
+    if (!days || days.length === 0) {
+      throw new BadRequestException('行程没有天数信息，无法生成打包清单');
+    }
+
+    // 格式化日期
+    const formatDate = (date: Date | string): string => {
+      if (date instanceof Date) {
+        return date.toISOString().split('T')[0];
+      }
+      if (typeof date === 'string') {
+        return date.split('T')[0];
+      }
+      return '';
+    };
+
+    // 构建活动列表
+    const activitiesByDay = days.map((day) => ({
+      day: day.day,
+      date: formatDate(day.date as Date | string),
+      activities: (day.activities || []).map((act) => ({
+        title: act.title,
+        type: act.type,
+        time: act.time,
+        notes: act.notes || undefined,
+        location: act.location as { lat: number; lng: number } | undefined,
+      })),
+    }));
+
+    // 获取天气信息
+    const startDate = new Date(itinerary.startDate);
+    const endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + itinerary.daysCount - 1);
+    
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const endDateStr = endDate.toISOString().split('T')[0];
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    startDate.setHours(0, 0, 0, 0);
+
+    const diffTime = startDate.getTime() - today.getTime();
+    const daysUntilStart = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    const isRealtime = daysUntilStart >= 0 && daysUntilStart <= 10;
+
+    let weatherInfo: {
+      currentWeather?: string;
+      forecast?: string;
+      averageTemperature?: string;
+      typicalWeather?: string;
+      rainfall?: string;
+      type: 'realtime' | 'historical';
+    };
+
+    if (isRealtime) {
+      // 获取实时天气
+      try {
+        const weatherData = await this.getWeatherInfo(journeyId, userId, language);
+        weatherInfo = {
+          currentWeather: weatherData.weatherInfo.currentWeather,
+          forecast: weatherData.weatherInfo.forecast,
+          type: 'realtime',
+        };
+      } catch (error) {
+        this.logger.warn('获取实时天气失败，使用默认信息:', error);
+        weatherInfo = {
+          currentWeather: '天气信息获取中...',
+          forecast: '天气预报获取中...',
+          type: 'realtime',
+        };
+      }
+    } else {
+      // 获取历史气候
+      try {
+        const weatherData = await this.getWeatherInfo(journeyId, userId, language);
+        weatherInfo = {
+          averageTemperature: weatherData.weatherInfo.currentWeather,
+          typicalWeather: weatherData.weatherInfo.forecast,
+          rainfall: (weatherData.weatherInfo as any).rainfall,
+          type: 'historical',
+        };
+      } catch (error) {
+        this.logger.warn('获取历史气候失败，使用默认信息:', error);
+        weatherInfo = {
+          averageTemperature: '气候信息获取中...',
+          typicalWeather: '典型天气状况获取中...',
+          type: 'historical',
+        };
+      }
+    }
+
+    // 使用AI生成打包清单
+    const systemMessage = this.promptService.buildPackingListSystemMessage(language);
+    const userPrompt = this.promptService.buildPackingListUserPrompt({
+      destination: itinerary.destination,
+      startDate: startDateStr,
+      endDate: endDateStr,
+      days: activitiesByDay,
+      weatherInfo,
+      language,
+    });
+
+    const aiResponse = await this.llmService.chatCompletionJson<{
+      packingList: Array<{
+        item: string;
+        reason: string;
+      }>;
+    }>(
+      await this.llmService.buildChatCompletionOptions({
+        messages: [
+          { role: 'system', content: systemMessage },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.7,
+        maxOutputTokens: 4096,
+        json: true,
+        provider: 'gemini',
+        model: 'gemini-2.5-flash',
+      }),
+    );
+
+    // 验证数量限制（5-10项）
+    let packingList = aiResponse.packingList || [];
+    if (packingList.length < 5) {
+      this.logger.warn(`打包清单数量不足5项（${packingList.length}项），使用默认补充`);
+      // 如果数量不足，可以补充一些通用但必要的物品
+    } else if (packingList.length > 10) {
+      this.logger.warn(`打包清单数量超过10项（${packingList.length}项），截取前10项`);
+      packingList = packingList.slice(0, 10);
+    }
+
+    return {
+      success: true,
+      journeyId,
+      destination: itinerary.destination,
+      startDate: startDateStr,
+      endDate: endDateStr,
+      packingList: packingList.map((item) => ({
+        item: item.item,
+        reason: item.reason,
+      })),
       fromCache: false,
       generatedAt: new Date().toISOString(),
     };

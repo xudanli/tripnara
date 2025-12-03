@@ -82,6 +82,10 @@ import {
   GetWeatherInfoRequestDto,
   GetWeatherInfoResponseDto,
 } from './dto/itinerary.dto';
+import {
+  GetPackingListRequestDto,
+  GetPackingListResponseDto,
+} from './dto/packing-list.dto';
 
 @ApiTags('Journey V1')
 @Controller('v1/journeys')
@@ -1187,6 +1191,49 @@ export class JourneyV1Controller {
       journeyId,
       user.userId,
       language || 'zh-CN',
+    );
+  }
+
+  // ========== 智能打包清单接口 ==========
+
+  @Get(':journeyId/packing-list')
+  @ApiOperation({
+    summary: '获取智能打包清单',
+    description:
+      '根据行程中的具体活动和天气状况，生成深度定制的智能打包清单（5-10项）。严禁包含护照、身份证、手机等全球通用物品，只包含针对此地、此时、此事的特需物品。',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiParam({
+    name: 'journeyId',
+    description: '行程ID',
+    example: 'uuid',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '获取成功',
+    type: GetPackingListResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: '行程不存在',
+  })
+  @ApiQuery({
+    name: 'language',
+    required: false,
+    description: '语言代码，用于生成对应语言的打包清单',
+    enum: ['zh-CN', 'en-US', 'en'],
+    example: 'zh-CN',
+  })
+  async getPackingList(
+    @Param('journeyId') journeyId: string,
+    @CurrentUser() user: { userId: string },
+    @Query() query: GetPackingListRequestDto,
+  ): Promise<GetPackingListResponseDto> {
+    return this.itineraryService.getPackingList(
+      journeyId,
+      user.userId,
+      query.language || 'zh-CN',
     );
   }
 }

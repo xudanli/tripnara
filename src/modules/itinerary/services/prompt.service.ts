@@ -1429,5 +1429,145 @@ Please ensure the return is valid JSON format, all fields are string type.`;
 
 请确保返回的是有效的JSON格式，所有字段都是字符串类型。`;
   }
+
+  /**
+   * 构建智能打包清单生成系统提示词
+   */
+  buildPackingListSystemMessage(language: string = 'zh-CN'): string {
+    const isEnglish = language === 'en-US' || language === 'en';
+    
+    if (isEnglish) {
+      return `You are a professional travel packing list expert, skilled at generating smart, destination-specific packing lists based on specific activities and weather conditions. Please always return data in JSON format.`;
+    }
+    
+    return `你是一名专业的旅行打包清单专家，擅长根据具体活动和天气状况生成智能、针对性的打包清单。请始终以JSON格式返回数据。`;
+  }
+
+  /**
+   * 构建智能打包清单生成用户提示词
+   */
+  buildPackingListUserPrompt(params: {
+    destination: string;
+    startDate: string;
+    endDate: string;
+    days: Array<{
+      day: number;
+      date: string;
+      activities: Array<{
+        title: string;
+        type: string;
+        time: string;
+        notes?: string;
+        location?: { lat: number; lng: number };
+      }>;
+    }>;
+    weatherInfo: {
+      currentWeather?: string;
+      forecast?: string;
+      averageTemperature?: string;
+      typicalWeather?: string;
+      rainfall?: string;
+      type: 'realtime' | 'historical';
+    };
+    language?: string;
+  }): string {
+    const language = params.language || 'zh-CN';
+    const isEnglish = language === 'en-US' || language === 'en';
+    
+    // 构建活动列表描述
+    const activitiesDescription = params.days
+      .map((day) => {
+        const dayActivities = day.activities
+          .map(
+            (act) =>
+              `  - 第${day.day}天 ${act.time}：${act.title}（${act.type}）${act.notes ? `，备注：${act.notes}` : ''}`,
+          )
+          .join('\n');
+        return `第${day.day}天（${day.date}）：\n${dayActivities}`;
+      })
+      .join('\n\n');
+
+    // 构建天气信息描述
+    const weatherDescription =
+      params.weatherInfo.type === 'realtime'
+        ? `实时天气：${params.weatherInfo.currentWeather}\n天气预报：${params.weatherInfo.forecast}`
+        : `历史气候：平均温度 ${params.weatherInfo.averageTemperature}，典型天气：${params.weatherInfo.typicalWeather}${params.weatherInfo.rainfall ? `，降雨：${params.weatherInfo.rainfall}` : ''}`;
+
+    if (isEnglish) {
+      return `Please generate a smart packing list for destination **${params.destination}** during the travel period (${params.startDate} to ${params.endDate}).
+
+**Travel Activities:**
+${activitiesDescription}
+
+**Weather Information:**
+${weatherDescription}
+
+**Requirements:**
+1. **Quantity Limit**: Select 5-10 items only (must be between 5 and 10).
+2. **Negative Constraint**: STRICTLY FORBIDDEN to include universal items such as:
+   - Passport, ID card, phone, cash, power bank, toiletries
+   - Any items that everyone would bring regardless of destination
+3. **Specificity**: Only include items that are **specific to this destination, this time, and these activities**.
+4. **Activity Association**: Each item must be clearly associated with specific activities or weather conditions.
+
+**Output Format:**
+Return a JSON array where each item has:
+- "item": "Item name"
+- "reason": "Recommendation reason, must clearly associate with specific activity or weather"
+
+**Example:**
+\`\`\`json
+[
+  {
+    "item": "Ice Crampons",
+    "reason": "For Day 3 glacier climbing activity, and recent rain/snow in the area, to prevent slipping"
+  },
+  {
+    "item": "Waterproof Hiking Boots",
+    "reason": "For Day 2 mountain hiking activity, forecast shows rain, need waterproof protection"
+  }
+]
+\`\`\`
+
+Please ensure the return is valid JSON format, with exactly 5-10 items.`;
+    }
+    
+    return `请为目的地 **${params.destination}** 在旅行期间（${params.startDate} 至 ${params.endDate}）生成智能打包清单。
+
+**行程活动：**
+${activitiesDescription}
+
+**天气信息：**
+${weatherDescription}
+
+**生成要求：**
+1. **数量限制**：精选 5-10 项（必须严格控制在 5-10 项之间）。
+2. **反向过滤（Negative Constraint）**：**严禁**出现以下全球通用物品：
+   - 护照、身份证、手机、现金、充电宝、洗漱用品
+   - 任何无论去任何地方都会携带的通用物品
+3. **针对性**：只包含针对**此地、此时、此事**的特需物品。
+4. **活动关联**：每项物品必须明确关联到具体活动或天气状况。
+
+**输出格式：**
+返回 JSON 数组，每项包含：
+- "item": "物品名称"
+- "reason": "推荐理由，需明确关联具体活动或天气"
+
+**示例：**
+\`\`\`json
+[
+  {
+    "item": "防滑冰爪",
+    "reason": "针对第三天攀登冰川活动，且当地近期有雨雪，防止滑倒"
+  },
+  {
+    "item": "防水登山靴",
+    "reason": "针对第二天山地徒步活动，天气预报有雨，需要防水保护"
+  }
+]
+\`\`\`
+
+请确保返回的是有效的JSON格式，严格控制在 5-10 项之间。`;
+  }
 }
 
