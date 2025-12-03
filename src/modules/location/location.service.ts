@@ -1,7 +1,10 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { LlmService } from '../llm/llm.service';
 import { PromptService } from '../itinerary/services/prompt.service';
+import { LocationEntity } from '../persistence/entities/location.entity';
 import Redis from 'ioredis';
 import {
   GenerateLocationRequestDto,
@@ -58,6 +61,8 @@ export class LocationService {
   private readonly redisCacheTtlSeconds = 30 * 24 * 60 * 60; // 30天（Redis 持久化缓存）
 
   constructor(
+    @InjectRepository(LocationEntity)
+    private readonly locationRepository: Repository<LocationEntity>,
     private readonly llmService: LlmService,
     private readonly configService: ConfigService,
     private readonly promptService: PromptService,
@@ -190,7 +195,29 @@ export class LocationService {
   async generateLocationInfo(
     dto: GenerateLocationRequestDto,
   ): Promise<LocationInfoDto> {
-    // 检查缓存（优先使用 Redis 持久化缓存）
+    // 1. 优先从数据库查询
+    const existingLocation = await this.locationRepository.findOne({
+      where: {
+        activityName: dto.activityName,
+        destination: dto.destination,
+        activityType: dto.activityType,
+      },
+    });
+
+    if (existingLocation) {
+      this.logger.log(`Database hit for: ${dto.activityName}`);
+      const locationInfo = this.entityToDto(existingLocation);
+      // 同时更新缓存
+      const cacheKey = this.getCacheKey(
+        dto.activityName,
+        dto.destination,
+        dto.activityType,
+      );
+      await this.setCache(cacheKey, locationInfo);
+      return locationInfo;
+    }
+
+    // 2. 检查缓存（Redis 或内存缓存）
     const cacheKey = this.getCacheKey(
       dto.activityName,
       dto.destination,
@@ -199,9 +226,16 @@ export class LocationService {
     const cached = await this.getFromCache(cacheKey);
     if (cached) {
       this.logger.log(`Cache hit for: ${dto.activityName}`);
+      // 从缓存恢复时，也保存到数据库（异步，不阻塞）
+      this.saveToDatabase(dto, cached).catch((error) => {
+        this.logger.warn(
+          `Failed to save cached location to database: ${error.message}`,
+        );
+      });
       return cached;
     }
 
+    // 3. 生成新的位置信息
     try {
       // 获取语言配置
       const languageConfig = this.getCountryLanguage(dto.destination);
@@ -215,7 +249,10 @@ export class LocationService {
         languageConfig,
       );
 
-      // 保存到缓存（同时写入 Redis 和内存缓存）
+      // 4. 保存到数据库
+      await this.saveToDatabase(dto, locationInfo);
+
+      // 5. 保存到缓存（同时写入 Redis 和内存缓存）
       await this.setCache(cacheKey, locationInfo);
       return locationInfo;
     } catch (error) {
@@ -224,12 +261,19 @@ export class LocationService {
         error,
       );
       // 使用默认信息回退
-      return this.getDefaultLocationInfo(
+      const defaultInfo = this.getDefaultLocationInfo(
         dto.activityName,
         dto.destination,
         dto.activityType,
         dto.coordinates,
       );
+      // 即使使用默认信息，也尝试保存到数据库
+      this.saveToDatabase(dto, defaultInfo).catch((error) => {
+        this.logger.warn(
+          `Failed to save default location to database: ${error.message}`,
+        );
+      });
+      return defaultInfo;
     }
   }
 
@@ -602,6 +646,118 @@ export class LocationService {
       bestTimeToVisit: defaults.bestTimeToVisit,
       accessibility: defaults.accessibility,
     };
+  }
+
+  /**
+   * 将 LocationEntity 转换为 LocationInfoDto
+   */
+  private entityToDto(entity: LocationEntity): LocationInfoDto {
+    return {
+      chineseName: entity.chineseName,
+      localName: entity.localName,
+      chineseAddress: entity.chineseAddress,
+      localAddress: entity.localAddress,
+      transportInfo: entity.transportInfo,
+      openingHours: entity.openingHours,
+      ticketPrice: entity.ticketPrice,
+      visitTips: entity.visitTips,
+      nearbyAttractions: entity.nearbyAttractions,
+      contactInfo: entity.contactInfo,
+      category: entity.category,
+      rating: Number(entity.rating),
+      visitDuration: entity.visitDuration,
+      bestTimeToVisit: entity.bestTimeToVisit,
+      accessibility: entity.accessibility,
+      dressingTips: entity.dressingTips,
+      culturalTips: entity.culturalTips,
+      bookingInfo: entity.bookingInfo,
+    };
+  }
+
+  /**
+   * 将 LocationInfoDto 转换为 LocationEntity 并保存到数据库
+   */
+  private async saveToDatabase(
+    dto: GenerateLocationRequestDto,
+    locationInfo: LocationInfoDto,
+  ): Promise<LocationEntity> {
+    try {
+      // 检查是否已存在
+      const existing = await this.locationRepository.findOne({
+        where: {
+          activityName: dto.activityName,
+          destination: dto.destination,
+          activityType: dto.activityType,
+        },
+      });
+
+      if (existing) {
+        // 更新现有记录
+        existing.chineseName = locationInfo.chineseName;
+        existing.localName = locationInfo.localName;
+        existing.chineseAddress = locationInfo.chineseAddress;
+        existing.localAddress = locationInfo.localAddress;
+        existing.transportInfo = locationInfo.transportInfo;
+        existing.openingHours = locationInfo.openingHours;
+        existing.ticketPrice = locationInfo.ticketPrice;
+        existing.visitTips = locationInfo.visitTips;
+        existing.nearbyAttractions = locationInfo.nearbyAttractions;
+        existing.contactInfo = locationInfo.contactInfo;
+        existing.category = locationInfo.category;
+        existing.rating = locationInfo.rating;
+        existing.visitDuration = locationInfo.visitDuration;
+        existing.bestTimeToVisit = locationInfo.bestTimeToVisit;
+        existing.accessibility = locationInfo.accessibility;
+        existing.dressingTips = locationInfo.dressingTips;
+        existing.culturalTips = locationInfo.culturalTips;
+        existing.bookingInfo = locationInfo.bookingInfo;
+        existing.coordinates = dto.coordinates;
+
+        const updated = await this.locationRepository.save(existing);
+        this.logger.log(
+          `Updated location info in database for: ${dto.activityName}`,
+        );
+        return updated;
+      } else {
+        // 创建新记录
+        const newLocation = this.locationRepository.create({
+          activityName: dto.activityName,
+          destination: dto.destination,
+          activityType: dto.activityType,
+          coordinates: dto.coordinates,
+          chineseName: locationInfo.chineseName,
+          localName: locationInfo.localName,
+          chineseAddress: locationInfo.chineseAddress,
+          localAddress: locationInfo.localAddress,
+          transportInfo: locationInfo.transportInfo,
+          openingHours: locationInfo.openingHours,
+          ticketPrice: locationInfo.ticketPrice,
+          visitTips: locationInfo.visitTips,
+          nearbyAttractions: locationInfo.nearbyAttractions,
+          contactInfo: locationInfo.contactInfo,
+          category: locationInfo.category,
+          rating: locationInfo.rating,
+          visitDuration: locationInfo.visitDuration,
+          bestTimeToVisit: locationInfo.bestTimeToVisit,
+          accessibility: locationInfo.accessibility,
+          dressingTips: locationInfo.dressingTips,
+          culturalTips: locationInfo.culturalTips,
+          bookingInfo: locationInfo.bookingInfo,
+        });
+
+        const saved = await this.locationRepository.save(newLocation);
+        this.logger.log(
+          `Saved location info to database for: ${dto.activityName}`,
+        );
+        return saved;
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to save location info to database for ${dto.activityName}:`,
+        error,
+      );
+      throw error;
+    }
   }
 }
 

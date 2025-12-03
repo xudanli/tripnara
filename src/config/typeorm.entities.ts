@@ -47,6 +47,7 @@ import {
   JourneyInvitationEntity,
 } from '../modules/persistence/entities/journey-member.entity';
 import { ConversationMessageEntity } from '../modules/persistence/entities/conversation.entity';
+import { LocationEntity } from '../modules/persistence/entities/location.entity';
 
 export const TYPEORM_ENTITIES = [
   UserEntity,
@@ -82,4 +83,5 @@ export const TYPEORM_ENTITIES = [
   JourneyMemberEntity,
   JourneyInvitationEntity,
   ConversationMessageEntity,
+  LocationEntity,
 ];
