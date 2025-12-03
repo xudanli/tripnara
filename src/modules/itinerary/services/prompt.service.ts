@@ -876,5 +876,60 @@ Please generate a detailed safety notice for this destination.`;
 
 请为这个目的地生成详细的安全提示。`;
   }
+
+  /**
+   * 构建每日概要生成系统提示词
+   */
+  buildDailySummarySystemMessage(language: string = 'zh-CN'): string {
+    const isEnglish = language === 'en-US' || language === 'en';
+    
+    if (isEnglish) {
+      return `You are a professional travel copywriter, skilled at generating vivid and interesting summaries for each day of a travel itinerary.
+
+Please generate a concise and attractive summary (80-120 words) based on the provided daily activity arrangements, with the following requirements:
+1. Highlight the highlights and featured activities of the day
+2. Use vivid and engaging language
+3. Control the length between 80-120 words
+4. Use English, with a relaxed and natural style`;
+    }
+    
+    return `你是一个专业的旅行文案师，擅长为旅行行程的每一天生成生动有趣的概要。
+
+请根据提供的每日活动安排，生成一段简洁而富有吸引力的概要（80-120字），要求：
+1. 突出当天的亮点和特色活动
+2. 语言生动有趣，富有感染力
+3. 控制长度在80-120字之间
+4. 使用中文，风格轻松自然`;
+  }
+
+  /**
+   * 构建每日概要生成用户提示词
+   */
+  buildDailySummaryUserPrompt(params: {
+    destination: string;
+    day: number;
+    date: string;
+    activitiesText: string;
+    language?: string;
+  }): string {
+    const language = params.language || 'zh-CN';
+    const isEnglish = language === 'en-US' || language === 'en';
+    
+    if (isEnglish) {
+      return `Destination: ${params.destination}
+Day ${params.day} (${params.date}) activity arrangements:
+
+${params.activitiesText}
+
+Please generate a vivid and interesting summary for this day.`;
+    }
+    
+    return `目的地：${params.destination}
+第${params.day}天（${params.date}）的活动安排：
+
+${params.activitiesText}
+
+请为这一天生成生动有趣的概要。`;
+  }
 }
 
