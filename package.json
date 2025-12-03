@@ -119,6 +119,6 @@
     "testEnvironment": "node"
   },
   "overrides": {
-    "ansis": "3.3.2"
+    "ansis": "1.5.1"
   }
 }
