@@ -2779,3 +2779,117 @@ export class LocalEssentialsResponseDto {
   generatedAt!: string;
 }
 
+/**
+ * 天气信息数据 DTO
+ */
+export class WeatherInfoDto {
+  @ApiProperty({
+    description: '当前天气概况（实时）或平均温度范围（历史）',
+    example: '当前温度：15°C，天气：多云，湿度：65%',
+  })
+  currentWeather!: string;
+
+  @ApiProperty({
+    description: '天气预报（实时）或典型天气状况（历史）',
+    example: '未来7天天气预报：第1天15°C多云，第2天18°C晴天...',
+  })
+  forecast!: string;
+
+  @ApiProperty({
+    description: '安全警示和警告',
+    example: '注意：近期可能有强风，建议避免户外活动',
+  })
+  safetyAlerts!: string;
+
+  @ApiProperty({
+    description: '打包建议',
+    example: '建议携带：轻便外套、雨具、防晒霜',
+  })
+  packingSuggestions!: string;
+
+  @ApiProperty({
+    description: '旅行建议',
+    example: '建议选择天气晴朗的日子进行户外活动，注意保暖',
+  })
+  travelTips!: string;
+
+  @ApiPropertyOptional({
+    description: '平均温度范围（仅历史气候时提供）',
+    example: '15-25°C',
+  })
+  averageTemperature?: string;
+
+  @ApiPropertyOptional({
+    description: '降雨信息（仅历史气候时提供）',
+    example: '平均降雨量：50mm，降雨天数：8天',
+  })
+  rainfall?: string;
+
+  @ApiPropertyOptional({
+    description: '穿衣建议（仅历史气候时提供）',
+    example: '建议穿着轻便外套和长裤，携带雨具',
+  })
+  clothingSuggestions?: string;
+
+  @ApiPropertyOptional({
+    description: '常年安全建议（仅历史气候时提供）',
+    example: '该季节常有强风，注意安全',
+  })
+  safetyAdvice?: string;
+
+  @ApiProperty({
+    description: '信息类型',
+    enum: ['realtime', 'historical'],
+    example: 'realtime',
+  })
+  type!: 'realtime' | 'historical';
+}
+
+/**
+ * 获取天气信息请求 DTO
+ */
+export class GetWeatherInfoRequestDto {
+  @ApiPropertyOptional({
+    description: '语言代码',
+    example: 'zh-CN',
+    enum: ['zh-CN', 'en-US', 'en'],
+    default: 'zh-CN',
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['zh-CN', 'en-US', 'en'])
+  language?: string;
+}
+
+/**
+ * 获取天气信息响应 DTO
+ */
+export class GetWeatherInfoResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({ description: '行程ID', example: 'uuid' })
+  journeyId!: string;
+
+  @ApiProperty({ description: '目的地', example: '瑞士琉森' })
+  destination!: string;
+
+  @ApiProperty({ description: '开始日期', example: '2025-12-01' })
+  startDate!: string;
+
+  @ApiProperty({ description: '结束日期', example: '2025-12-08' })
+  endDate!: string;
+
+  @ApiProperty({
+    description: '天气信息',
+    type: WeatherInfoDto,
+  })
+  weatherInfo!: WeatherInfoDto;
+
+  @ApiProperty({ description: '是否来自缓存', example: false })
+  fromCache!: boolean;
+
+  @ApiProperty({ description: '生成时间', example: '2025-12-01T12:00:00Z' })
+  generatedAt!: string;
+}
+

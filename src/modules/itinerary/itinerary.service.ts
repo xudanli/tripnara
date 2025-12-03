@@ -27,6 +27,7 @@ import { CostCalculator } from '../../utils/costCalculator';
 import { CurrencyService } from '../currency/currency.service';
 import { InspirationService } from '../inspiration/inspiration.service';
 import { ExternalService } from '../external/external.service';
+import { WeatherService } from '../destination/services/weather.service';
 import {
   GenerateItineraryRequestDto,
   GenerateItineraryResponseDto,
@@ -94,6 +95,9 @@ import {
   JourneyAssistantChatRequestDto,
   JourneyAssistantChatResponseDto,
   ModificationSuggestionDto,
+  GetWeatherInfoRequestDto,
+  GetWeatherInfoResponseDto,
+  WeatherInfoDto,
 } from './dto/itinerary.dto';
 import {
   ItineraryEntity,
@@ -154,6 +158,7 @@ export class ItineraryService {
     private readonly currencyService: CurrencyService,
     private readonly inspirationService: InspirationService,
     private readonly externalService: ExternalService,
+    private readonly weatherService: WeatherService,
     private readonly journeyAssistantService: JourneyAssistantService,
     private readonly itineraryGenerationService: ItineraryGenerationService,
     private readonly journeyTaskService: JourneyTaskService,
@@ -3932,6 +3937,188 @@ export class ItineraryService {
       );
       return false;
     }
+  }
+
+  /**
+   * 获取行程天气信息
+   * 根据行程时间判断：未来10天内使用实时天气，远期使用历史气候
+   */
+  async getWeatherInfo(
+    journeyId: string,
+    userId: string,
+    language: string = 'zh-CN',
+  ): Promise<GetWeatherInfoResponseDto> {
+    // 检查所有权
+    await this.ensureOwnership(journeyId, userId, '访问');
+
+    // 获取行程信息
+    const itinerary = await this.itineraryRepository.findById(journeyId);
+    if (!itinerary) {
+      throw new NotFoundException(`行程不存在: ${journeyId}`);
+    }
+
+    // 获取行程的开始日期和结束日期
+    const days = await this.itineraryRepository.findDaysByItineraryId(journeyId);
+    if (!days || days.length === 0) {
+      throw new BadRequestException('行程没有天数信息，无法获取天气信息');
+    }
+
+    // 格式化日期
+    const formatDate = (date: Date | string): string => {
+      if (date instanceof Date) {
+        return date.toISOString().split('T')[0];
+      }
+      if (typeof date === 'string') {
+        return date.split('T')[0];
+      }
+      return '';
+    };
+
+    const startDate = formatDate(days[0].date as Date | string);
+    const endDate = formatDate(days[days.length - 1].date as Date | string);
+
+    // 计算距离开始日期的天数
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startDateObj = new Date(startDate);
+    startDateObj.setHours(0, 0, 0, 0);
+    const daysUntilStart = Math.ceil(
+      (startDateObj.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+    );
+
+    // 判断是实时天气还是历史气候
+    const isRealtime = daysUntilStart >= 0 && daysUntilStart <= 10;
+
+    let weatherInfo: WeatherInfoDto;
+
+    if (isRealtime) {
+      // 实时天气：调用天气API获取实时数据
+      this.logger.log(
+        `行程在未来10天内，获取实时天气信息：${itinerary.destination}`,
+      );
+
+      // 获取坐标（如果有）
+      const firstDay = days.find((day) => day.activities && day.activities.length > 0);
+      const coordinates = firstDay?.activities?.[0]?.location as
+        | { lat: number; lng: number }
+        | undefined;
+
+      // 调用天气服务获取实时天气
+      const weatherData = await this.weatherService.getWeatherByDestinationId(
+        journeyId,
+        itinerary.destination,
+        coordinates,
+        undefined, // countryCode 可以从目的地推断，这里先传 undefined
+      );
+
+      // 获取安全警示（可以从外部服务获取，这里先留空）
+      const safetyAlerts: string[] = [];
+
+      // 使用AI生成天气信息
+      const systemMessage = this.promptService.buildWeatherInfoSystemMessage(language);
+      const userPrompt = this.promptService.buildWeatherInfoUserPromptRealTime({
+        destination: itinerary.destination,
+        startDate,
+        endDate,
+        weatherData,
+        safetyAlerts,
+        language,
+      });
+
+      const aiResponse = await this.llmService.chatCompletionJson<{
+        currentWeather: string;
+        forecast: string;
+        safetyAlerts: string;
+        packingSuggestions: string;
+        travelTips: string;
+      }>(
+        await this.llmService.buildChatCompletionOptions({
+          messages: [
+            { role: 'system', content: systemMessage },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.7,
+          maxOutputTokens: 4096,
+          json: true,
+          provider: 'gemini',
+          model: 'gemini-2.5-flash',
+        }),
+      );
+
+      weatherInfo = {
+        currentWeather: aiResponse.currentWeather || '天气信息获取中...',
+        forecast: aiResponse.forecast || '天气预报获取中...',
+        safetyAlerts: aiResponse.safetyAlerts || '暂无安全警示',
+        packingSuggestions: aiResponse.packingSuggestions || '建议根据天气情况准备行李',
+        travelTips: aiResponse.travelTips || '建议关注天气变化，合理安排行程',
+        type: 'realtime',
+      };
+    } else {
+      // 历史气候：基于历史平均数据
+      this.logger.log(
+        `行程在远期，获取历史气候信息：${itinerary.destination}`,
+      );
+
+      // 获取旅行月份
+      const startDateObj = new Date(startDate);
+      const travelMonth = `${startDateObj.getFullYear()}年${startDateObj.getMonth() + 1}月`;
+
+      // 使用AI生成历史气候信息
+      const systemMessage = this.promptService.buildWeatherInfoSystemMessage(language);
+      const userPrompt = this.promptService.buildWeatherInfoUserPromptHistorical({
+        destination: itinerary.destination,
+        travelMonth,
+        startDate,
+        endDate,
+        language,
+      });
+
+      const aiResponse = await this.llmService.chatCompletionJson<{
+        averageTemperature: string;
+        typicalWeather: string;
+        rainfall: string;
+        clothingSuggestions: string;
+        safetyAdvice: string;
+        packingSuggestions: string;
+        travelTips: string;
+      }>(
+        await this.llmService.buildChatCompletionOptions({
+          messages: [
+            { role: 'system', content: systemMessage },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.7,
+          maxOutputTokens: 4096,
+          json: true,
+          provider: 'gemini',
+          model: 'gemini-2.5-flash',
+        }),
+      );
+
+      weatherInfo = {
+        currentWeather: aiResponse.averageTemperature || '气候信息获取中...',
+        forecast: aiResponse.typicalWeather || '典型天气状况获取中...',
+        safetyAlerts: aiResponse.safetyAdvice || '暂无特殊安全建议',
+        packingSuggestions: aiResponse.packingSuggestions || '建议根据历史气候准备行李',
+        travelTips: aiResponse.travelTips || '建议关注当地气候特点，合理安排行程',
+        averageTemperature: aiResponse.averageTemperature,
+        rainfall: aiResponse.rainfall,
+        clothingSuggestions: aiResponse.clothingSuggestions,
+        safetyAdvice: aiResponse.safetyAdvice,
+        type: 'historical',
+      };
+    }
+
+    return {
+      success: true,
+      journeyId,
+      destination: itinerary.destination,
+      startDate,
+      endDate,
+      weatherInfo,
+      fromCache: false,
+      generatedAt: new Date().toISOString(),
+    };
   }
 }
 

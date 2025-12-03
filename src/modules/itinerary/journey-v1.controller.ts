@@ -79,6 +79,8 @@ import {
   GetConversationHistoryResponseDto,
   CulturalGuideResponseDto,
   LocalEssentialsResponseDto,
+  GetWeatherInfoRequestDto,
+  GetWeatherInfoResponseDto,
 } from './dto/itinerary.dto';
 
 @ApiTags('Journey V1')
@@ -1142,6 +1144,49 @@ export class JourneyV1Controller {
       journeyId,
       user.userId,
       language,
+    );
+  }
+
+  // ========== 天气信息接口 ==========
+
+  @Get(':journeyId/weather')
+  @ApiOperation({
+    summary: '获取行程天气信息',
+    description:
+      '根据行程时间自动判断：未来10天内返回实时天气预报和安全警示，远期返回历史平均气候和常年安全建议。',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiParam({
+    name: 'journeyId',
+    description: '行程ID',
+    example: 'uuid',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '获取成功',
+    type: GetWeatherInfoResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: '行程不存在',
+  })
+  @ApiQuery({
+    name: 'language',
+    required: false,
+    description: '语言代码，用于生成对应语言的天气信息',
+    enum: ['zh-CN', 'en-US', 'en'],
+    example: 'zh-CN',
+  })
+  async getWeatherInfo(
+    @Param('journeyId') journeyId: string,
+    @CurrentUser() user: { userId: string },
+    @Query('language') language?: string,
+  ): Promise<GetWeatherInfoResponseDto> {
+    return this.itineraryService.getWeatherInfo(
+      journeyId,
+      user.userId,
+      language || 'zh-CN',
     );
   }
 }

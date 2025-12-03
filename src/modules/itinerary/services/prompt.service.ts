@@ -1290,5 +1290,139 @@ Please ensure the return is valid JSON format, all fields are string type.`;
 
 请确保返回的是有效的JSON格式，所有字段都是字符串类型。`;
   }
+
+  /**
+   * 构建天气信息生成系统提示词
+   */
+  buildWeatherInfoSystemMessage(language: string = 'zh-CN'): string {
+    const isEnglish = language === 'en-US' || language === 'en';
+    
+    if (isEnglish) {
+      return `You are a professional travel weather information assistant, skilled at providing accurate weather forecasts and climate information for destinations. Please always return data in JSON format.`;
+    }
+    
+    return `你是一个专业的旅行天气信息助手，擅长提供准确的目的地天气预报和气候信息。请始终以JSON格式返回数据。`;
+  }
+
+  /**
+   * 构建天气信息生成用户提示词（实时天气）
+   */
+  buildWeatherInfoUserPromptRealTime(params: {
+    destination: string;
+    startDate: string;
+    endDate: string;
+    weatherData?: {
+      temperature: number;
+      condition: string;
+      humidity?: number;
+      windSpeed?: number;
+      forecast?: Array<{
+        date: string;
+        temperature: number;
+        condition: string;
+      }>;
+    };
+    safetyAlerts?: string[];
+    language?: string;
+  }): string {
+    const language = params.language || 'zh-CN';
+    const isEnglish = language === 'en-US' || language === 'en';
+    
+    if (isEnglish) {
+      return `Please provide real-time weather forecast and safety alerts for destination **${params.destination}** during the travel period (${params.startDate} to ${params.endDate}).
+
+${params.weatherData ? `Current Weather Data:
+- Current Temperature: ${params.weatherData.temperature}°C
+- Current Condition: ${params.weatherData.condition}
+${params.weatherData.humidity ? `- Humidity: ${params.weatherData.humidity}%` : ''}
+${params.weatherData.windSpeed ? `- Wind Speed: ${params.weatherData.windSpeed} km/h` : ''}
+${params.weatherData.forecast ? `\nForecast:\n${params.weatherData.forecast.map(f => `- ${f.date}: ${f.temperature}°C, ${f.condition}`).join('\n')}` : ''}` : ''}
+
+${params.safetyAlerts && params.safetyAlerts.length > 0 ? `Safety Alerts:\n${params.safetyAlerts.map(alert => `- ${alert}`).join('\n')}` : ''}
+
+Please return the following information in JSON format:
+
+{
+  "currentWeather": "Current weather summary (temperature, condition, brief description)",
+  "forecast": "Weather forecast for the travel period (day by day if possible)",
+  "safetyAlerts": "Safety alerts and warnings (if any)",
+  "packingSuggestions": "Packing suggestions based on weather forecast",
+  "travelTips": "Travel tips related to weather conditions"
+}
+
+Please ensure the return is valid JSON format, all fields are string type.`;
+    }
+    
+    return `请为目的地 **${params.destination}** 在旅行期间（${params.startDate} 至 ${params.endDate}）提供实时天气预报和安全警示。
+
+${params.weatherData ? `当前天气数据：
+- 当前温度：${params.weatherData.temperature}°C
+- 当前天气：${params.weatherData.condition}
+${params.weatherData.humidity ? `- 湿度：${params.weatherData.humidity}%` : ''}
+${params.weatherData.windSpeed ? `- 风速：${params.weatherData.windSpeed} 公里/小时` : ''}
+${params.weatherData.forecast ? `\n天气预报：\n${params.weatherData.forecast.map(f => `- ${f.date}：${f.temperature}°C，${f.condition}`).join('\n')}` : ''}` : ''}
+
+${params.safetyAlerts && params.safetyAlerts.length > 0 ? `安全警示：\n${params.safetyAlerts.map(alert => `- ${alert}`).join('\n')}` : ''}
+
+请以JSON格式返回以下信息：
+
+{
+  "currentWeather": "当前天气概况（温度、天气状况、简要描述）",
+  "forecast": "旅行期间的天气预报（尽可能按天提供）",
+  "safetyAlerts": "安全警示和警告（如有）",
+  "packingSuggestions": "根据天气预报的打包建议",
+  "travelTips": "与天气条件相关的旅行建议"
+}
+
+请确保返回的是有效的JSON格式，所有字段都是字符串类型。`;
+  }
+
+  /**
+   * 构建天气信息生成用户提示词（历史气候）
+   */
+  buildWeatherInfoUserPromptHistorical(params: {
+    destination: string;
+    travelMonth: string;
+    startDate: string;
+    endDate: string;
+    language?: string;
+  }): string {
+    const language = params.language || 'zh-CN';
+    const isEnglish = language === 'en-US' || language === 'en';
+    
+    if (isEnglish) {
+      return `Please provide historical average climate information and perennial safety advice for destination **${params.destination}** during the travel month (${params.travelMonth}, travel period: ${params.startDate} to ${params.endDate}).
+
+Please return the following information in JSON format:
+
+{
+  "averageTemperature": "Average temperature range for this month (e.g., 15-25°C)",
+  "typicalWeather": "Typical weather conditions for this month",
+  "rainfall": "Average rainfall/precipitation information",
+  "clothingSuggestions": "Clothing suggestions based on historical climate",
+  "safetyAdvice": "Perennial safety advice for this destination and season",
+  "packingSuggestions": "Packing suggestions based on historical climate data",
+  "travelTips": "Travel tips for this destination and season"
+}
+
+Please ensure the return is valid JSON format, all fields are string type.`;
+    }
+    
+    return `请为目的地 **${params.destination}** 在旅行月份（${params.travelMonth}，旅行期间：${params.startDate} 至 ${params.endDate}）提供历史平均气候信息及常年安全建议。
+
+请以JSON格式返回以下信息：
+
+{
+  "averageTemperature": "该月份的平均温度范围（例如：15-25°C）",
+  "typicalWeather": "该月份的典型天气状况",
+  "rainfall": "平均降雨/降水信息",
+  "clothingSuggestions": "基于历史气候的穿衣建议",
+  "safetyAdvice": "该目的地和季节的常年安全建议",
+  "packingSuggestions": "基于历史气候数据的打包建议",
+  "travelTips": "该目的地和季节的旅行建议"
+}
+
+请确保返回的是有效的JSON格式，所有字段都是字符串类型。`;
+  }
 }
 

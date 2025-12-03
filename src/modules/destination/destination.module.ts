@@ -43,6 +43,7 @@ import { ItineraryModule } from '../itinerary/itinerary.module';
     AccurateGeocodingService,
     TransportService,
     AltitudeService,
+    WeatherService,
   ],
 })
 export class DestinationModule {}
