@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { LlmService } from '../llm/llm.service';
+import { PromptService } from '../itinerary/services/prompt.service';
 import {
   GenerateTravelSummaryRequestDto,
   TravelSummaryDataDto,
