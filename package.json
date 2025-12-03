@@ -117,5 +117,8 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
+  },
+  "overrides": {
+    "ansis": "3.3.2"
   }
 }
