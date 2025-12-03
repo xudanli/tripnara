@@ -14,6 +14,7 @@ import { TransportV1Controller } from './transport-v1.controller';
 import { PoiV1Controller } from './poi-v1.controller';
 import { ExternalModule } from '../external/external.module';
 import { LlmModule } from '../llm/llm.module';
+import { ItineraryModule } from '../itinerary/itinerary.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { LlmModule } from '../llm/llm.module';
     TypeOrmModule.forFeature([DestinationEntity]),
     ExternalModule,
     LlmModule,
+    ItineraryModule,
   ],
   controllers: [
     DestinationController,

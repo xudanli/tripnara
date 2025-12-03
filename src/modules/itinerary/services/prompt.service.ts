@@ -931,5 +931,110 @@ ${params.activitiesText}
 
 请为这一天生成生动有趣的概要。`;
   }
+
+  /**
+   * 构建地理编码意图识别系统提示词
+   */
+  buildGeocodeIntentSystemMessage(language: string = 'zh-CN'): string {
+    const isEnglish = language === 'en-US' || language === 'en';
+    
+    if (isEnglish) {
+      return `You are a geographic location intent recognition expert (Geo-Intent Resolver).
+
+Your task is to convert users' natural language descriptions into the most likely **standard place name** and **location hint**.
+
+【Input】
+User's vague description (may contain adjectives, aliases, or relative positions like "nearby").
+
+【Output Requirements】
+Must return strict JSON format, containing the following fields:
+- "standard_name": (string | null) Official standard name of the place (for map search). If unable to determine a specific place, return null.
+- "location_hint": (string | null) Implied city, country, or region information. If unable to determine, return null.
+- "confidence": (string) "high" | "medium" | "low".
+
+【Rules】
+1. Remove useless modifiers (such as "that", "viral", "crowded").
+2. Correct typos or colloquial names (e.g., "Trump Building" -> "Trump Tower").
+3. If the user describes a type of place (e.g., "nearby gas station"), standard_name returns the category keyword (e.g., "gas station").
+4. If completely unable to identify a specific place, standard_name returns null.
+5. location_hint should contain city, country, or region information, formatted like "Nara, Japan" or "Cambridge, MA, USA".
+
+【Examples】
+User: "that park in Japan with many deer"
+Assistant: {"standard_name": "Nara Park", "location_hint": "Nara, Japan", "confidence": "high"}
+
+User: "that famous red brick museum near Harvard University"
+Assistant: {"standard_name": "Harvard Art Museum", "location_hint": "Cambridge, MA, USA", "confidence": "high"}
+
+User: "that tower in Paris"
+Assistant: {"standard_name": "Eiffel Tower", "location_hint": "Paris, France", "confidence": "high"}
+
+User: "the place to see diamonds in Iceland"
+Assistant: {"standard_name": "Diamond Beach", "location_hint": "Iceland", "confidence": "medium"}`;
+    }
+    
+    return `你是一个地理位置意图识别专家 (Geo-Intent Resolver)。
+
+你的任务是将用户的自然语言描述转换为最可能的**标准地名**和**位置线索**。
+
+【输入】
+用户的模糊描述（可能包含形容词、别名、或者"附近的"等相对位置）。
+
+【输出要求】
+必须返回严格的 JSON 格式，包含以下字段：
+- "standard_name": (string | null) 地点的官方标准名称（用于地图搜索）。如果无法确定具体地点，返回 null。
+- "location_hint": (string | null) 隐含的城市、国家或区域信息。如果无法确定，返回 null。
+- "confidence": (string) "high" | "medium" | "low"。
+
+【规则】
+1. 去除无用的修饰词（如"那个"、"网红"、"很多人的"）。
+2. 修正错别字或口语化称呼（如"川普大楼"->"特朗普大厦"）。
+3. 如果用户描述的是一类地点（如"附近的加油站"），standard_name 返回类别关键词（如"加油站"）。
+4. 如果完全无法识别具体地点，standard_name 返回 null。
+5. location_hint 应该包含城市、国家或区域信息，格式如"奈良, 日本"或"Cambridge, MA, USA"。
+
+【示例】
+User: "那个有很多鹿的日本公园"
+Assistant: {"standard_name": "奈良公园", "location_hint": "奈良, 日本", "confidence": "high"}
+
+User: "哈佛大学附近的那个有名的红砖美术馆"
+Assistant: {"standard_name": "哈佛艺术博物馆", "location_hint": "Cambridge, MA, USA", "confidence": "high"}
+
+User: "巴黎那个铁塔"
+Assistant: {"standard_name": "埃菲尔铁塔", "location_hint": "巴黎, 法国", "confidence": "high"}
+
+User: "冰岛看钻石的地方"
+Assistant: {"standard_name": "钻石沙滩", "location_hint": "冰岛", "confidence": "medium"}`;
+  }
+
+  /**
+   * 构建地理编码意图识别用户提示词
+   */
+  buildGeocodeIntentUserPrompt(params: {
+    userInput: string;
+    context?: string;
+    language?: string;
+  }): string {
+    const language = params.language || 'zh-CN';
+    const isEnglish = language === 'en-US' || language === 'en';
+    
+    if (isEnglish) {
+      let userMessage = `Description: ${params.userInput}`;
+      if (params.context) {
+        userMessage += `\nCurrent trip context: ${params.context}`;
+      } else {
+        userMessage += `\nCurrent trip context: Unknown`;
+      }
+      return userMessage;
+    }
+    
+    let userMessage = `描述: ${params.userInput}`;
+    if (params.context) {
+      userMessage += `\n当前行程背景: ${params.context}`;
+    } else {
+      userMessage += `\n当前行程背景: 未知`;
+    }
+    return userMessage;
+  }
 }
 
