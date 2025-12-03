@@ -258,7 +258,9 @@ Assistant: {"standard_name": "钻石沙滩", "location_hint": "冰岛", "confide
           temperature: 0.1, // 降低温度以提高准确性（事实提取任务）
           maxOutputTokens: 100, // JSON 稍微占点字符
           json: true,
-          // 注意：此服务没有用户上下文，会回退到环境变量配置
+          provider: 'deepseek', // 明确使用 DeepSeek（适合结构化 JSON 输出）
+          model: 'deepseek-chat', // DeepSeek-V3 模型
+          // 注意：此服务没有用户上下文，明确指定 provider 避免使用错误的默认配置
         }),
       );
 

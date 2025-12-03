@@ -413,30 +413,40 @@ export class LlmService {
         const statusText = error.response?.statusText;
         const errorData = error.response?.data;
         
+        // 根据实际 provider 获取正确的 API key 环境变量名称
+        const apiKeyEnvVar = 
+          options.provider === 'gemini' ? 'GEMINI_API_KEY' :
+          options.provider === 'deepseek' ? 'DEEPSEEK_API_KEY' :
+          'OPENAI_API_KEY';
+        
         if (status === 404) {
           const modelName = options.model ?? providerConfig.defaultModel;
+          const providerName = options.provider === 'gemini' ? 'Gemini' : 
+                              options.provider === 'deepseek' ? 'DeepSeek' : 'OpenAI';
           this.logger.error(
-            `Gemini API 404 Not Found: model=${modelName}, baseUrl=${providerConfig.baseUrl}`,
+            `${providerName} API 404 Not Found: model=${modelName}, baseUrl=${providerConfig.baseUrl}`,
           );
           throw new Error(
-            `Gemini API 模型未找到 (404): ${modelName}。请检查模型名称是否正确，或 API key 是否有权限访问该模型。`,
+            `${providerName} API 模型未找到 (404): ${modelName}。请检查模型名称是否正确，或 API key 是否有权限访问该模型。`,
           );
         }
         
         if (status === 401 || status === 403) {
+          const providerName = options.provider === 'gemini' ? 'Gemini' : 
+                              options.provider === 'deepseek' ? 'DeepSeek' : 'OpenAI';
           // 打印完整的错误响应以便调试
           try {
             const errorString = JSON.stringify(errorData, null, 2);
             this.logger.error(
-              `Gemini API 认证失败 (${status}): 请检查 GEMINI_API_KEY 是否正确配置\n完整错误响应: ${errorString}`,
+              `${providerName} API 认证失败 (${status}): 请检查 ${apiKeyEnvVar} 是否正确配置\n完整错误响应: ${errorString}`,
             );
           } catch (logError) {
             this.logger.error(
-              `Gemini API 认证失败 (${status}): 请检查 GEMINI_API_KEY 是否正确配置\n错误数据: ${String(errorData)}`,
+              `${providerName} API 认证失败 (${status}): 请检查 ${apiKeyEnvVar} 是否正确配置\n错误数据: ${String(errorData)}`,
             );
           }
           throw new Error(
-            `Gemini API 认证失败 (${status}): 请检查 API key 是否正确配置。错误详情: ${JSON.stringify(errorData)}`,
+            `${providerName} API 认证失败 (${status}): 请检查 ${apiKeyEnvVar} 是否正确配置。错误详情: ${JSON.stringify(errorData)}`,
           );
         }
         
