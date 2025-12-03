@@ -4191,6 +4191,17 @@ export class ItineraryService {
       throw ErrorHandler.forbidden('访问', '此行程', { journeyId, userId });
     }
 
+    // 检查缓存
+    const cacheKey = this.getPackingListCacheKey(journeyId, language);
+    const cached = await this.getPackingListFromCache(cacheKey);
+    if (cached) {
+      this.logger.debug(`Packing list cache hit for journey ${journeyId}`);
+      return {
+        ...cached,
+        fromCache: true,
+      };
+    }
+
     // 获取行程的所有天数和活动
     const days = await this.itineraryRepository.findDaysByItineraryId(journeyId);
     
