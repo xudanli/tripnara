@@ -154,6 +154,7 @@ export class ItineraryService {
   private readonly redisClient?: Redis;
   private readonly useRedisCache: boolean;
   private readonly safetyNoticeCacheTtlSeconds = 7 * 24 * 60 * 60; // 7天（安全状况可能变化，不宜永久）
+  private readonly packingListCacheTtlSeconds = 30 * 24 * 60 * 60; // 30天（打包清单相对稳定）
 
   constructor(
     private readonly llmService: LlmService,
@@ -4324,7 +4325,7 @@ export class ItineraryService {
       packingList = packingList.slice(0, 10);
     }
 
-    return {
+    const result: GetPackingListResponseDto = {
       success: true,
       journeyId,
       destination: itinerary.destination,
@@ -4337,6 +4338,63 @@ export class ItineraryService {
       fromCache: false,
       generatedAt: new Date().toISOString(),
     };
+
+    // 写入缓存
+    await this.setPackingListCache(cacheKey, result);
+
+    return result;
+  }
+
+  /**
+   * 获取打包清单缓存键
+   */
+  private getPackingListCacheKey(journeyId: string, language: string): string {
+    return `packing-list:${journeyId}:${language}`;
+  }
+
+  /**
+   * 从缓存获取打包清单
+   */
+  private async getPackingListFromCache(
+    key: string,
+  ): Promise<GetPackingListResponseDto | null> {
+    if (!this.useRedisCache || !this.redisClient) {
+      return null;
+    }
+
+    try {
+      const cached = await this.redisClient.get(key);
+      if (cached) {
+        return JSON.parse(cached) as GetPackingListResponseDto;
+      }
+    } catch (error) {
+      this.logger.warn(`Redis cache read error for packing list ${key}:`, error);
+    }
+
+    return null;
+  }
+
+  /**
+   * 设置打包清单缓存
+   */
+  private async setPackingListCache(
+    key: string,
+    value: GetPackingListResponseDto,
+  ): Promise<void> {
+    if (!this.useRedisCache || !this.redisClient) {
+      return;
+    }
+
+    try {
+      await this.redisClient.setex(
+        key,
+        this.packingListCacheTtlSeconds,
+        JSON.stringify(value),
+      );
+      this.logger.debug(`Packing list cached for key: ${key}`);
+    } catch (error) {
+      this.logger.warn(`Redis cache write error for packing list ${key}:`, error);
+    }
   }
 }
 
