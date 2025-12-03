@@ -88,6 +88,7 @@ export class AccurateGeocodingService {
             limit: 1,
             language: 'zh', // 返回中文结果
           },
+          proxy: false, // 显式禁用代理，Mapbox 在国内通常可以直接访问，直连速度更快
         }),
       );
 
