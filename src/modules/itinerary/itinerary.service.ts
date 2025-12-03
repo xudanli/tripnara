@@ -3577,20 +3577,15 @@ export class ItineraryService {
         })
         .join('\n');
 
-      const systemMessage = `你是一个专业的旅行文案师，擅长为旅行行程的每一天生成生动有趣的概要。
-
-请根据提供的每日活动安排，生成一段简洁而富有吸引力的概要（80-120字），要求：
-1. 突出当天的亮点和特色活动
-2. 语言生动有趣，富有感染力
-3. 控制长度在80-120字之间
-4. 使用中文，风格轻松自然`;
-
-      const userMessage = `目的地：${destination}
-第${dayData.day}天（${dayData.date}）的活动安排：
-
-${activitiesText}
-
-请为这一天生成一段概要，突出亮点和特色。`;
+      // 使用 PromptService 构建提示词
+      const systemMessage = this.promptService.buildDailySummarySystemMessage(language);
+      const userMessage = this.promptService.buildDailySummaryUserPrompt({
+        destination,
+        day: dayData.day,
+        date: dayData.date,
+        activitiesText,
+        language,
+      });
 
       const response = await this.llmService.chatCompletion(
         await this.llmService.buildChatCompletionOptions({
