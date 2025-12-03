@@ -1323,6 +1323,7 @@ Please ensure the return is valid JSON format, all fields are string type.`;
       }>;
     };
     safetyAlerts?: string[];
+    googleSearchResults?: string[];
     language?: string;
   }): string {
     const language = params.language || 'zh-CN';
@@ -1339,6 +1340,8 @@ ${params.weatherData.windSpeed ? `- Wind Speed: ${params.weatherData.windSpeed} 
 ${params.weatherData.forecast ? `\nForecast:\n${params.weatherData.forecast.map(f => `- ${f.date}: ${f.temperature}°C, ${f.condition}`).join('\n')}` : ''}` : ''}
 
 ${params.safetyAlerts && params.safetyAlerts.length > 0 ? `Safety Alerts:\n${params.safetyAlerts.map(alert => `- ${alert}`).join('\n')}` : ''}
+
+${params.googleSearchResults && params.googleSearchResults.length > 0 ? `Google Search Results (for reference):\n${params.googleSearchResults.map((result, index) => `${index + 1}. ${result}`).join('\n')}` : ''}
 
 Please return the following information in JSON format:
 
@@ -1363,6 +1366,8 @@ ${params.weatherData.windSpeed ? `- 风速：${params.weatherData.windSpeed} 公
 ${params.weatherData.forecast ? `\n天气预报：\n${params.weatherData.forecast.map(f => `- ${f.date}：${f.temperature}°C，${f.condition}`).join('\n')}` : ''}` : ''}
 
 ${params.safetyAlerts && params.safetyAlerts.length > 0 ? `安全警示：\n${params.safetyAlerts.map(alert => `- ${alert}`).join('\n')}` : ''}
+
+${params.googleSearchResults && params.googleSearchResults.length > 0 ? `Google 搜索结果（供参考）：\n${params.googleSearchResults.map((result, index) => `${index + 1}. ${result}`).join('\n')}` : ''}
 
 请以JSON格式返回以下信息：
 

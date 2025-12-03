@@ -4011,8 +4011,53 @@ export class ItineraryService {
         undefined, // countryCode 可以从目的地推断，这里先传 undefined
       );
 
-      // 获取安全警示（可以从外部服务获取，这里先留空）
+      // 使用 Google 搜索获取实时天气预报和安全警示
       const safetyAlerts: string[] = [];
+      let googleSearchResults: string[] = [];
+
+      try {
+        // 搜索实时天气预报
+        const weatherQuery = `${itinerary.destination} ${startDate} 天气预报 实时天气`;
+        const weatherSearchResults = await this.externalService.searchPlatformGuides({
+          destination: weatherQuery,
+          platforms: [
+            { name: 'Weather', domain: 'weather.com' },
+            { name: 'AccuWeather', domain: 'accuweather.com' },
+          ],
+          limit: 5,
+        });
+
+        // 搜索安全警示
+        const safetyQuery = `${itinerary.destination} ${startDate} 安全警示 旅行警告`;
+        const safetySearchResults = await this.externalService.searchPlatformGuides({
+          destination: safetyQuery,
+          platforms: [
+            { name: 'Travel Advisory', domain: 'travel.state.gov' },
+            { name: 'Travel Warning', domain: 'gov.uk' },
+          ],
+          limit: 5,
+        });
+
+        // 提取搜索结果摘要
+        googleSearchResults = [
+          ...(weatherSearchResults.data || []).map((item) => `${item.title}: ${item.excerpt}`),
+          ...(safetySearchResults.data || []).map((item) => `${item.title}: ${item.excerpt}`),
+        ];
+
+        // 从搜索结果中提取安全警示
+        if (safetySearchResults.data && safetySearchResults.data.length > 0) {
+          safetySearchResults.data.forEach((item) => {
+            if (item.excerpt && (item.excerpt.includes('警告') || item.excerpt.includes('安全') || item.excerpt.includes('危险'))) {
+              safetyAlerts.push(item.excerpt);
+            }
+          });
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Google 搜索失败，继续使用天气API数据: ${error instanceof Error ? error.message : error}`,
+        );
+        // 如果 Google 搜索失败，继续使用天气API数据
+      }
 
       // 使用AI生成天气信息
       const systemMessage = this.promptService.buildWeatherInfoSystemMessage(language);
@@ -4022,6 +4067,7 @@ export class ItineraryService {
         endDate,
         weatherData,
         safetyAlerts,
+        googleSearchResults: googleSearchResults.length > 0 ? googleSearchResults : undefined,
         language,
       });
 
