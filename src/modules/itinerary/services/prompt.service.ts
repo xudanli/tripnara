@@ -1233,5 +1233,55 @@ Please strictly follow the Markdown format below, without any opening or closing
 
 > 🚨 **紧急求助**：(当地报警/急救电话)`;
   }
+
+  /**
+   * 构建本地生活指南生成系统提示词
+   */
+  buildLocalEssentialsSystemMessage(language: string = 'zh-CN'): string {
+    const isEnglish = language === 'en-US' || language === 'en';
+    
+    if (isEnglish) {
+      return `You are a professional travel information assistant, skilled at providing accurate destination practical information. Please always return data in JSON format.`;
+    }
+    
+    return `你是一个专业的旅行信息助手，擅长提供准确的目的地实用信息。请始终以JSON格式返回数据。`;
+  }
+
+  /**
+   * 构建本地生活指南生成用户提示词
+   */
+  buildLocalEssentialsUserPrompt(params: {
+    destination: string;
+    language?: string;
+  }): string {
+    const language = params.language || 'zh-CN';
+    const isEnglish = language === 'en-US' || language === 'en';
+    
+    if (isEnglish) {
+      return `Please provide the following practical information for destination **${params.destination}** and return it in JSON format:
+
+{
+  "language": "Official language and common greetings (not only the language, but also a greeting like hello/thank you)",
+  "currencyRate": "Currency exchange rate estimate (provide approximate exchange ratio, e.g., 1 USD ≈ 7.2 CNY)",
+  "timeZone": "Time zone (provide in GMT/UTC format, e.g., GMT+8 or UTC+0)",
+  "powerOutlet": "Power outlet type (specify Type A/B/C, etc., e.g., Type C, 220V)",
+  "emergencyNumber": "Police/ambulance phone number (provide the local specific number, e.g., 110, 119)"
+}
+
+Please ensure the return is valid JSON format, all fields are string type.`;
+    }
+    
+    return `请为目的地 **${params.destination}** 提供以下实用信息，并以JSON格式返回：
+
+{
+  "language": "官方语言及常用问候语（不仅要写语言，还要写一句你好/谢谢）",
+  "currencyRate": "汇率估算（提供大概的兑换比例，例如：1 USD ≈ 7.2 CNY）",
+  "timeZone": "时区（提供 GMT/UTC 格式，例如：GMT+8 或 UTC+0）",
+  "powerOutlet": "插座类型（说明是 Type A/B/C 等，例如：Type C, 220V）",
+  "emergencyNumber": "报警/急救电话（提供当地的具体号码，例如：110, 119）"
+}
+
+请确保返回的是有效的JSON格式，所有字段都是字符串类型。`;
+  }
 }
 
