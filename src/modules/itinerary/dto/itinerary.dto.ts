@@ -1575,6 +1575,14 @@ export class CreateActivityDto {
   @ValidateNested()
   @Type(() => LocationDetailsDto)
   locationDetails?: LocationDetailsDto;
+
+  @ApiPropertyOptional({
+    description: 'TripAdvisor 景点 ID（用于获取景点详情，将存储在 details.tripAdvisorId）',
+    example: '123456',
+  })
+  @IsOptional()
+  @IsString()
+  tripAdvisorId?: string;
 }
 
 /**
@@ -1645,6 +1653,14 @@ export class UpdateActivityDto {
   @ValidateNested()
   @Type(() => LocationDetailsDto)
   locationDetails?: LocationDetailsDto;
+
+  @ApiPropertyOptional({
+    description: 'TripAdvisor 景点 ID（用于获取景点详情，将存储在 details.tripAdvisorId）',
+    example: '123456',
+  })
+  @IsOptional()
+  @IsString()
+  tripAdvisorId?: string;
 }
 
 /**

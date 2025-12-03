@@ -2453,6 +2453,7 @@ export class ItineraryService {
         culturalTips?: string;
         bookingInfo?: string;
       };
+      tripAdvisorId?: string;
     },
     userId?: string,
   ): Promise<ItineraryActivityDto & { id: string }> {
@@ -2466,8 +2467,15 @@ export class ItineraryService {
       }
     }
 
-    // 将 locationDetails 存储到 details 字段中
-    const details = dto.locationDetails ? { locationDetails: dto.locationDetails } : undefined;
+    // 将 locationDetails 和 tripAdvisorId 存储到 details 字段中
+    const details: Record<string, unknown> = {};
+    if (dto.locationDetails) {
+      details.locationDetails = dto.locationDetails;
+    }
+    if (dto.tripAdvisorId) {
+      details.tripAdvisorId = dto.tripAdvisorId;
+    }
+    const detailsToSave = Object.keys(details).length > 0 ? details : undefined;
 
     // 使用 DataValidator 修复创建数据格式
     const activity = await this.itineraryRepository.createActivity(dayId, {
@@ -2484,7 +2492,7 @@ export class ItineraryService {
       location: dto.location,
       notes: DataValidator.fixString(dto.notes, ''),
       cost: DataValidator.fixNumber(dto.cost, 0, 0),
-      details,
+      details: detailsToSave,
     });
 
     // 重新计算并更新总费用
@@ -2544,6 +2552,7 @@ export class ItineraryService {
         culturalTips?: string;
         bookingInfo?: string;
       };
+      tripAdvisorId?: string;
     },
     userId?: string,
   ): Promise<ItineraryActivityDto & { id: string }> {
@@ -2565,7 +2574,7 @@ export class ItineraryService {
       }
     }
 
-    // 处理 locationDetails：如果提供了，需要合并到 details 中
+    // 处理 locationDetails 和 tripAdvisorId：如果提供了，需要合并到 details 中
     // 先获取现有活动以获取当前的 details
     const existingActivity = await this.itineraryRepository['activityRepository'].findOne({
       where: { id: activityId },
@@ -2573,21 +2582,29 @@ export class ItineraryService {
     });
 
     let detailsUpdate: Record<string, unknown> | undefined;
-    if (dto.locationDetails !== undefined) {
-      const existingDetails = (existingActivity?.details as Record<string, unknown>) || {};
-      
-      // 合并 locationDetails
+    const existingDetails = (existingActivity?.details as Record<string, unknown>) || {};
+    const hasDetailsUpdate = dto.locationDetails !== undefined || dto.tripAdvisorId !== undefined;
+    
+    if (hasDetailsUpdate) {
+      // 合并 locationDetails 和 tripAdvisorId
       detailsUpdate = {
         ...existingDetails,
-        locationDetails: dto.locationDetails,
       };
+      
+      if (dto.locationDetails !== undefined) {
+        detailsUpdate.locationDetails = dto.locationDetails;
+      }
+      
+      if (dto.tripAdvisorId !== undefined) {
+        detailsUpdate.tripAdvisorId = dto.tripAdvisorId;
+      }
     } else if (existingActivity?.details) {
-      // 如果没有提供 locationDetails，但存在现有的 details，保持原样
+      // 如果没有提供 locationDetails 或 tripAdvisorId，但存在现有的 details，保持原样
       detailsUpdate = existingActivity.details as Record<string, unknown>;
     }
 
-    // 从 dto 中提取 locationDetails，避免传递给 updateActivity
-    const { locationDetails, ...updateDto } = dto;
+    // 从 dto 中提取 locationDetails 和 tripAdvisorId，避免传递给 updateActivity
+    const { locationDetails, tripAdvisorId, ...updateDto } = dto;
     
     // 使用 DataValidator 修复更新数据格式
     const validatedUpdateDto: any = {};
