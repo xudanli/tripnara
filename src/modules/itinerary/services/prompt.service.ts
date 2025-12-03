@@ -819,5 +819,62 @@ Please return in JSON format (content must be concise):
   "bookingInfo": "Booking essentials (<20 chars, e.g., Book 2-4 weeks in advance on official website)"
 }`;
   }
+
+  /**
+   * 构建安全提示生成系统提示词
+   */
+  buildSafetyNoticeSystemMessage(language: string = 'zh-CN'): string {
+    const isEnglish = language === 'en-US' || language === 'en';
+    
+    if (isEnglish) {
+      return `You are a professional travel safety advisor, skilled at providing detailed and practical safety tips and advice for different destinations.
+
+Please generate a comprehensive safety notice based on destination information and itinerary summary, including:
+1. Local safety conditions
+2. Common risks and precautions
+3. Emergency contact information
+4. Health and safety recommendations
+5. Cultural etiquette reminders
+
+Please respond in English, with detailed and practical content, word count should be between 500-800 words.`;
+    }
+    
+    return `你是一个专业的旅行安全顾问，擅长为不同目的地提供详细、实用的安全提示和建议。
+
+请根据目的地信息和行程摘要，生成一份全面的安全提示，包括：
+1. 当地安全状况
+2. 常见风险和注意事项
+3. 紧急联系方式
+4. 健康和安全建议
+5. 文化礼仪提醒
+
+请用中文回复，内容要详细、实用，字数控制在500-800字。`;
+  }
+
+  /**
+   * 构建安全提示生成用户提示词
+   */
+  buildSafetyNoticeUserPrompt(params: {
+    destination: string;
+    summary?: string;
+    language?: string;
+  }): string {
+    const language = params.language || 'zh-CN';
+    const isEnglish = language === 'en-US' || language === 'en';
+    
+    if (isEnglish) {
+      return `Destination: ${params.destination}
+
+Itinerary Summary: ${params.summary || 'None'}
+
+Please generate a detailed safety notice for this destination.`;
+    }
+    
+    return `目的地：${params.destination}
+
+行程摘要：${params.summary || '无'}
+
+请为这个目的地生成详细的安全提示。`;
+  }
 }
 

@@ -163,9 +163,9 @@ export class ItineraryRepository {
           0,
         ) || 0;
 
-        this.logger.log(
+          this.logger.log(
           `[createItinerary] Created itinerary ${savedItinerary.id} with ${totalDays} days and ${totalActivities} activities (using cascade)`,
-        );
+          );
 
         return savedItinerary;
       },

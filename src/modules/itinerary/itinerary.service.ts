@@ -14,6 +14,7 @@ import { JourneyAssistantService } from './services/journey-assistant.service';
 import { ItineraryGenerationService } from './services/itinerary-generation.service';
 import { JourneyTaskService } from './services/journey-task.service';
 import { JourneyExpenseService } from './services/journey-expense.service';
+import { PromptService } from './services/prompt.service';
 import { JourneyTemplateRepository } from '../persistence/repositories/journey-template/journey-template.repository';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -157,6 +158,7 @@ export class ItineraryService {
     private readonly itineraryGenerationService: ItineraryGenerationService,
     private readonly journeyTaskService: JourneyTaskService,
     private readonly journeyExpenseService: JourneyExpenseService,
+    private readonly promptService: PromptService,
     private readonly configService: ConfigService,
     @InjectRepository(PreparationProfileEntity)
     private readonly preparationProfileRepository: Repository<PreparationProfileEntity>,
@@ -3296,22 +3298,13 @@ export class ItineraryService {
     lang: string,
     userId?: string, // 可选：用户ID，用于从用户偏好读取模型选择
   ): Promise<string> {
-    const systemMessage = `你是一个专业的旅行安全顾问，擅长为不同目的地提供详细、实用的安全提示和建议。
-
-请根据目的地信息和行程摘要，生成一份全面的安全提示，包括：
-1. 当地安全状况
-2. 常见风险和注意事项
-3. 紧急联系方式
-4. 健康和安全建议
-5. 文化礼仪提醒
-
-请用${lang === 'zh-CN' ? '中文' : '英文'}回复，内容要详细、实用，字数控制在500-800字。`;
-
-    const prompt = `目的地：${destination}
-
-行程摘要：${summary || '无'}
-
-请为这个目的地生成详细的安全提示。`;
+    // 使用 PromptService 构建提示词
+    const systemMessage = this.promptService.buildSafetyNoticeSystemMessage(lang);
+    const prompt = this.promptService.buildSafetyNoticeUserPrompt({
+      destination,
+      summary,
+      language: lang,
+    });
 
     try {
       const noticeText = await this.llmService.chatCompletion(
