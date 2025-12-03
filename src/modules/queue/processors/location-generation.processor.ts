@@ -22,16 +22,32 @@ export class LocationGenerationProcessor {
     );
 
     try {
-      // 更新任务进度
-      await job.updateProgress(10);
+      // 更新任务进度（如果方法存在）
+      if (typeof job.updateProgress === 'function') {
+        try {
+          await job.updateProgress(10);
+        } catch (progressError) {
+          this.logger.warn(
+            `Failed to update job progress: ${progressError instanceof Error ? progressError.message : progressError}`,
+          );
+        }
+      }
 
       // 调用 LocationService 生成位置信息（已优化为并发处理）
       const results = await this.locationService.generateLocationBatch(
         activities,
       );
 
-      // 更新任务进度
-      await job.updateProgress(100);
+      // 更新任务进度（如果方法存在）
+      if (typeof job.updateProgress === 'function') {
+        try {
+          await job.updateProgress(100);
+        } catch (progressError) {
+          this.logger.warn(
+            `Failed to update job progress: ${progressError instanceof Error ? progressError.message : progressError}`,
+          );
+        }
+      }
 
       this.logger.log(
         `Location generation job ${job.id} completed: ${results.length} results`,
