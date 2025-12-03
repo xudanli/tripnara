@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DestinationEntity } from '../persistence/entities/reference.entity';
@@ -22,7 +22,7 @@ import { ItineraryModule } from '../itinerary/itinerary.module';
     TypeOrmModule.forFeature([DestinationEntity]),
     ExternalModule,
     LlmModule,
-    ItineraryModule,
+    forwardRef(() => ItineraryModule),
   ],
   controllers: [
     DestinationController,
