@@ -5,6 +5,7 @@ import {
   Logger,
   Param,
   Post,
+  Query,
   UseGuards,
   UsePipes,
   ValidationPipe,
@@ -22,6 +23,10 @@ import {
   GenerateLocationResponseDto,
   GenerateLocationBatchRequestDto,
   GenerateLocationBatchResponseDto,
+  QueryLocationRequestDto,
+  QueryLocationResponseDto,
+  SearchLocationRequestDto,
+  SearchLocationResponseDto,
 } from './dto/location.dto';
 
 @ApiTags('Location')
@@ -119,6 +124,68 @@ export class LocationController {
     return {
       success: true,
       data: result,
+    };
+  }
+
+  @Get('query')
+  @ApiOperation({
+    summary: '查询已存储的位置信息（不触发生成）',
+    description:
+      '根据活动名称、目的地和类型查询已存储的位置信息。如果不存在，返回null，不会触发生成。',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async queryLocation(
+    @Query() query: QueryLocationRequestDto,
+  ): Promise<QueryLocationResponseDto> {
+    const locationInfo = await this.locationService.getLocationInfo(
+      query.activityName,
+      query.destination,
+      query.activityType,
+    );
+    return {
+      success: true,
+      data: locationInfo,
+    };
+  }
+
+  @Get('search')
+  @ApiOperation({
+    summary: '搜索位置信息',
+    description: '根据条件搜索已存储的位置信息，支持分页。',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async searchLocations(
+    @Query() query: SearchLocationRequestDto,
+  ): Promise<SearchLocationResponseDto> {
+    const result = await this.locationService.searchLocations({
+      destination: query.destination,
+      activityType: query.activityType,
+      activityName: query.activityName,
+      limit: query.limit || 20,
+      offset: query.offset || 0,
+    });
+    return {
+      success: true,
+      data: result,
+    };
+  }
+
+  @Get(':id')
+  @ApiOperation({
+    summary: '根据ID查询位置信息',
+    description: '根据位置信息的唯一ID查询详细信息。',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async getLocationById(
+    @Param('id') id: string,
+  ): Promise<QueryLocationResponseDto> {
+    const locationInfo = await this.locationService.getLocationById(id);
+    return {
+      success: true,
+      data: locationInfo,
     };
   }
 }

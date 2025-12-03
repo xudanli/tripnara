@@ -8,6 +8,7 @@ import {
   IsOptional,
   Min,
   Max,
+  IsInt,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -220,5 +221,94 @@ export class GenerateLocationBatchResponseDto {
     type: [BatchLocationResultDto],
   })
   data!: BatchLocationResultDto[];
+}
+
+export class QueryLocationRequestDto {
+  @ApiProperty({ description: '活动名称', example: '铁力士峰云端漫步' })
+  @IsString()
+  activityName!: string;
+
+  @ApiProperty({ description: '目的地', example: '瑞士琉森' })
+  @IsString()
+  destination!: string;
+
+  @ApiProperty({
+    description: '活动类型',
+    enum: ['attraction', 'meal', 'hotel', 'shopping', 'transport', 'ocean'],
+    example: 'attraction',
+  })
+  @IsString()
+  activityType!:
+    | 'attraction'
+    | 'meal'
+    | 'hotel'
+    | 'shopping'
+    | 'transport'
+    | 'ocean';
+}
+
+export class QueryLocationResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({
+    description: '位置信息（如果不存在则为null）',
+    type: LocationInfoDto,
+    nullable: true,
+  })
+  data!: LocationInfoDto | null;
+}
+
+export class SearchLocationRequestDto {
+  @ApiPropertyOptional({ description: '目的地', example: '瑞士琉森' })
+  @IsOptional()
+  @IsString()
+  destination?: string;
+
+  @ApiPropertyOptional({
+    description: '活动类型',
+    enum: ['attraction', 'meal', 'hotel', 'shopping', 'transport', 'ocean'],
+  })
+  @IsOptional()
+  @IsString()
+  activityType?:
+    | 'attraction'
+    | 'meal'
+    | 'hotel'
+    | 'shopping'
+    | 'transport'
+    | 'ocean';
+
+  @ApiPropertyOptional({ description: '活动名称（模糊搜索）', example: '铁力士' })
+  @IsOptional()
+  @IsString()
+  activityName?: string;
+
+  @ApiPropertyOptional({ description: '每页数量', example: 20, default: 20 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+
+  @ApiPropertyOptional({ description: '偏移量', example: 0, default: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  offset?: number;
+}
+
+export class SearchLocationResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({
+    description: '位置信息列表',
+    type: [LocationInfoDto],
+  })
+  data!: {
+    locations: LocationInfoDto[];
+    total: number;
+  };
 }
 

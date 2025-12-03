@@ -649,6 +649,97 @@ export class LocationService {
   }
 
   /**
+   * 查询已存储的位置信息（不触发生成）
+   */
+  async getLocationInfo(
+    activityName: string,
+    destination: string,
+    activityType: string,
+  ): Promise<LocationInfoDto | null> {
+    const location = await this.locationRepository.findOne({
+      where: {
+        activityName,
+        destination,
+        activityType: activityType as
+          | 'attraction'
+          | 'meal'
+          | 'hotel'
+          | 'shopping'
+          | 'transport'
+          | 'ocean',
+      },
+    });
+
+    if (!location) {
+      return null;
+    }
+
+    return this.entityToDto(location);
+  }
+
+  /**
+   * 根据ID查询位置信息
+   */
+  async getLocationById(id: string): Promise<LocationInfoDto | null> {
+    const location = await this.locationRepository.findOne({
+      where: { id },
+    });
+
+    if (!location) {
+      return null;
+    }
+
+    return this.entityToDto(location);
+  }
+
+  /**
+   * 根据条件搜索位置信息
+   */
+  async searchLocations(params: {
+    destination?: string;
+    activityType?: string;
+    activityName?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ locations: LocationInfoDto[]; total: number }> {
+    const queryBuilder = this.locationRepository.createQueryBuilder('location');
+
+    if (params.destination) {
+      queryBuilder.andWhere('location.destination = :destination', {
+        destination: params.destination,
+      });
+    }
+
+    if (params.activityType) {
+      queryBuilder.andWhere('location.activityType = :activityType', {
+        activityType: params.activityType,
+      });
+    }
+
+    if (params.activityName) {
+      queryBuilder.andWhere('location.activityName ILIKE :activityName', {
+        activityName: `%${params.activityName}%`,
+      });
+    }
+
+    const total = await queryBuilder.getCount();
+
+    if (params.limit) {
+      queryBuilder.limit(params.limit);
+    }
+    if (params.offset) {
+      queryBuilder.offset(params.offset);
+    }
+
+    queryBuilder.orderBy('location.createdAt', 'DESC');
+
+    const entities = await queryBuilder.getMany();
+    const locations = entities.map((entity) => this.entityToDto(entity));
+
+    return { locations, total };
+  }
+
+  /**
    * 将 LocationEntity 转换为 LocationInfoDto
    */
   private entityToDto(entity: LocationEntity): LocationInfoDto {
