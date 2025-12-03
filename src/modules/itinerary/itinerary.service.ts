@@ -4307,12 +4307,18 @@ export class ItineraryService {
       language,
     });
 
-    const aiResponse = await this.llmService.chatCompletionJson<{
-      packingList: Array<{
-        item: string;
-        reason: string;
-      }>;
-    }>(
+    const aiResponse = await this.llmService.chatCompletionJson<
+      | Array<{
+          item: string;
+          reason: string;
+        }>
+      | {
+          packingList: Array<{
+            item: string;
+            reason: string;
+          }>;
+        }
+    >(
       await this.llmService.buildChatCompletionOptions({
         messages: [
           { role: 'system', content: systemMessage },
@@ -4326,8 +4332,33 @@ export class ItineraryService {
       }),
     );
 
+    // 解析打包清单：兼容数组和对象两种格式
+    let packingList: Array<{ item: string; reason: string }> = [];
+    
+    if (Array.isArray(aiResponse)) {
+      // 情况 A: LLM 直接返回了数组 [...] (Gemini 常见情况)
+      packingList = aiResponse;
+    } else if (aiResponse && typeof aiResponse === 'object') {
+      // 情况 B: LLM 返回了对象 { "packingList": [...] } 或 { "items": [...] } 等
+      packingList =
+        (aiResponse as any).packingList ||
+        (aiResponse as any).items ||
+        (aiResponse as any).list ||
+        [];
+      
+      if (!Array.isArray(packingList)) {
+        this.logger.warn(
+          '解析出的 JSON 是对象，但未找到数组字段',
+          aiResponse,
+        );
+        packingList = [];
+      }
+    } else {
+      this.logger.warn('AI 返回的打包清单格式不正确', aiResponse);
+      packingList = [];
+    }
+
     // 验证数量限制（5-10项）
-    let packingList = aiResponse.packingList || [];
     if (packingList.length < 5) {
       this.logger.warn(`打包清单数量不足5项（${packingList.length}项），使用默认补充`);
       // 如果数量不足，可以补充一些通用但必要的物品
