@@ -1,6 +1,7 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LlmService } from '../llm/llm.service';
+import { PromptService } from '../itinerary/services/prompt.service';
 import Redis from 'ioredis';
 import {
   GenerateLocationRequestDto,
@@ -59,6 +60,7 @@ export class LocationService {
   constructor(
     private readonly llmService: LlmService,
     private readonly configService: ConfigService,
+    private readonly promptService: PromptService,
   ) {
     // 初始化 Redis 客户端（如果配置了 REDIS_URL）
     const redisUrl = this.configService.get<string>('REDIS_URL');
@@ -507,16 +509,16 @@ export class LocationService {
     coordinates: { lat: number; lng: number; region?: string },
     languageConfig: { primary: string; secondary?: string },
   ): Promise<LocationInfoDto> {
-    const systemMessage =
-      '你是一个专业的旅行助手，擅长提供准确的多语言位置信息和实用的旅行建议。请始终以JSON格式返回数据。';
-
-    const prompt = this.buildLocationPrompt(
+    // 使用 PromptService 构建提示词
+    const systemMessage = this.promptService.buildLocationGenerationSystemMessage('zh-CN');
+    const prompt = this.promptService.buildLocationGenerationUserPrompt({
       activityName,
       destination,
       activityType,
       coordinates,
       languageConfig,
-    );
+      language: 'zh-CN',
+    });
 
     this.logger.log(
       `Generating location info with AI for: ${activityName} in ${destination}`,
@@ -537,88 +539,6 @@ export class LocationService {
     );
 
     return this.validateAndTransformAiResponse(aiResponse, activityName);
-  }
-
-  private buildLocationPrompt(
-    activityName: string,
-    destination: string,
-    activityType: string,
-    coordinates: { lat: number; lng: number; region?: string },
-    languageConfig: { primary: string; secondary?: string },
-  ): string {
-    const languageText = languageConfig.secondary
-      ? `${languageConfig.primary}和${languageConfig.secondary}`
-      : languageConfig.primary;
-
-    return `你是一名极简主义的旅行情报专家。请根据输入的活动名称、坐标与目的地，生成**精简、直观、高可用**的地点情报。
-
-活动名称：${activityName}
-目的地：${destination}
-活动类型：${activityType}
-坐标：${coordinates.lat}, ${coordinates.lng}
-区域：${coordinates.region || '市中心区域'}
-主要语言：${languageText}
-
-⚠️ **核心原则（必须严格遵守）**：
-
-1. **极简输出**：去除所有修饰词、客套话（如"我们建议"、"您可以"）。
-
-2. **拒绝长句**：使用短语或关键词，信息密度要高。
-
-3. **格式统一**：多条信息用分号"；"分隔。
-
-4. **保留关键**：只保留站名、时间点、金额、入口名等核心数据。
-
-【字段生成要求】
-
-1. **名称**：仅保留官方标准名称，不要别名或后缀。
-
-2. **地址**：仅保留街道名和门牌号/地标名，去除邮编和行政区划描述。
-
-3. **交通**：
-   - 格式：[方式] 关键站名/路线 (步行耗时)
-   - 示例：地铁1号线 Palais Royal站 (步3分)；自驾至 Indigo 停车场。
-
-4. **开放时间**：
-   - 格式：周X-周X 00:00-00:00；周X闭馆。
-   - 仅列出常规时间，特殊节假日不写。
-
-5. **门票**：
-   - 格式：成人€XX；儿童€XX；需预约。
-   - 仅写标准票价和核心规则。
-
-6. **游览/避坑**：
-   - 提炼3个最关键点，每点不超过10个字。
-   - 示例：必须提前官网预约；馆内禁止闪光灯；谨防扒手。
-
-7. **周边**：列出最近的2-3个地标或设施，用逗号分隔。
-
-8. **穿搭**：仅写核心建议（如"穿平底鞋"、"带雨具"）。
-
-9. **预订**：仅写渠道和提前期（如"官网提前2周订"）。
-
-请以JSON格式返回（内容务必精简）：
-
-{
-  "chineseName": "标准中文名（<10字）",
-  "localName": "当地语言名",
-  "chineseAddress": "核心街道地址/入口名（<20字）",
-  "localAddress": "当地语言核心地址",
-  "transportInfo": "极简交通指引（<40字，用分号分隔不同方式）",
-  "openingHours": "极简时间表（<30字，如：每日9-18点；周二闭馆）",
-  "ticketPrice": "核心票价与规则（<20字，如：€17；必预约）",
-  "visitTips": "3条核心建议，短句（<40字）",
-  "nearbyAttractions": "2-3个周边地标（<15字）",
-  "contactInfo": "官网短链接",
-  "category": "活动类型",
-  "rating": 评分(1-5),
-  "visitDuration": "时长（如：3-4小时）",
-  "bestTimeToVisit": "最佳时段（<10字，如：周五晚或晨间）",
-  "accessibility": "核心设施（<15字，如：有电梯和轮椅租借）",
-  "dressingTips": "核心穿搭（<15字，如：舒适步行鞋；多层穿搭）",
-  "culturalTips": "核心禁忌（<20字，如：禁三脚架；餐厅含服务费）",
-  "bookingInfo": "预订要点（<20字，如：官网提前2-4周预约）"
-}`;
   }
 
   private validateAndTransformAiResponse(

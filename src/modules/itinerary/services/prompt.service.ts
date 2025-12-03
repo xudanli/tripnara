@@ -615,5 +615,209 @@ Please start generating JSON:`;
 
     return prompt;
   }
+
+  /**
+   * 构建位置信息生成系统提示词
+   */
+  buildLocationGenerationSystemMessage(language: string = 'zh-CN'): string {
+    const isEnglish = language === 'en-US' || language === 'en';
+    
+    if (isEnglish) {
+      return 'You are a professional travel assistant, skilled at providing accurate multilingual location information and practical travel advice. Please always return data in JSON format.';
+    }
+    
+    return '你是一个专业的旅行助手，擅长提供准确的多语言位置信息和实用的旅行建议。请始终以JSON格式返回数据。';
+  }
+
+  /**
+   * 构建位置信息生成用户提示词
+   */
+  buildLocationGenerationUserPrompt(params: {
+    activityName: string;
+    destination: string;
+    activityType: string;
+    coordinates: { lat: number; lng: number; region?: string };
+    languageConfig: { primary: string; secondary?: string };
+    language?: string;
+  }): string {
+    const language = params.language || 'zh-CN';
+    const isEnglish = language === 'en-US' || language === 'en';
+    
+    if (isEnglish) {
+      return this.buildLocationGenerationUserPromptEn(params);
+    }
+    
+    return this.buildLocationGenerationUserPromptZh(params);
+  }
+
+  /**
+   * 构建位置信息生成用户提示词（中文）
+   */
+  private buildLocationGenerationUserPromptZh(params: {
+    activityName: string;
+    destination: string;
+    activityType: string;
+    coordinates: { lat: number; lng: number; region?: string };
+    languageConfig: { primary: string; secondary?: string };
+  }): string {
+    const languageText = params.languageConfig.secondary
+      ? `${params.languageConfig.primary}和${params.languageConfig.secondary}`
+      : params.languageConfig.primary;
+
+    return `你是一名极简主义的旅行情报专家。请根据输入的活动名称、坐标与目的地，生成**精简、直观、高可用**的地点情报。
+
+活动名称：${params.activityName}
+目的地：${params.destination}
+活动类型：${params.activityType}
+坐标：${params.coordinates.lat}, ${params.coordinates.lng}
+区域：${params.coordinates.region || '市中心区域'}
+主要语言：${languageText}
+
+⚠️ **核心原则（必须严格遵守）**：
+
+1. **极简输出**：去除所有修饰词、客套话（如"我们建议"、"您可以"）。
+
+2. **拒绝长句**：使用短语或关键词，信息密度要高。
+
+3. **格式统一**：多条信息用分号"；"分隔。
+
+4. **保留关键**：只保留站名、时间点、金额、入口名等核心数据。
+
+【字段生成要求】
+
+1. **名称**：仅保留官方标准名称，不要别名或后缀。
+
+2. **地址**：仅保留街道名和门牌号/地标名，去除邮编和行政区划描述。
+
+3. **交通**：
+   - 格式：[方式] 关键站名/路线 (步行耗时)
+   - 示例：地铁1号线 Palais Royal站 (步3分)；自驾至 Indigo 停车场。
+
+4. **开放时间**：
+   - 格式：周X-周X 00:00-00:00；周X闭馆。
+   - 仅列出常规时间，特殊节假日不写。
+
+5. **门票**：
+   - 格式：成人€XX；儿童€XX；需预约。
+   - 仅写标准票价和核心规则。
+
+6. **游览/避坑**：
+   - 提炼3个最关键点，每点不超过10个字。
+   - 示例：必须提前官网预约；馆内禁止闪光灯；谨防扒手。
+
+7. **周边**：列出最近的2-3个地标或设施，用逗号分隔。
+
+8. **穿搭**：仅写核心建议（如"穿平底鞋"、"带雨具"）。
+
+9. **预订**：仅写渠道和提前期（如"官网提前2周订"）。
+
+请以JSON格式返回（内容务必精简）：
+
+{
+  "chineseName": "标准中文名（<10字）",
+  "localName": "当地语言名",
+  "chineseAddress": "核心街道地址/入口名（<20字）",
+  "localAddress": "当地语言核心地址",
+  "transportInfo": "极简交通指引（<40字，用分号分隔不同方式）",
+  "openingHours": "极简时间表（<30字，如：每日9-18点；周二闭馆）",
+  "ticketPrice": "核心票价与规则（<20字，如：€17；必预约）",
+  "visitTips": "3条核心建议，短句（<40字）",
+  "nearbyAttractions": "2-3个周边地标（<15字）",
+  "contactInfo": "官网短链接",
+  "category": "活动类型",
+  "rating": 评分(1-5),
+  "visitDuration": "时长（如：3-4小时）",
+  "bestTimeToVisit": "最佳时段（<10字，如：周五晚或晨间）",
+  "accessibility": "核心设施（<15字，如：有电梯和轮椅租借）",
+  "dressingTips": "核心穿搭（<15字，如：舒适步行鞋；多层穿搭）",
+  "culturalTips": "核心禁忌（<20字，如：禁三脚架；餐厅含服务费）",
+  "bookingInfo": "预订要点（<20字，如：官网提前2-4周预约）"
+}`;
+  }
+
+  /**
+   * 构建位置信息生成用户提示词（英文）
+   */
+  private buildLocationGenerationUserPromptEn(params: {
+    activityName: string;
+    destination: string;
+    activityType: string;
+    coordinates: { lat: number; lng: number; region?: string };
+    languageConfig: { primary: string; secondary?: string };
+  }): string {
+    const languageText = params.languageConfig.secondary
+      ? `${params.languageConfig.primary} and ${params.languageConfig.secondary}`
+      : params.languageConfig.primary;
+
+    return `You are a minimalist travel intelligence expert. Please generate **concise, intuitive, and highly usable** location intelligence based on the input activity name, coordinates, and destination.
+
+Activity Name: ${params.activityName}
+Destination: ${params.destination}
+Activity Type: ${params.activityType}
+Coordinates: ${params.coordinates.lat}, ${params.coordinates.lng}
+Region: ${params.coordinates.region || 'City Center'}
+Primary Language: ${languageText}
+
+⚠️ **Core Principles (Must Strictly Follow)**:
+
+1. **Minimalist Output**: Remove all modifiers and polite phrases (such as "we suggest", "you can").
+
+2. **Reject Long Sentences**: Use phrases or keywords with high information density.
+
+3. **Unified Format**: Separate multiple pieces of information with semicolons ";".
+
+4. **Keep Key Information**: Only retain core data such as station names, time points, amounts, entrance names.
+
+【Field Generation Requirements】
+
+1. **Name**: Only retain official standard names, no aliases or suffixes.
+
+2. **Address**: Only retain street names and house numbers/landmark names, remove postal codes and administrative district descriptions.
+
+3. **Transportation**:
+   - Format: [Method] Key station name/route (walking time)
+   - Example: Metro Line 1 Palais Royal Station (3 min walk); Drive to Indigo parking lot.
+
+4. **Opening Hours**:
+   - Format: Mon-Fri 00:00-00:00; Closed on Tuesday.
+   - Only list regular hours, do not write special holidays.
+
+5. **Ticket Price**:
+   - Format: Adult €XX; Child €XX; Reservation required.
+   - Only write standard prices and core rules.
+
+6. **Visit Tips/Avoid Pitfalls**:
+   - Extract 3 most critical points, each point no more than 10 words.
+   - Example: Must book in advance on official website; No flash photography inside; Beware of pickpockets.
+
+7. **Nearby**: List the nearest 2-3 landmarks or facilities, separated by commas.
+
+8. **Dressing**: Only write core suggestions (e.g., "wear flat shoes", "bring rain gear").
+
+9. **Booking**: Only write channel and advance period (e.g., "book 2 weeks in advance on official website").
+
+Please return in JSON format (content must be concise):
+
+{
+  "chineseName": "Standard Chinese name (<10 chars)",
+  "localName": "Local language name",
+  "chineseAddress": "Core street address/entrance name (<20 chars)",
+  "localAddress": "Local language core address",
+  "transportInfo": "Minimalist transportation guide (<40 chars, separate different methods with semicolons)",
+  "openingHours": "Minimalist schedule (<30 chars, e.g., Daily 9-18; Closed Tue)",
+  "ticketPrice": "Core price and rules (<20 chars, e.g., €17; Reservation required)",
+  "visitTips": "3 core suggestions, short sentences (<40 chars)",
+  "nearbyAttractions": "2-3 nearby landmarks (<15 chars)",
+  "contactInfo": "Official website short link",
+  "category": "Activity type",
+  "rating": Rating(1-5),
+  "visitDuration": "Duration (e.g., 3-4 hours)",
+  "bestTimeToVisit": "Best time slot (<10 chars, e.g., Friday evening or morning)",
+  "accessibility": "Core facilities (<15 chars, e.g., Elevator and wheelchair rental available)",
+  "dressingTips": "Core dressing (<15 chars, e.g., Comfortable walking shoes; Layered clothing)",
+  "culturalTips": "Core taboos (<20 chars, e.g., No tripods; Restaurant includes service charge)",
+  "bookingInfo": "Booking essentials (<20 chars, e.g., Book 2-4 weeks in advance on official website)"
+}`;
+  }
 }
 

@@ -42,7 +42,7 @@ import { AiSafetyNoticeCacheEntity } from '../persistence/entities/ai-log.entity
     CulturalGuideService,
     LocalEssentialsService,
   ],
-  exports: [ItineraryService, JourneyAssistantService],
+  exports: [ItineraryService, JourneyAssistantService, PromptService],
 })
 export class ItineraryModule {}
 
