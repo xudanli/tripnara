@@ -1036,5 +1036,55 @@ Assistant: {"standard_name": "钻石沙滩", "location_hint": "冰岛", "confide
     }
     return userMessage;
   }
+
+  /**
+   * 构建旅行摘要生成用户提示词
+   */
+  buildTravelSummaryUserPrompt(params: {
+    destination: string;
+    days: number;
+    typeSummary: string;
+    activitySummary: string;
+    language?: string;
+  }): string {
+    const language = params.language || 'zh-CN';
+    const isEnglish = language === 'en-US' || language === 'en';
+    
+    if (isEnglish) {
+      return `Please generate a vivid and attractive English summary for the following ${params.days}-day travel itinerary to ${params.destination}, with the following requirements:
+
+1. Keep the length between 100-150 words
+2. Use vivid and engaging language
+3. Highlight the highlights and unique features of the trip
+4. Reflect the richness and diversity of the itinerary
+5. Use positive and upbeat vocabulary
+
+Trip Information:
+- Destination: ${params.destination}
+- Days: ${params.days} days
+- Activity Type Distribution: ${params.typeSummary}
+- Main Activities:
+${params.activitySummary}
+
+Please generate an attractive travel summary:`;
+    }
+    
+    return `请为以下${params.days}天的${params.destination}旅行行程生成一个生动、吸引人的中文摘要，要求：
+
+1. 长度控制在100-150字之间
+2. 语言要生动有趣，富有感染力
+3. 突出旅行的亮点和特色
+4. 体现行程的丰富性和多样性
+5. 使用积极正面的词汇
+
+行程信息：
+- 目的地：${params.destination}
+- 天数：${params.days}天
+- 活动类型分布：${params.typeSummary}
+- 主要活动：
+${params.activitySummary}
+
+请生成一个吸引人的旅行摘要：`;
+  }
 }
 

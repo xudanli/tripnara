@@ -33,7 +33,10 @@ export class TravelSummaryService {
   private readonly genericTemplate =
     '{days}天的{destination}之旅，行程包含{activityCount}个精彩活动，涵盖{types}等多种类型，让您{experience}，感受{feeling}。';
 
-  constructor(private readonly llmService: LlmService) {}
+  constructor(
+    private readonly llmService: LlmService,
+    private readonly promptService: PromptService,
+  ) {}
 
   async generateSummary(
     dto: GenerateTravelSummaryRequestDto,
@@ -193,39 +196,14 @@ export class TravelSummaryService {
       )
       .join('\n');
 
-    const prompt = isEnglish
-      ? `Please generate a vivid and attractive English summary for the following ${days}-day travel itinerary to ${destination}, with the following requirements:
-
-1. Keep the length between 100-150 words
-2. Use vivid and engaging language
-3. Highlight the highlights and unique features of the trip
-4. Reflect the richness and diversity of the itinerary
-5. Use positive and upbeat vocabulary
-
-Trip Information:
-- Destination: ${destination}
-- Days: ${days} days
-- Activity Type Distribution: ${typeSummary}
-- Main Activities:
-${activitySummary}
-
-Please generate an attractive travel summary:`
-      : `请为以下${days}天的${destination}旅行行程生成一个生动、吸引人的中文摘要，要求：
-
-1. 长度控制在100-150字之间
-2. 语言要生动有趣，富有感染力
-3. 突出旅行的亮点和特色
-4. 体现行程的丰富性和多样性
-5. 使用积极正面的词汇
-
-行程信息：
-- 目的地：${destination}
-- 天数：${days}天
-- 活动类型分布：${typeSummary}
-- 主要活动：
-${activitySummary}
-
-请生成一个吸引人的旅行摘要：`;
+    // 使用 PromptService 构建提示词
+    const prompt = this.promptService.buildTravelSummaryUserPrompt({
+      destination,
+      days,
+      typeSummary,
+      activitySummary,
+      language,
+    });
 
     this.logger.log(`Generating AI summary for ${days} days in ${destination}`);
     this.logger.debug(`Prompt length: ${prompt.length} characters`);
