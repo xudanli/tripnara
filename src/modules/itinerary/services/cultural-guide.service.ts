@@ -4,6 +4,7 @@ import Redis from 'ioredis';
 import { LlmService } from '../../llm/llm.service';
 import { ItineraryRepository } from '../../persistence/repositories/itinerary/itinerary.repository';
 import { CulturalGuideResponseDto } from '../dto/itinerary.dto';
+import { PromptService } from './prompt.service';
 
 @Injectable()
 export class CulturalGuideService {
@@ -16,6 +17,7 @@ export class CulturalGuideService {
     private readonly llmService: LlmService,
     private readonly itineraryRepository: ItineraryRepository,
     private readonly configService: ConfigService,
+    private readonly promptService: PromptService,
   ) {
     // 初始化 Redis 客户端
     const redisUrl = this.configService.get<string>('REDIS_URL');
@@ -129,131 +131,13 @@ export class CulturalGuideService {
     userId?: string, // 可选：用户ID，用于从用户偏好读取模型选择
     language: string = 'zh-CN',
   ): Promise<string> {
-    const isEnglish = language === 'en-US' || language === 'en';
-    
-    const systemMessage = isEnglish
-      ? `You are **tripnara Senior Concierge Nara**. You have 20 years of experience in high-end customized travel.
-
-Your core ability is to provide users with **"high signal-to-noise ratio"** cultural advice. Users have limited time during travel and don't like reading lengthy articles.
-
-**Your Output Standards:**
-
-1. **Extremely Concise**: Only provide the most critical, essential, and authentic information. No fluff.
-
-2. **Visually Friendly**: Make full use of Emojis and Markdown formatting to create an easy-to-read list similar to "Xiaohongshu" or "high-end magazines".
-
-3. **Clear Structure**: Strictly distinguish between "Red List (Must-Do)" and "Black List (Taboos)".
-
-4. **Tone**: Professional, elegant, direct.
-
-Please always respond in English.`
-      : `你是 **tripnara 首席旅行管家 (Senior Concierge) Nara**。你拥有 20 年的高端定制旅行经验。
-
-你的核心能力是为用户提供**"高信噪比"**的文化建议。用户在旅行途中时间宝贵，不喜欢阅读长篇大论。
-
-**你的输出标准：**
-
-1. **极度精简**：只提供最关键、最致命、最地道的信息。拒绝废话。
-
-2. **视觉友好**：充分利用 Emoji 和 Markdown 排版，打造类似"小红书"或"高端杂志"的易读清单。
-
-3. **结构清晰**：严格区分"红榜（必做）"与"黑榜（禁忌）"。
-
-4. **语气**：专业、优雅、直接。
-
-请始终使用简体中文回答。`;
-
-    const prompt = isEnglish
-      ? `Current Context:
-
-The user is about to travel to **${itinerary.destination}**.
-
-Trip Summary: ${itinerary.summary || 'None'}
-
-Please generate a **concise "Cultural Red and Black List"** for this destination. Please ignore common sense (such as "don't litter") and focus only on the destination's **unique** cultural pain points and highlights.
-
-Please strictly follow the Markdown format below, without any opening or closing remarks:
-
-### 🔴 Red List: Act Like a Local (Top 4)
-
-*(Please list 4 authentic behaviors/etiquettes that can most enhance the travel experience, each no more than 20 words, with key actions **bolded**)*
-
-- [Emoji] **Key Phrase**: Brief explanation.
-
-- [Emoji] **Key Phrase**: Brief explanation.
-
-- [Emoji] **Key Phrase**: Brief explanation.
-
-- [Emoji] **Key Phrase**: Brief explanation.
-
-### ⚫ Black List: Don't Step on Landmines (Top 4)
-
-*(Please list 4 taboos that are most likely to offend locals or cause embarrassment, each no more than 20 words, with key taboos **bolded**)*
-
-- [Emoji] **Key Phrase**: Brief explanation.
-
-- [Emoji] **Key Phrase**: Brief explanation.
-
-- [Emoji] **Key Phrase**: Brief explanation.
-
-- [Emoji] **Key Phrase**: Brief explanation.
-
-### 💡 Nara's Survival Guide
-
-*(Please display the following information in short key-value pairs)*
-
-> 💰 **Tipping Rules**: (One sentence explaining how much to tip at restaurants/hotels/taxis)
-
-> 👗 **Dress Code Red Lines**: (The most core dress requirements for this destination, such as religious sites/fine dining restaurants)
-
-> ⚡ **Power Outlet**: (e.g., Type A 110V, adapter needed)
-
-> 🚨 **Emergency Help**: (Local police/ambulance phone number)`
-      : `当前上下文：
-
-用户即将前往 **${itinerary.destination}** 旅行。
-
-行程摘要：${itinerary.summary || '暂无'}
-
-请为这个目的地生成一份**精简版「文化红黑榜」**。请忽略通用的常识（如"不要乱扔垃圾"），只专注于该目的地**特有**的文化痛点和亮点。
-
-请严格按照以下 Markdown 格式输出，不要包含任何开场白或结束语：
-
-### 🔴 红榜：像当地人一样 (Top 4)
-
-*(请列出 4 个最能提升旅行体验的地道行为/礼仪，每条不超过 20 字，关键动作**加粗**)*
-
-- [Emoji] **关键短语**：简短解释。
-
-- [Emoji] **关键短语**：简短解释。
-
-- [Emoji] **关键短语**：简短解释。
-
-- [Emoji] **关键短语**：简短解释。
-
-### ⚫ 黑榜：千万别踩雷 (Top 4)
-
-*(请列出 4 个最容易冒犯当地人或导致尴尬的禁忌，每条不超过 20 字，关键雷点**加粗**)*
-
-- [Emoji] **关键短语**：简短解释。
-
-- [Emoji] **关键短语**：简短解释。
-
-- [Emoji] **关键短语**：简短解释。
-
-- [Emoji] **关键短语**：简短解释。
-
-### 💡 Nara 的生存指南
-
-*(以下信息请用简短的键值对形式展示)*
-
-> 💰 **小费规则**：(一句话讲清餐厅/酒店/出租车给多少)
-
-> 👗 **着装红线**：(针对该目的地最核心的着装要求，如宗教场所/高级餐厅)
-
-> ⚡ **电压插座**：(如：美标 110V，需转接头)
-
-> 🚨 **紧急求助**：(当地报警/急救电话)`;
+    // 使用 PromptService 构建提示词
+    const systemMessage = this.promptService.buildCulturalGuideSystemMessage(language);
+    const prompt = this.promptService.buildCulturalGuideUserPrompt({
+      destination: itinerary.destination,
+      summary: itinerary.summary,
+      language,
+    });
 
     try {
       const response = await this.llmService.chatCompletion(
