@@ -50,7 +50,8 @@ export class ItineraryMapper {
           | 'shopping'
           | 'transport'
           | 'ocean',
-        coordinates: act.location || null, // 统一使用 coordinates 而不是 location
+        // FIX: Ensure it returns undefined instead of null
+        coordinates: act.location ?? undefined, // 统一使用 coordinates 而不是 location
         notes: fixedNotes,
         duration: DataValidator.fixNumber(act.duration, 60, 1), // 至少1分钟
         cost: DataValidator.fixNumber(act.cost, 0, 0),

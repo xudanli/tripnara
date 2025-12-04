@@ -2898,6 +2898,18 @@ export class GetWeatherInfoResponseDto {
 
   @ApiProperty({ description: '结束日期', example: '2025-12-08' })
   endDate!: string;
+
+  @ApiProperty({
+    description: '天气信息',
+    type: WeatherInfoDto,
+  })
+  weatherInfo!: WeatherInfoDto;
+
+  @ApiProperty({ description: '是否来自缓存', example: false })
+  fromCache!: boolean;
+
+  @ApiProperty({ description: '生成时间', example: '2025-12-01T12:00:00Z' })
+  generatedAt!: string;
 }
 
 /**

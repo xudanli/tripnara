@@ -663,7 +663,11 @@ export class ItineraryService {
         return {
           day: DataValidator.fixNumber(day.day, index + 1, 1), // 天数从1开始
           date: fixedDate,
-        activities: day.timeSlots.map(convertTimeSlotToActivity),
+        activities: day.timeSlots.map(convertTimeSlotToActivity).map(act => ({
+          ...act,
+          // FIX: Provide default lat/lng if location is undefined
+          location: act.location ?? { lat: 0, lng: 0 },
+        })),
         };
       });
     };
@@ -1673,7 +1677,8 @@ export class ItineraryService {
           | 'shopping'
           | 'transport'
           | 'ocean',
-        coordinates: act.location || null, // 统一使用 coordinates 而不是 location
+        // FIX: Convert null to undefined using the nullish coalescing operator
+        coordinates: act.location ?? undefined, // 统一使用 coordinates 而不是 location
         notes: fixedNotes,
         duration: DataValidator.fixNumber(act.duration, 60, 1), // 至少1分钟
         cost: DataValidator.fixNumber(act.cost, 0, 0),
