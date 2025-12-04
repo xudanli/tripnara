@@ -4,8 +4,10 @@ import {
   Injectable,
   Logger,
 } from '@nestjs/common';
-import axios, { AxiosError } from 'axios';
+import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import { ConfigService } from '@nestjs/config';
+import { HttpsProxyAgent } from 'https-proxy-agent';
+import type { Agent as HttpsAgent } from 'https';
 import {
   PlatformSearchRequestDto,
   TravelGuideItemDto,
@@ -42,6 +44,7 @@ export class ExternalService {
   private readonly travelAdvisorBaseUrl: string;
   private readonly googleApiKey?: string;
   private readonly googleCx?: string;
+  private readonly proxyAgent: HttpsAgent | undefined;
 
   constructor(private readonly configService: ConfigService) {
     this.travelAdvisorApiKey =
@@ -59,6 +62,45 @@ export class ExternalService {
       this.configService.get<string>('GUIDES_GOOGLE_CX');
     this.maxRetries = this.configService.get<number>('EXTERNAL_API_MAX_RETRIES', 3);
     this.retryDelayMs = this.configService.get<number>('EXTERNAL_API_RETRY_DELAY_MS', 1000);
+
+    // 配置代理 Agent（用于 Axios 请求）
+    const proxyUrl =
+      this.configService.get<string>('HTTPS_PROXY') ??
+      this.configService.get<string>('HTTP_PROXY') ??
+      process.env.HTTPS_PROXY ??
+      process.env.HTTP_PROXY ??
+      'http://127.0.0.1:9090';
+
+    if (proxyUrl) {
+      try {
+        this.proxyAgent = new HttpsProxyAgent(proxyUrl);
+        this.logger.log(`[ExternalService] Proxy Agent configured: ${proxyUrl}`);
+      } catch (error) {
+        this.logger.warn(
+          `[ExternalService] Failed to create proxy agent: ${error instanceof Error ? error.message : error}`,
+        );
+      }
+    }
+  }
+
+  /**
+   * 创建 Axios 请求配置（包含代理和 headers）
+   */
+  private createAxiosConfig(additionalHeaders?: Record<string, string>): AxiosRequestConfig {
+    const config: AxiosRequestConfig = {
+      // 配置代理 Agent
+      httpsAgent: this.proxyAgent,
+      proxy: false, // 禁用 Axios 默认的代理处理，改用 Agent 模式
+      // 伪装浏览器 User-Agent（防止 API 把你当爬虫踢掉）
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+        'Accept-Encoding': 'gzip, deflate, br', // 支持压缩，防止服务器挂断
+        ...additionalHeaders, // 合并额外的 headers（如 API keys）
+      },
+    };
+    return config;
   }
 
   async searchLocations(query: string) {
@@ -90,13 +132,15 @@ export class ExternalService {
         '/locations/search',
         this.travelAdvisorBaseUrl,
       ).toString();
+      const config = this.createAxiosConfig({
+        'X-RapidAPI-Key': this.travelAdvisorApiKey,
+        'X-RapidAPI-Host': this.travelAdvisorApiHost,
+      });
+
       const data = await this.executeWithRetry(
         () => axios.get(searchUrl, {
-        params: { query },
-        headers: {
-          'X-RapidAPI-Key': this.travelAdvisorApiKey,
-          'X-RapidAPI-Host': this.travelAdvisorApiHost,
-        },
+          ...config,
+          params: { query },
         }),
         'Travel Advisor',
       );
@@ -164,17 +208,19 @@ export class ExternalService {
         '/attractions/get-details',
         this.travelAdvisorBaseUrl,
       ).toString();
+      const config = this.createAxiosConfig({
+        'X-RapidAPI-Key': this.travelAdvisorApiKey,
+        'X-RapidAPI-Host': this.travelAdvisorApiHost,
+      });
+
       const response = await this.executeWithRetry(
         () =>
           axios.get(detailsUrl, {
+            ...config,
             params: {
               location_id: attractionId,
               lang,
               currency: 'CNY',
-            },
-            headers: {
-              'X-RapidAPI-Key': this.travelAdvisorApiKey,
-              'X-RapidAPI-Host': this.travelAdvisorApiHost,
             },
           }),
         'Travel Advisor (Attraction Details)',
@@ -302,17 +348,19 @@ export class ExternalService {
         '/locations/search',
         this.travelAdvisorBaseUrl,
       ).toString();
+      const config = this.createAxiosConfig({
+        'X-RapidAPI-Key': this.travelAdvisorApiKey,
+        'X-RapidAPI-Host': this.travelAdvisorApiHost,
+      });
+
       const response = await this.executeWithRetry(
         () => axios.get(searchUrl, {
-        params: {
-          query: dto.destination,
-          limit,
-          lang: language,
-        },
-        headers: {
-          'X-RapidAPI-Key': this.travelAdvisorApiKey,
-          'X-RapidAPI-Host': this.travelAdvisorApiHost,
-        },
+          ...config,
+          params: {
+            query: dto.destination,
+            limit,
+            lang: language,
+          },
         }),
         'Travel Advisor (Guides)',
       );
