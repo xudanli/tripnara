@@ -196,6 +196,41 @@ export class ItineraryOptimizerService {
       );
     }
 
+    // 【地理范围检测】计算活动点的地理范围（Bounding Box）
+    // 目的：判断是"同城游"还是"跨城长途"
+    // Mapbox Optimization API 是为同城物流配送设计的，无法处理跨城长途旅行
+    const lats = activities.map((a) => a.location.lat);
+    const lngs = activities.map((a) => a.location.lng);
+    const maxLat = Math.max(...lats);
+    const minLat = Math.min(...lats);
+    const maxLng = Math.max(...lngs);
+    const minLng = Math.min(...lngs);
+
+    const latSpan = maxLat - minLat;
+    const lngSpan = maxLng - minLng;
+
+    // 设置阈值：3 度（约 330 公里）
+    // 如果跨度超过这个值，说明是长途旅行，Mapbox API 无法处理，直接跳过优化
+    const MAX_SPAN_DEGREES = 3.0;
+
+    if (latSpan > MAX_SPAN_DEGREES || lngSpan > MAX_SPAN_DEGREES) {
+      this.logger.warn(
+        `活动范围跨度过大 (纬度跨度: ${latSpan.toFixed(2)}°, 经度跨度: ${lngSpan.toFixed(2)}°)，属于跨城长途旅行。跳过 Mapbox 优化，使用原始顺序。`,
+      );
+      this.logger.debug(
+        `活动坐标范围：纬度 [${minLat.toFixed(2)}, ${maxLat.toFixed(2)}]，经度 [${minLng.toFixed(2)}, ${maxLng.toFixed(2)}]`,
+      );
+
+      // 对于跨城长途，直接返回原始顺序（不调用 Mapbox API）
+      // 可选：如果需要，可以按纬度从南到北排序
+      // const sortedByLat = [...activities].sort((a, b) => a.location.lat - b.location.lat);
+      return {
+        activities,
+        totalDistance: 0,
+        totalDuration: 0,
+      };
+    }
+
     // Mapbox Optimization API 仅支持以下三种模式：
     // - mapbox/driving (驾车，不带实时路况)
     // - mapbox/walking (步行)
