@@ -2800,69 +2800,161 @@ export class LocalEssentialsResponseDto {
 }
 
 /**
- * 天气信息数据 DTO
+ * 实时天气每日预报 DTO
  */
-export class WeatherInfoDto {
+export class DailyForecastDto {
   @ApiProperty({
-    description: '当前天气概况（实时）或平均温度范围（历史）',
-    example: '当前温度：15°C，天气：多云，湿度：65%',
+    description: '日期',
+    example: '2025-12-01',
   })
-  currentWeather!: string;
+  date!: string;
 
   @ApiProperty({
-    description: '天气预报（实时）或典型天气状况（历史）',
-    example: '未来7天天气预报：第1天15°C多云，第2天18°C晴天...',
+    description: '天气描述',
+    example: '多云转晴',
   })
-  forecast!: string;
+  weather!: string;
 
   @ApiProperty({
-    description: '安全警示和警告',
-    example: '注意：近期可能有强风，建议避免户外活动',
+    description: '温度范围',
+    example: '15°C - 20°C',
   })
-  safetyAlerts!: string;
+  temp!: string;
+}
+
+/**
+ * 实时天气信息 DTO
+ */
+export class RealtimeWeatherDto {
+  @ApiProperty({
+    description: '一句话天气综述，包含温度趋势和核心天气现象（限20字内）',
+    example: '温和多雨，温度15-20°C',
+  })
+  summary!: string;
 
   @ApiProperty({
-    description: '打包建议',
-    example: '建议携带：轻便外套、雨具、防晒霜',
+    description: '每日天气预报数组',
+    type: [DailyForecastDto],
   })
-  packingSuggestions!: string;
+  dailyForecast!: DailyForecastDto[];
 
   @ApiProperty({
-    description: '旅行建议',
-    example: '建议选择天气晴朗的日子进行户外活动，注意保暖',
+    description: '穿衣/打包建议关键词数组（3-5个）',
+    example: ['防风外套', '雨伞', '防滑靴'],
+    type: [String],
+  })
+  clothing!: string[];
+
+  @ApiProperty({
+    description: '核心安全警告（限30字内，无风险则留空）',
+    example: '路面湿滑，注意防滑',
+  })
+  safetyAlert!: string;
+
+  @ApiProperty({
+    description: '出行建议（限30字内）',
+    example: '建议携带雨具，选择室内活动',
   })
   travelTips!: string;
+}
 
-  @ApiPropertyOptional({
-    description: '平均温度范围（仅历史气候时提供）',
-    example: '15-25°C',
+/**
+ * 历史气候信息 DTO
+ */
+export class HistoricalWeatherDto {
+  @ApiProperty({
+    description: '该月份的典型气候特征简述（限30字内）',
+    example: '寒冷多雪，极夜期间日照极短。',
   })
-  averageTemperature?: string;
+  overview!: string;
 
-  @ApiPropertyOptional({
-    description: '降雨信息（仅历史气候时提供）',
-    example: '平均降雨量：50mm，降雨天数：8天',
+  @ApiProperty({
+    description: '平均温度范围',
+    example: '-15°C 至 -5°C',
   })
-  rainfall?: string;
+  temperature!: string;
 
-  @ApiPropertyOptional({
-    description: '穿衣建议（仅历史气候时提供）',
-    example: '建议穿着轻便外套和长裤，携带雨具',
+  @ApiProperty({
+    description: '降水情况简述',
+    example: '多雪，偶有暴风雪',
   })
-  clothingSuggestions?: string;
+  precipitation!: string;
 
-  @ApiPropertyOptional({
-    description: '常年安全建议（仅历史气候时提供）',
-    example: '该季节常有强风，注意安全',
+  @ApiProperty({
+    description: '穿衣/装备关键词数组（4个）',
+    example: ['极地防寒外套', '保暖内衣', '防水雪地靴', '厚手套'],
+    type: [String],
   })
-  safetyAdvice?: string;
+  clothingTags!: string[];
 
+  @ApiProperty({
+    description: '该季节最核心的一个安全隐患',
+    example: '路面结冰湿滑，需防冻伤',
+  })
+  safetyFocus!: string;
+
+  @ApiProperty({
+    description: '该季节推荐的特色活动',
+    example: '极光观测、圣诞集市',
+  })
+  specialActivity!: string;
+}
+
+/**
+ * 天气信息数据 DTO（兼容旧版本，支持实时和历史两种类型）
+ */
+export class WeatherInfoDto {
   @ApiProperty({
     description: '信息类型',
     enum: ['realtime', 'historical'],
     example: 'realtime',
   })
   type!: 'realtime' | 'historical';
+
+  // 实时天气字段
+  @ApiPropertyOptional({
+    description: '实时天气信息（仅 type=realtime 时提供）',
+    type: RealtimeWeatherDto,
+  })
+  realtime?: RealtimeWeatherDto;
+
+  // 历史气候字段
+  @ApiPropertyOptional({
+    description: '历史气候信息（仅 type=historical 时提供）',
+    type: HistoricalWeatherDto,
+  })
+  historical?: HistoricalWeatherDto;
+
+  // 兼容旧版本的字段（已废弃，保留用于向后兼容）
+  @ApiPropertyOptional({
+    description: '[已废弃] 当前天气概况',
+    deprecated: true,
+  })
+  currentWeather?: string;
+
+  @ApiPropertyOptional({
+    description: '[已废弃] 天气预报',
+    deprecated: true,
+  })
+  forecast?: string;
+
+  @ApiPropertyOptional({
+    description: '[已废弃] 安全警示',
+    deprecated: true,
+  })
+  safetyAlerts?: string;
+
+  @ApiPropertyOptional({
+    description: '[已废弃] 打包建议',
+    deprecated: true,
+  })
+  packingSuggestions?: string;
+
+  @ApiPropertyOptional({
+    description: '[已废弃] 旅行建议',
+    deprecated: true,
+  })
+  travelTips?: string;
 }
 
 /**

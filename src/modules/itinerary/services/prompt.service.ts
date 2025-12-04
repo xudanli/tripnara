@@ -1302,10 +1302,30 @@ Please ensure the return is valid JSON format, all fields are string type.`;
     const isEnglish = language === 'en-US' || language === 'en';
     
     if (isEnglish) {
-      return `You are a professional travel weather information assistant, skilled at providing accurate weather forecasts and climate information for destinations. Please always return data in JSON format.`;
+      return `You are a professional travel weather analyst. Your task is to provide concise, accurate, and structured weather guides.
+
+Strictly adhere to the following rules:
+
+1. Always return raw JSON format, NO Markdown tags (like \`\`\`json).
+
+2. Style: Concise and clear, suitable for mobile reading (avoid long paragraphs).
+
+3. No Repetition: Do not repeat the same information across different fields.
+
+4. Ensure JSON field names match the requirements exactly.`;
     }
     
-    return `你是一个专业的旅行天气信息助手，擅长提供准确的目的地天气预报和气候信息。请始终以JSON格式返回数据。`;
+    return `你是一位专业的旅行气象分析师。你的任务是提供精简、准确且结构化的天气指南。
+
+必须严格遵守以下规则：
+
+1. 始终返回纯 JSON 格式，严禁包含 Markdown 标记（如 \`\`\`json）。
+
+2. 语言风格：简洁明了，适合手机端阅读（避免长篇大论）。
+
+3. 严禁重复：不要在不同字段中重复相同的信息。
+
+4. 确保 JSON 字段名与要求完全一致。`;
   }
 
   /**
@@ -1333,57 +1353,115 @@ Please ensure the return is valid JSON format, all fields are string type.`;
     const language = params.language || 'zh-CN';
     const isEnglish = language === 'en-US' || language === 'en';
     
-    if (isEnglish) {
-      return `Please provide real-time weather forecast and safety alerts for destination **${params.destination}** during the travel period (${params.startDate} to ${params.endDate}).
-
-${params.weatherData ? `Current Weather Data:
-- Current Temperature: ${params.weatherData.temperature}°C
-- Current Condition: ${params.weatherData.condition}
-${params.weatherData.humidity ? `- Humidity: ${params.weatherData.humidity}%` : ''}
-${params.weatherData.windSpeed ? `- Wind Speed: ${params.weatherData.windSpeed} km/h` : ''}
-${params.weatherData.forecast ? `\nForecast:\n${params.weatherData.forecast.map(f => `- ${f.date}: ${f.temperature}°C, ${f.condition}`).join('\n')}` : ''}` : ''}
-
-${params.safetyAlerts && params.safetyAlerts.length > 0 ? `Safety Alerts:\n${params.safetyAlerts.map(alert => `- ${alert}`).join('\n')}` : ''}
-
-${params.googleSearchResults && params.googleSearchResults.length > 0 ? `Google Search Results (for reference):\n${params.googleSearchResults.map((result, index) => `${index + 1}. ${result}`).join('\n')}` : ''}
-
-Please return the following information in JSON format:
-
-{
-  "currentWeather": "Current weather summary (temperature, condition, brief description)",
-  "forecast": "Weather forecast for the travel period (day by day if possible)",
-  "safetyAlerts": "Safety alerts and warnings (if any)",
-  "packingSuggestions": "Packing suggestions based on weather forecast",
-  "travelTips": "Travel tips related to weather conditions"
-}
-
-Please ensure the return is valid JSON format, all fields are string type.`;
+    // 构建参考数据部分
+    let contextData = '';
+    if (params.weatherData) {
+      contextData += `Current Weather Data:\n`;
+      contextData += `- Current Temperature: ${params.weatherData.temperature}°C\n`;
+      contextData += `- Current Condition: ${params.weatherData.condition}\n`;
+      if (params.weatherData.humidity) {
+        contextData += `- Humidity: ${params.weatherData.humidity}%\n`;
+      }
+      if (params.weatherData.windSpeed) {
+        contextData += `- Wind Speed: ${params.weatherData.windSpeed} km/h\n`;
+      }
+      if (params.weatherData.forecast && params.weatherData.forecast.length > 0) {
+        contextData += `\nForecast:\n`;
+        contextData += params.weatherData.forecast.map(f => `- ${f.date}: ${f.temperature}°C, ${f.condition}`).join('\n');
+        contextData += '\n';
+      }
     }
     
-    return `请为目的地 **${params.destination}** 在旅行期间（${params.startDate} 至 ${params.endDate}）提供实时天气预报和安全警示。
+    if (params.safetyAlerts && params.safetyAlerts.length > 0) {
+      contextData += `\nSafety Alerts:\n`;
+      contextData += params.safetyAlerts.map(alert => `- ${alert}`).join('\n');
+      contextData += '\n';
+    }
+    
+    if (params.googleSearchResults && params.googleSearchResults.length > 0) {
+      contextData += `\nGoogle Search Results (for reference):\n`;
+      contextData += params.googleSearchResults.map((result, index) => `${index + 1}. ${result}`).join('\n');
+      contextData += '\n';
+    }
+    
+    if (isEnglish) {
+      return `Please generate a travel weather guide for **${params.destination}** (${params.startDate} to ${params.endDate}) based on the following real-time data.
 
-${params.weatherData ? `当前天气数据：
-- 当前温度：${params.weatherData.temperature}°C
-- 当前天气：${params.weatherData.condition}
-${params.weatherData.humidity ? `- 湿度：${params.weatherData.humidity}%` : ''}
-${params.weatherData.windSpeed ? `- 风速：${params.weatherData.windSpeed} 公里/小时` : ''}
-${params.weatherData.forecast ? `\n天气预报：\n${params.weatherData.forecast.map(f => `- ${f.date}：${f.temperature}°C，${f.condition}`).join('\n')}` : ''}` : ''}
+【Reference Data】
 
-${params.safetyAlerts && params.safetyAlerts.length > 0 ? `安全警示：\n${params.safetyAlerts.map(alert => `- ${alert}`).join('\n')}` : ''}
+${contextData}
 
-${params.googleSearchResults && params.googleSearchResults.length > 0 ? `Google 搜索结果（供参考）：\n${params.googleSearchResults.map((result, index) => `${index + 1}. ${result}`).join('\n')}` : ''}
-
-请以JSON格式返回以下信息：
+【Output Requirements - JSON Structure】
 
 {
-  "currentWeather": "当前天气概况（温度、天气状况、简要描述）",
-  "forecast": "旅行期间的天气预报（尽可能按天提供）",
-  "safetyAlerts": "安全警示和警告（如有）",
-  "packingSuggestions": "根据天气预报的打包建议",
-  "travelTips": "与天气条件相关的旅行建议"
-}
+  "summary": "One-sentence weather summary, including temperature trend and core weather phenomena (within 20 characters)",
+  "dailyForecast": [
+    {
+      "date": "YYYY-MM-DD",
+      "weather": "Brief weather description (e.g., Cloudy to Sunny)",
+      "temp": "Temperature range (e.g., 15°C - 20°C)"
+    }
+    // ... Please cover every day during the travel period
+  ],
+  "clothing": ["phrase1", "phrase2", "phrase3"], // 3-5 key clothing/packing suggestions (e.g., ["Windproof jacket", "Umbrella", "Non-slip boots"])
+  "safetyAlert": "Core safety warning based on current weather (within 30 characters, leave empty if no risk)",
+  "travelTips": "Travel suggestions for current weather (within 30 characters)"
+}`;
+    }
+    
+    // 构建中文版本的参考数据
+    let contextDataZh = '';
+    if (params.weatherData) {
+      contextDataZh += `当前天气数据：\n`;
+      contextDataZh += `- 当前温度：${params.weatherData.temperature}°C\n`;
+      contextDataZh += `- 当前天气：${params.weatherData.condition}\n`;
+      if (params.weatherData.humidity) {
+        contextDataZh += `- 湿度：${params.weatherData.humidity}%\n`;
+      }
+      if (params.weatherData.windSpeed) {
+        contextDataZh += `- 风速：${params.weatherData.windSpeed} 公里/小时\n`;
+      }
+      if (params.weatherData.forecast && params.weatherData.forecast.length > 0) {
+        contextDataZh += `\n天气预报：\n`;
+        contextDataZh += params.weatherData.forecast.map(f => `- ${f.date}：${f.temperature}°C，${f.condition}`).join('\n');
+        contextDataZh += '\n';
+      }
+    }
+    
+    if (params.safetyAlerts && params.safetyAlerts.length > 0) {
+      contextDataZh += `\n安全警示：\n`;
+      contextDataZh += params.safetyAlerts.map(alert => `- ${alert}`).join('\n');
+      contextDataZh += '\n';
+    }
+    
+    if (params.googleSearchResults && params.googleSearchResults.length > 0) {
+      contextDataZh += `\nGoogle 搜索结果（供参考）：\n`;
+      contextDataZh += params.googleSearchResults.map((result, index) => `${index + 1}. ${result}`).join('\n');
+      contextDataZh += '\n';
+    }
+    
+    return `请基于以下实时数据，为 **${params.destination}** (${params.startDate} 至 ${params.endDate}) 生成旅行天气指南。
 
-请确保返回的是有效的JSON格式，所有字段都是字符串类型。`;
+【参考数据】
+
+${contextDataZh}
+
+【输出要求 - JSON结构】
+
+{
+  "summary": "一句话天气综述，包含温度趋势和核心天气现象（限20字内）",
+  "dailyForecast": [
+    {
+      "date": "YYYY-MM-DD",
+      "weather": "简短天气描述（如：多云转晴）",
+      "temp": "温度范围（如：15°C - 20°C）"
+    }
+    // ... 请覆盖旅行期间每一天
+  ],
+  "clothing": ["短语1", "短语2", "短语3"], // 3-5个关键穿衣/打包建议（例如：["防风外套", "雨伞", "防滑靴"]）
+  "safetyAlert": "基于当前天气的核心安全警告（限30字内，无风险则留空）",
+  "travelTips": "针对当前天气的出行建议（限30字内）"
+}`;
   }
 
   /**
@@ -1400,38 +1478,32 @@ ${params.googleSearchResults && params.googleSearchResults.length > 0 ? `Google 
     const isEnglish = language === 'en-US' || language === 'en';
     
     if (isEnglish) {
-      return `Please provide historical average climate information and perennial safety advice for destination **${params.destination}** during the travel month (${params.travelMonth}, travel period: ${params.startDate} to ${params.endDate}).
+      return `Please generate a historical climate guide for **${params.destination}** during **${params.travelMonth}** travel (${params.startDate} to ${params.endDate}).
 
-Please return the following information in JSON format:
+【Output Requirements - JSON Structure】
 
 {
-  "averageTemperature": "Average temperature range for this month (e.g., 15-25°C)",
-  "typicalWeather": "Typical weather conditions for this month",
-  "rainfall": "Average rainfall/precipitation information",
-  "clothingSuggestions": "Clothing suggestions based on historical climate",
-  "safetyAdvice": "Perennial safety advice for this destination and season",
-  "packingSuggestions": "Packing suggestions based on historical climate data",
-  "travelTips": "Travel tips for this destination and season"
-}
-
-Please ensure the return is valid JSON format, all fields are string type.`;
+  "overview": "Brief description of typical climate characteristics for this month (within 30 characters, e.g., Cold and snowy, with very short daylight during polar night.)",
+  "temperature": "Average temperature range (e.g., -15°C to -5°C)",
+  "precipitation": "Brief description of precipitation (e.g., Frequent snow, occasional blizzards)",
+  "clothingTags": ["keyword1", "keyword2", "keyword3", "keyword4"], // Extract 4 most important clothing/equipment keywords
+  "safetyFocus": "The most critical safety hazard for this season (e.g., Icy and slippery roads, need to prevent frostbite)",
+  "specialActivity": "Recommended special activities for this season (e.g., Aurora observation, Christmas markets)"
+}`;
     }
     
-    return `请为目的地 **${params.destination}** 在旅行月份（${params.travelMonth}，旅行期间：${params.startDate} 至 ${params.endDate}）提供历史平均气候信息及常年安全建议。
+    return `请为 **${params.destination}** 的 **${params.travelMonth}** 旅行（${params.startDate} 至 ${params.endDate}）生成历史气候指南。
 
-请以JSON格式返回以下信息：
+【输出要求 - JSON结构】
 
 {
-  "averageTemperature": "该月份的平均温度范围（例如：15-25°C）",
-  "typicalWeather": "该月份的典型天气状况",
-  "rainfall": "平均降雨/降水信息",
-  "clothingSuggestions": "基于历史气候的穿衣建议",
-  "safetyAdvice": "该目的地和季节的常年安全建议",
-  "packingSuggestions": "基于历史气候数据的打包建议",
-  "travelTips": "该目的地和季节的旅行建议"
-}
-
-请确保返回的是有效的JSON格式，所有字段都是字符串类型。`;
+  "overview": "该月份的典型气候特征简述（限30字内，例如：寒冷多雪，极夜期间日照极短。）",
+  "temperature": "平均温度范围（例如：-15°C 至 -5°C）",
+  "precipitation": "降水情况简述（例如：多雪，偶有暴风雪）",
+  "clothingTags": ["关键词1", "关键词2", "关键词3", "关键词4"], // 提取4个最重要的穿衣/装备关键词
+  "safetyFocus": "该季节最核心的一个安全隐患（例如：路面结冰湿滑，需防冻伤）",
+  "specialActivity": "该季节推荐的特色活动（例如：极光观测、圣诞集市）"
+}`;
   }
 
   /**
@@ -1466,12 +1538,22 @@ Please ensure the return is valid JSON format, all fields are string type.`;
       }>;
     }>;
     weatherInfo: {
-      currentWeather?: string;
-      forecast?: string;
-      averageTemperature?: string;
-      typicalWeather?: string;
-      rainfall?: string;
       type: 'realtime' | 'historical';
+      realtime?: {
+        summary: string;
+        dailyForecast: Array<{ date: string; weather: string; temp: string }>;
+        clothing: string[];
+        safetyAlert: string;
+        travelTips: string;
+      };
+      historical?: {
+        overview: string;
+        temperature: string;
+        precipitation: string;
+        clothingTags: string[];
+        safetyFocus: string;
+        specialActivity: string;
+      };
     };
     language?: string;
   }): string {
@@ -1492,10 +1574,37 @@ Please ensure the return is valid JSON format, all fields are string type.`;
       .join('\n\n');
 
     // 构建天气信息描述
-    const weatherDescription =
-      params.weatherInfo.type === 'realtime'
-        ? `实时天气：${params.weatherInfo.currentWeather}\n天气预报：${params.weatherInfo.forecast}`
-        : `历史气候：平均温度 ${params.weatherInfo.averageTemperature}，典型天气：${params.weatherInfo.typicalWeather}${params.weatherInfo.rainfall ? `，降雨：${params.weatherInfo.rainfall}` : ''}`;
+    let weatherDescription = '';
+    if (params.weatherInfo.type === 'realtime' && params.weatherInfo.realtime) {
+      const rt = params.weatherInfo.realtime;
+      weatherDescription = `实时天气综述：${rt.summary}\n`;
+      if (rt.dailyForecast && rt.dailyForecast.length > 0) {
+        weatherDescription += `每日预报：\n${rt.dailyForecast.map(f => `  - ${f.date}：${f.weather}，${f.temp}`).join('\n')}\n`;
+      }
+      if (rt.clothing && rt.clothing.length > 0) {
+        weatherDescription += `穿衣建议：${rt.clothing.join('、')}\n`;
+      }
+      if (rt.safetyAlert) {
+        weatherDescription += `安全警示：${rt.safetyAlert}\n`;
+      }
+      if (rt.travelTips) {
+        weatherDescription += `出行建议：${rt.travelTips}`;
+      }
+    } else if (params.weatherInfo.type === 'historical' && params.weatherInfo.historical) {
+      const hist = params.weatherInfo.historical;
+      weatherDescription = `历史气候概览：${hist.overview}\n`;
+      weatherDescription += `平均温度：${hist.temperature}\n`;
+      weatherDescription += `降水情况：${hist.precipitation}\n`;
+      if (hist.clothingTags && hist.clothingTags.length > 0) {
+        weatherDescription += `关键装备：${hist.clothingTags.join('、')}\n`;
+      }
+      if (hist.safetyFocus) {
+        weatherDescription += `安全隐患：${hist.safetyFocus}\n`;
+      }
+      if (hist.specialActivity) {
+        weatherDescription += `特色活动：${hist.specialActivity}`;
+      }
+    }
 
     if (isEnglish) {
       return `Please generate a smart packing list for destination **${params.destination}** during the travel period (${params.startDate} to ${params.endDate}).

@@ -4083,10 +4083,14 @@ export class ItineraryService {
       });
 
       const aiResponse = await this.llmService.chatCompletionJson<{
-        currentWeather: string;
-        forecast: string;
-        safetyAlerts: string;
-        packingSuggestions: string;
+        summary: string;
+        dailyForecast: Array<{
+          date: string;
+          weather: string;
+          temp: string;
+        }>;
+        clothing: string[];
+        safetyAlert: string;
         travelTips: string;
       }>(
         await this.llmService.buildChatCompletionOptions({
@@ -4103,12 +4107,14 @@ export class ItineraryService {
       );
 
       weatherInfo = {
-        currentWeather: aiResponse.currentWeather || '天气信息获取中...',
-        forecast: aiResponse.forecast || '天气预报获取中...',
-        safetyAlerts: aiResponse.safetyAlerts || '暂无安全警示',
-        packingSuggestions: aiResponse.packingSuggestions || '建议根据天气情况准备行李',
-        travelTips: aiResponse.travelTips || '建议关注天气变化，合理安排行程',
         type: 'realtime',
+        realtime: {
+          summary: aiResponse.summary || '天气信息获取中...',
+          dailyForecast: aiResponse.dailyForecast || [],
+          clothing: aiResponse.clothing || [],
+          safetyAlert: aiResponse.safetyAlert || '',
+          travelTips: aiResponse.travelTips || '建议关注天气变化，合理安排行程',
+        },
       };
     } else {
       // 历史气候：基于历史平均数据
@@ -4131,13 +4137,12 @@ export class ItineraryService {
       });
 
       const aiResponse = await this.llmService.chatCompletionJson<{
-        averageTemperature: string;
-        typicalWeather: string;
-        rainfall: string;
-        clothingSuggestions: string;
-        safetyAdvice: string;
-        packingSuggestions: string;
-        travelTips: string;
+        overview: string;
+        temperature: string;
+        precipitation: string;
+        clothingTags: string[];
+        safetyFocus: string;
+        specialActivity: string;
       }>(
         await this.llmService.buildChatCompletionOptions({
           messages: [
@@ -4153,16 +4158,15 @@ export class ItineraryService {
       );
 
       weatherInfo = {
-        currentWeather: aiResponse.averageTemperature || '气候信息获取中...',
-        forecast: aiResponse.typicalWeather || '典型天气状况获取中...',
-        safetyAlerts: aiResponse.safetyAdvice || '暂无特殊安全建议',
-        packingSuggestions: aiResponse.packingSuggestions || '建议根据历史气候准备行李',
-        travelTips: aiResponse.travelTips || '建议关注当地气候特点，合理安排行程',
-        averageTemperature: aiResponse.averageTemperature,
-        rainfall: aiResponse.rainfall,
-        clothingSuggestions: aiResponse.clothingSuggestions,
-        safetyAdvice: aiResponse.safetyAdvice,
         type: 'historical',
+        historical: {
+          overview: aiResponse.overview || '气候信息获取中...',
+          temperature: aiResponse.temperature || '',
+          precipitation: aiResponse.precipitation || '',
+          clothingTags: aiResponse.clothingTags || [],
+          safetyFocus: aiResponse.safetyFocus || '暂无特殊安全建议',
+          specialActivity: aiResponse.specialActivity || '',
+        },
       };
     }
 
@@ -4256,12 +4260,22 @@ export class ItineraryService {
     const isRealtime = daysUntilStart >= 0 && daysUntilStart <= 10;
 
     let weatherInfo: {
-      currentWeather?: string;
-      forecast?: string;
-      averageTemperature?: string;
-      typicalWeather?: string;
-      rainfall?: string;
       type: 'realtime' | 'historical';
+      realtime?: {
+        summary: string;
+        dailyForecast: Array<{ date: string; weather: string; temp: string }>;
+        clothing: string[];
+        safetyAlert: string;
+        travelTips: string;
+      };
+      historical?: {
+        overview: string;
+        temperature: string;
+        precipitation: string;
+        clothingTags: string[];
+        safetyFocus: string;
+        specialActivity: string;
+      };
     };
 
     if (isRealtime) {
@@ -4269,16 +4283,26 @@ export class ItineraryService {
       try {
         const weatherData = await this.getWeatherInfo(journeyId, userId, language);
         weatherInfo = {
-          currentWeather: weatherData.weatherInfo.currentWeather,
-          forecast: weatherData.weatherInfo.forecast,
           type: 'realtime',
+          realtime: weatherData.weatherInfo.realtime || {
+            summary: '天气信息获取中...',
+            dailyForecast: [],
+            clothing: [],
+            safetyAlert: '',
+            travelTips: '',
+          },
         };
       } catch (error) {
         this.logger.warn('获取实时天气失败，使用默认信息:', error);
         weatherInfo = {
-          currentWeather: '天气信息获取中...',
-          forecast: '天气预报获取中...',
           type: 'realtime',
+          realtime: {
+            summary: '天气信息获取中...',
+            dailyForecast: [],
+            clothing: [],
+            safetyAlert: '',
+            travelTips: '',
+          },
         };
       }
     } else {
@@ -4286,17 +4310,28 @@ export class ItineraryService {
       try {
         const weatherData = await this.getWeatherInfo(journeyId, userId, language);
         weatherInfo = {
-          averageTemperature: weatherData.weatherInfo.currentWeather,
-          typicalWeather: weatherData.weatherInfo.forecast,
-          rainfall: (weatherData.weatherInfo as any).rainfall,
           type: 'historical',
+          historical: weatherData.weatherInfo.historical || {
+            overview: '气候信息获取中...',
+            temperature: '',
+            precipitation: '',
+            clothingTags: [],
+            safetyFocus: '',
+            specialActivity: '',
+          },
         };
       } catch (error) {
         this.logger.warn('获取历史气候失败，使用默认信息:', error);
         weatherInfo = {
-          averageTemperature: '气候信息获取中...',
-          typicalWeather: '典型天气状况获取中...',
           type: 'historical',
+          historical: {
+            overview: '气候信息获取中...',
+            temperature: '',
+            precipitation: '',
+            clothingTags: [],
+            safetyFocus: '',
+            specialActivity: '',
+          },
         };
       }
     }
