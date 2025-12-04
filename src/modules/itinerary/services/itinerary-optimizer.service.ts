@@ -296,6 +296,25 @@ export class ItineraryOptimizerService {
           this.logger.warn(
             `Mapbox Optimization API 返回 NoRoute 错误，可能原因：坐标之间距离过远、坐标在海洋中、或无法计算路线。返回原始顺序。`,
           );
+          
+          // 记录所有活动的坐标信息，便于排查问题
+          this.logger.warn(
+            `[NoRoute 调试] 正在记录所有活动坐标以便排查问题（共 ${activities.length} 个活动）：`,
+          );
+          activities.forEach((activity, index) => {
+            this.logger.warn(
+              `  [${index + 1}] ${activity.title}: (${activity.location.lat}, ${activity.location.lng})`,
+            );
+          });
+          
+          // 记录坐标字符串（用于在 Mapbox 或 Google Maps 中测试）
+          this.logger.warn(
+            `[NoRoute 调试] 坐标字符串（Mapbox 格式）: ${coordinates.substring(0, 200)}${coordinates.length > 200 ? '...' : ''}`,
+          );
+          this.logger.warn(
+            `[NoRoute 调试] Profile: ${mapboxProfile}, Roundtrip: ${roundtrip}, Source: ${source}, Destination: ${destination}`,
+          );
+          
           // 优雅降级：返回原始顺序
           return {
             activities,
