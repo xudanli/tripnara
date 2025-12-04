@@ -1089,10 +1089,24 @@ export class LlmService {
     // 移除可能的控制字符
     let cleaned = response.replace(/[\x00-\x1F\x7F]/g, '').trim();
 
-    // 尝试从 markdown 代码块中提取 JSON
-    const jsonBlockMatch = cleaned.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
+    // 尝试从 markdown 代码块中提取 JSON（支持对象和数组）
+    // 匹配 ```json 或 ``` 开头的代码块，提取其中的 JSON 内容
+    // 支持两种格式：
+    // 1. ```json\n{...}\n``` 或 ```json\n[...]\n```
+    // 2. ```json{...}``` 或 ```json[...]```
+    
+    // 首先尝试匹配完整的代码块（包含结束的 ```）
+    let jsonBlockMatch = cleaned.match(/```(?:json)?\s*([{\[][\s\S]*?)\s*```/);
     if (jsonBlockMatch) {
-      cleaned = jsonBlockMatch[1];
+      cleaned = jsonBlockMatch[1].trim();
+    } else {
+      // 如果没有匹配到结束的 ```，尝试匹配从 ```json 开始到字符串末尾的内容
+      jsonBlockMatch = cleaned.match(/```(?:json)?\s*([{\[][\s\S]*)/);
+      if (jsonBlockMatch) {
+        cleaned = jsonBlockMatch[1].trim();
+        // 移除末尾可能存在的 ``` 标记
+        cleaned = cleaned.replace(/\s*```\s*$/, '');
+      }
     }
 
     // 如果响应以 { 或 [ 开头，尝试找到匹配的结束位置
@@ -1101,6 +1115,50 @@ export class LlmService {
       const startIndex = cleaned.search(/[{\[]/);
       if (startIndex > 0) {
         cleaned = cleaned.substring(startIndex);
+      }
+      
+      // 尝试找到匹配的结束括号/方括号
+      // 使用栈来找到匹配的结束位置
+      let depth = 0;
+      let inString = false;
+      let escapeNext = false;
+      let endIndex = -1;
+      
+      for (let i = 0; i < cleaned.length; i++) {
+        const char = cleaned[i];
+        
+        if (escapeNext) {
+          escapeNext = false;
+          continue;
+        }
+        
+        if (char === '\\') {
+          escapeNext = true;
+          continue;
+        }
+        
+        if (char === '"' && !escapeNext) {
+          inString = !inString;
+          continue;
+        }
+        
+        if (inString) {
+          continue;
+        }
+        
+        if (char === '{' || char === '[') {
+          depth++;
+        } else if (char === '}' || char === ']') {
+          depth--;
+          if (depth === 0) {
+            endIndex = i + 1;
+            break;
+          }
+        }
+      }
+      
+      if (endIndex > 0) {
+        cleaned = cleaned.substring(0, endIndex);
       }
     }
 
