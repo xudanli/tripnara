@@ -1,4 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { HttpModule } from '@nestjs/axios';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ItineraryV1Controller } from './itinerary-v1.controller';
 import { JourneyV1Controller } from './journey-v1.controller';
@@ -24,6 +25,7 @@ import { AiSafetyNoticeCacheEntity } from '../persistence/entities/ai-log.entity
 
 @Module({
   imports: [
+    HttpModule,
     LlmModule,
     PreferencesModule,
     PersistenceModule,
