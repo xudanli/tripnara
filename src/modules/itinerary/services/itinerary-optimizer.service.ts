@@ -136,7 +136,33 @@ export class ItineraryOptimizerService {
       );
     }
 
-    const profile = options?.profile || 'driving';
+    // Mapbox Optimization API 仅支持以下三种模式：
+    // - mapbox/driving (驾车，不带实时路况)
+    // - mapbox/walking (步行)
+    // - mapbox/cycling (骑行)
+    // 不支持 mapbox/driving-traffic 等其他模式
+    const inputProfile = options?.profile || 'driving';
+    
+    // 确保 profile 值正确映射到 Mapbox 支持的格式
+    let mapboxProfile: string;
+    switch (inputProfile) {
+      case 'driving':
+        mapboxProfile = 'driving';
+        break;
+      case 'walking':
+        mapboxProfile = 'walking';
+        break;
+      case 'cycling':
+        mapboxProfile = 'cycling';
+        break;
+      default:
+        // 如果传入不支持的 profile，默认使用 driving
+        this.logger.warn(
+          `不支持的 profile: ${inputProfile}，使用默认值 'driving'`,
+        );
+        mapboxProfile = 'driving';
+    }
+    
     const roundtrip = options?.roundtrip ?? false;
     const source = options?.source || 'first';
     const destination = options?.destination || 'any';
@@ -147,7 +173,12 @@ export class ItineraryOptimizerService {
       .join(';');
 
     // 2. 调用 Mapbox Optimization API
-    const url = `${this.baseUrl}/optimized-trips/v1/mapbox/${profile}/${coordinates}`;
+    // URL 格式: /optimized-trips/v1/mapbox/{profile}/{coordinates}
+    const url = `${this.baseUrl}/optimized-trips/v1/mapbox/${mapboxProfile}/${coordinates}`;
+    
+    this.logger.debug(
+      `调用 Mapbox Optimization API: profile=${mapboxProfile}, coordinates=${coordinates.substring(0, 50)}...`,
+    );
 
     try {
       const response = await firstValueFrom(
