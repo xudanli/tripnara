@@ -28,6 +28,22 @@ export class VisaService {
   private readonly redisClient?: Redis;
   private readonly useRedisCache: boolean;
   private readonly visaCacheTtlSeconds = 24 * 60 * 60; // 24小时（签证政策相对稳定）
+  private readonly emptyCacheTtlSeconds = 5 * 60; // 5分钟（空结果缓存，防止穿透）
+  private readonly maxCacheTtlSeconds = 24 * 60 * 60; // 最大缓存时间：24小时
+  
+  // Redis 熔断状态
+  private redisCircuitBreakerOpen = false;
+  private redisCircuitBreakerOpenTime?: Date;
+  private readonly circuitBreakerTimeout = 60 * 1000; // 熔断器超时：60秒
+  
+  // 签证类型权重（用于最优策略选择）
+  private readonly visaTypeWeights: Record<VisaType, number> = {
+    'visa-free': 1, // 最优
+    'visa-on-arrival': 2,
+    'e-visa': 3,
+    'permanent-resident-benefit': 4,
+    'visa-required': 5, // 最差
+  };
 
   constructor(
     @InjectRepository(VisaPolicyEntity)
@@ -94,87 +110,159 @@ export class VisaService {
 
   /**
    * 查询指定目的地的签证信息
-   * 性能优化：使用 Redis 缓存，减少数据库查询
+   * 性能优化：
+   * 1. 使用 Redis 缓存，减少数据库查询
+   * 2. 合并查询，减少数据库 I/O
+   * 3. 最优策略选择：对比国籍和PR政策，返回最优结果
+   * 4. 缓存穿透保护：缓存空结果
+   * 5. 动态 TTL：根据政策过期时间设置缓存TTL
+   * 6. Redis 熔断：故障时直接降级到数据库
    */
   async getVisaInfo(
     destinationCountry: string,
     nationalityCode?: string,
     permanentResidencyCode?: string,
   ): Promise<VisaInfo[]> {
-    // 生成缓存键：CN -> EG (nationality) 或 CN -> EG (permanent_resident)
-    const cacheKey = `visa:${destinationCountry.toUpperCase()}:${nationalityCode?.toUpperCase() || 'none'}:${permanentResidencyCode?.toUpperCase() || 'none'}`;
+    const destUpper = destinationCountry.toUpperCase();
+    const natUpper = nationalityCode?.toUpperCase();
+    const prUpper = permanentResidencyCode?.toUpperCase();
     
-    // 尝试从 Redis 缓存读取
-    if (this.useRedisCache && this.redisClient) {
+    // 生成缓存键
+    const cacheKey = `visa:${destUpper}:${natUpper || 'none'}:${prUpper || 'none'}`;
+    
+    // 检查熔断器状态
+    this.checkCircuitBreaker();
+    
+    // 尝试从 Redis 缓存读取（如果熔断器未打开）
+    if (this.useRedisCache && this.redisClient && !this.redisCircuitBreakerOpen) {
       try {
         const cached = await this.redisClient.get(cacheKey);
-        if (cached) {
+        if (cached !== null) {
+          // 检查是否是空结果标记
+          if (cached === '__EMPTY__') {
+            this.logger.debug(`Redis cache hit (empty) for visa info: ${cacheKey}`);
+            return [];
+          }
+          
           const visaInfos = JSON.parse(cached) as VisaInfo[];
           this.logger.debug(`Redis cache hit for visa info: ${cacheKey}`);
+          
+          // 重置熔断器（成功读取）
+          this.redisCircuitBreakerOpen = false;
+          this.redisCircuitBreakerOpenTime = undefined;
+          
           return visaInfos;
         }
       } catch (error) {
         this.logger.warn(`Redis cache read error for ${cacheKey}:`, error);
+        // 打开熔断器
+        this.openCircuitBreaker();
         // 继续从数据库查询
       }
     }
 
+    // 从数据库查询
     const now = new Date();
-    const results: VisaInfo[] = [];
+    const destCode = destUpper;
+    
+    // 优化：合并查询，一次性获取所有相关策略
+    const queryBuilder = this.visaPolicyRepository
+      .createQueryBuilder('policy')
+      .where('policy.destinationCountryCode = :destCode', { destCode })
+      .andWhere('policy.isActive = :isActive', { isActive: true })
+      .andWhere(
+        '(policy.effectiveDate IS NULL OR policy.effectiveDate <= :now)',
+        { now },
+      )
+      .andWhere(
+        '(policy.expiryDate IS NULL OR policy.expiryDate >= :now)',
+        { now },
+      );
 
-    // 优先查询永久居民身份
-    if (permanentResidencyCode) {
-      const prPolicies = await this.visaPolicyRepository.find({
-        where: {
-          destinationCountryCode: destinationCountry.toUpperCase(),
-          applicantType: 'permanent_resident',
-          applicantCountryCode: permanentResidencyCode.toUpperCase(),
-          isActive: true,
-        },
-      });
+    // 构建 OR 条件：同时查询国籍和永久居民
+    const orConditions: string[] = [];
 
-      // 过滤有效日期
-      const validPrPolicies = prPolicies.filter((policy) => {
-        if (policy.effectiveDate && policy.effectiveDate > now) return false;
-        if (policy.expiryDate && policy.expiryDate < now) return false;
-        return true;
-      });
-
-      results.push(...validPrPolicies.map(this.mapToVisaInfo));
+    if (natUpper) {
+      orConditions.push(
+        "(policy.applicantType = 'nationality' AND policy.applicantCountryCode = :natCode)",
+      );
+      queryBuilder.setParameter('natCode', natUpper);
     }
 
-    // 查询国籍信息
-    if (nationalityCode) {
-      const nationalityPolicies = await this.visaPolicyRepository.find({
-        where: {
-          destinationCountryCode: destinationCountry.toUpperCase(),
-          applicantType: 'nationality',
-          applicantCountryCode: nationalityCode.toUpperCase(),
-          isActive: true,
-        },
-      });
-
-      // 过滤有效日期
-      const validNationalityPolicies = nationalityPolicies.filter((policy) => {
-        if (policy.effectiveDate && policy.effectiveDate > now) return false;
-        if (policy.expiryDate && policy.expiryDate < now) return false;
-        return true;
-      });
-
-      results.push(...validNationalityPolicies.map(this.mapToVisaInfo));
+    if (prUpper) {
+      orConditions.push(
+        "(policy.applicantType = 'permanent_resident' AND policy.applicantCountryCode = :prCode)",
+      );
+      queryBuilder.setParameter('prCode', prUpper);
     }
 
-    // 写入 Redis 缓存（24小时）
-    if (this.useRedisCache && this.redisClient) {
+    if (orConditions.length === 0) {
+      // 如果没有提供任何查询条件，返回空数组
+      return [];
+    }
+
+    queryBuilder.andWhere(`(${orConditions.join(' OR ')})`);
+
+    const policies = await queryBuilder.getMany();
+
+    // 过滤有效日期（双重检查，确保时区一致性）
+    const validPolicies = policies.filter((policy) => {
+      if (policy.effectiveDate) {
+        const effective = new Date(policy.effectiveDate);
+        if (effective > now) return false;
+      }
+      if (policy.expiryDate) {
+        const expiry = new Date(policy.expiryDate);
+        if (expiry < now) return false;
+      }
+      return true;
+    });
+
+    // 转换为 VisaInfo
+    const allResults = validPolicies.map(this.mapToVisaInfo);
+
+    // 最优策略选择：如果同时有国籍和PR政策，选择最优的
+    const results = this.selectBestPolicies(
+      allResults,
+      natUpper,
+      prUpper,
+      validPolicies,
+    );
+
+    // 计算动态 TTL
+    const cacheTtl = this.calculateDynamicTtl(validPolicies, now);
+
+    // 写入 Redis 缓存
+    if (this.useRedisCache && this.redisClient && !this.redisCircuitBreakerOpen) {
       try {
-        await this.redisClient.setex(
-          cacheKey,
-          this.visaCacheTtlSeconds,
-          JSON.stringify(results),
-        );
-        this.logger.debug(`Redis cache set for visa info: ${cacheKey}`);
+        // 缓存穿透保护：如果结果为空，缓存特殊标记
+        if (results.length === 0) {
+          await this.redisClient.setex(
+            cacheKey,
+            this.emptyCacheTtlSeconds, // 空结果使用较短的TTL
+            '__EMPTY__',
+          );
+          this.logger.debug(
+            `Redis cache set (empty) for visa info: ${cacheKey}, TTL: ${this.emptyCacheTtlSeconds}s`,
+          );
+        } else {
+          await this.redisClient.setex(
+            cacheKey,
+            cacheTtl,
+            JSON.stringify(results),
+          );
+          this.logger.debug(
+            `Redis cache set for visa info: ${cacheKey}, TTL: ${cacheTtl}s`,
+          );
+        }
+        
+        // 重置熔断器（成功写入）
+        this.redisCircuitBreakerOpen = false;
+        this.redisCircuitBreakerOpenTime = undefined;
       } catch (error) {
         this.logger.warn(`Redis cache write error for ${cacheKey}:`, error);
+        // 打开熔断器
+        this.openCircuitBreaker();
       }
     }
 
@@ -522,6 +610,12 @@ export class VisaService {
 
     await this.visaPolicyRepository.save(policy);
 
+    // 清除相关缓存（当政策删除时）
+    await this.invalidateVisaCache(
+      policy.destinationCountryCode,
+      policy.applicantCountryCode,
+    );
+
     // 记录历史
     await this.visaPolicyHistoryRepository.save({
       policyId: id,
@@ -558,27 +652,206 @@ export class VisaService {
   }
 
   /**
+   * 最优策略选择
+   * 如果同时有国籍和PR政策，选择对用户最有利的策略
+   */
+  private selectBestPolicies(
+    allResults: VisaInfo[],
+    nationalityCode?: string,
+    permanentResidencyCode?: string,
+    policies?: VisaPolicyEntity[],
+  ): VisaInfo[] {
+    // 如果没有提供两个身份，直接返回所有结果
+    if (!nationalityCode || !permanentResidencyCode) {
+      return allResults;
+    }
+
+    // 如果没有提供 policies，无法区分国籍和PR，返回所有结果
+    if (!policies || policies.length === 0) {
+      return allResults;
+    }
+
+    // 分离国籍和PR政策
+    const nationalityResults: VisaInfo[] = [];
+    const prResults: VisaInfo[] = [];
+
+    policies.forEach((policy, index) => {
+      if (index >= allResults.length) return;
+      const visaInfo = allResults[index];
+      if (policy.applicantType === 'nationality') {
+        nationalityResults.push(visaInfo);
+      } else if (policy.applicantType === 'permanent_resident') {
+        prResults.push(visaInfo);
+      }
+    });
+
+    // 如果只有一种类型的政策，直接返回
+    if (nationalityResults.length === 0) {
+      return prResults;
+    }
+    if (prResults.length === 0) {
+      return nationalityResults;
+    }
+
+    // 对比两种政策，选择最优的
+    const bestNationality = this.getBestPolicy(nationalityResults);
+    const bestPR = this.getBestPolicy(prResults);
+
+    // 返回最优策略（如果权重相同，返回两个）
+    const bestWeight = Math.min(
+      this.visaTypeWeights[bestNationality.visaType],
+      this.visaTypeWeights[bestPR.visaType],
+    );
+
+    const results: VisaInfo[] = [];
+    if (this.visaTypeWeights[bestNationality.visaType] === bestWeight) {
+      results.push(bestNationality);
+    }
+    if (
+      this.visaTypeWeights[bestPR.visaType] === bestWeight &&
+      bestPR.visaType !== bestNationality.visaType
+    ) {
+      results.push(bestPR);
+    }
+
+    // 如果最优策略相同，返回两个（让用户知道两种身份都可以）
+    if (results.length === 0) {
+      results.push(bestNationality, bestPR);
+    }
+
+    return results;
+  }
+
+  /**
+   * 从多个策略中选择最优的（权重最低的）
+   */
+  private getBestPolicy(policies: VisaInfo[]): VisaInfo {
+    if (policies.length === 0) {
+      throw new Error('Cannot select best policy from empty array');
+    }
+
+    return policies.reduce((best, current) => {
+      const bestWeight = this.visaTypeWeights[best.visaType];
+      const currentWeight = this.visaTypeWeights[current.visaType];
+      return currentWeight < bestWeight ? current : best;
+    });
+  }
+
+  /**
+   * 计算动态 TTL
+   * 如果政策的过期时间距离现在很近，使用较短的TTL
+   */
+  private calculateDynamicTtl(
+    policies: VisaPolicyEntity[],
+    now: Date,
+  ): number {
+    if (policies.length === 0) {
+      return this.emptyCacheTtlSeconds;
+    }
+
+    // 找到最近的过期时间
+    let minTtl = this.maxCacheTtlSeconds;
+
+    for (const policy of policies) {
+      if (policy.expiryDate) {
+        const expiry = new Date(policy.expiryDate);
+        const secondsUntilExpiry = Math.floor(
+          (expiry.getTime() - now.getTime()) / 1000,
+        );
+
+        // 如果过期时间在24小时内，使用过期时间作为TTL
+        if (secondsUntilExpiry > 0 && secondsUntilExpiry < minTtl) {
+          minTtl = secondsUntilExpiry;
+        }
+      }
+    }
+
+    // 确保TTL不会太短（至少5分钟）也不会超过最大值
+    return Math.max(
+      this.emptyCacheTtlSeconds,
+      Math.min(minTtl, this.maxCacheTtlSeconds),
+    );
+  }
+
+  /**
+   * 打开 Redis 熔断器
+   */
+  private openCircuitBreaker(): void {
+    if (!this.redisCircuitBreakerOpen) {
+      this.redisCircuitBreakerOpen = true;
+      this.redisCircuitBreakerOpenTime = new Date();
+      this.logger.warn(
+        'Redis circuit breaker opened due to connection errors',
+      );
+    }
+  }
+
+  /**
+   * 检查并尝试关闭熔断器
+   */
+  private checkCircuitBreaker(): void {
+    if (
+      this.redisCircuitBreakerOpen &&
+      this.redisCircuitBreakerOpenTime
+    ) {
+      const elapsed = Date.now() - this.redisCircuitBreakerOpenTime.getTime();
+      if (elapsed >= this.circuitBreakerTimeout) {
+        this.redisCircuitBreakerOpen = false;
+        this.redisCircuitBreakerOpenTime = undefined;
+        this.logger.log('Redis circuit breaker closed, attempting to reconnect');
+      }
+    }
+  }
+
+  /**
    * 清除签证政策缓存
+   * 优化：使用通配符删除所有相关缓存（visa:JP:*）
    * 当政策创建、更新或删除时调用
    */
   private async invalidateVisaCache(
     destinationCountryCode: string,
-    applicantCountryCode: string,
+    applicantCountryCode?: string,
   ): Promise<void> {
-    if (!this.useRedisCache || !this.redisClient) {
+    if (!this.useRedisCache || !this.redisClient || this.redisCircuitBreakerOpen) {
       return;
     }
 
     try {
-      // 清除所有相关的缓存键（使用模式匹配）
-      const pattern = `visa:${destinationCountryCode.toUpperCase()}:*:${applicantCountryCode.toUpperCase()}`;
-      const keys = await this.redisClient.keys(pattern);
-      if (keys.length > 0) {
-        await this.redisClient.del(...keys);
-        this.logger.debug(`Cleared ${keys.length} visa cache entries for ${destinationCountryCode} -> ${applicantCountryCode}`);
+      const destUpper = destinationCountryCode.toUpperCase();
+      
+      // 使用通配符删除所有相关缓存
+      // 模式1: visa:JP:* (删除该目的地的所有缓存)
+      const pattern1 = `visa:${destUpper}:*`;
+      const keys1 = await this.redisClient.keys(pattern1);
+      
+      // 模式2: 如果提供了申请人国家代码，也删除特定组合
+      let keys2: string[] = [];
+      if (applicantCountryCode) {
+        const appUpper = applicantCountryCode.toUpperCase();
+        const pattern2 = `visa:${destUpper}:*:${appUpper}`;
+        const pattern3 = `visa:${destUpper}:${appUpper}:*`;
+        keys2 = await this.redisClient.keys(pattern2);
+        const keys3 = await this.redisClient.keys(pattern3);
+        keys2 = [...keys2, ...keys3];
+      }
+      
+      // 合并并去重
+      const allKeys = [...new Set([...keys1, ...keys2])];
+      
+      if (allKeys.length > 0) {
+        // 使用 pipeline 批量删除，提高性能
+        const pipeline = this.redisClient.pipeline();
+        allKeys.forEach((key) => pipeline.del(key));
+        await pipeline.exec();
+        
+        this.logger.debug(
+          `Cleared ${allKeys.length} visa cache entries for ${destUpper}`,
+        );
       }
     } catch (error) {
       this.logger.warn('Failed to invalidate visa cache:', error);
+      // 打开熔断器
+      this.openCircuitBreaker();
     }
   }
 }
