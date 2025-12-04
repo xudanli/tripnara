@@ -198,6 +198,68 @@ export class ItineraryOptimizerService {
     const source = options?.source || 'first';
     const destination = options?.destination || 'any';
 
+    // 距离校验：检查点与点之间的距离是否合理
+    // 如果距离过远（超过合理上限），可能是坐标错误（如跨洲）
+    // 在调用 Mapbox API 之前进行校验，避免浪费 API 调用和返回 NoRoute 错误
+    const MAX_DRIVING_DISTANCE_KM = 2000; // 合理的驾车距离上限（2000公里）
+    const MAX_WALKING_DISTANCE_KM = 50; // 合理的步行距离上限（50公里）
+    const MAX_CYCLING_DISTANCE_KM = 200; // 合理的骑行距离上限（200公里）
+
+    // 根据 profile 选择不同的距离上限
+    const maxDistanceKm =
+      mapboxProfile === 'walking'
+        ? MAX_WALKING_DISTANCE_KM
+        : mapboxProfile === 'cycling'
+        ? MAX_CYCLING_DISTANCE_KM
+        : MAX_DRIVING_DISTANCE_KM;
+
+    const distanceIssues: Array<{
+      from: string;
+      to: string;
+      distance: number;
+      fromCoord: { lat: number; lng: number };
+      toCoord: { lat: number; lng: number };
+    }> = [];
+
+    for (let i = 0; i < activities.length - 1; i++) {
+      const from = activities[i];
+      const to = activities[i + 1];
+      const distance = this.calculateDistance(
+        from.location.lat,
+        from.location.lng,
+        to.location.lat,
+        to.location.lng,
+      );
+
+      if (distance > maxDistanceKm) {
+        distanceIssues.push({
+          from: from.title,
+          to: to.title,
+          distance,
+          fromCoord: { lat: from.location.lat, lng: from.location.lng },
+          toCoord: { lat: to.location.lat, lng: to.location.lng },
+        });
+      }
+    }
+
+    if (distanceIssues.length > 0) {
+      this.logger.error(
+        `检测到异常距离的活动对（超过 ${maxDistanceKm}km，profile: ${mapboxProfile}），可能是坐标错误（如跨洲）：`,
+        distanceIssues.map(
+          (issue) =>
+            `${issue.from} (${issue.fromCoord.lat}, ${issue.fromCoord.lng}) -> ${issue.to} (${issue.toCoord.lat}, ${issue.toCoord.lng}): ${issue.distance.toFixed(2)}km`,
+        ),
+      );
+      this.logger.warn(
+        `由于存在异常距离，跳过路线优化，返回原始顺序。建议检查地理编码服务返回的坐标是否正确。`,
+      );
+      return {
+        activities,
+        totalDistance: 0,
+        totalDuration: 0,
+      };
+    }
+
     // 1. 构建坐标字符串: "lng,lat;lng,lat;..."
     const coordinates = activities
       .map((a) => `${a.location.lng},${a.location.lat}`)
@@ -350,6 +412,44 @@ export class ItineraryOptimizerService {
         totalDuration: 0,
       };
     }
+  }
+
+  /**
+   * 计算两点间的距离（使用 Haversine 公式）
+   * @param lat1 第一个点的纬度
+   * @param lng1 第一个点的经度
+   * @param lat2 第二个点的纬度
+   * @param lng2 第二个点的经度
+   * @returns 距离（公里）
+   */
+  private calculateDistance(
+    lat1: number,
+    lng1: number,
+    lat2: number,
+    lng2: number,
+  ): number {
+    const R = 6371; // 地球半径（公里）
+    const dLat = this.degreesToRadians(lat2 - lat1);
+    const dLng = this.degreesToRadians(lng2 - lng1);
+
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(this.degreesToRadians(lat1)) *
+        Math.cos(this.degreesToRadians(lat2)) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
+
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c;
+
+    return distance;
+  }
+
+  /**
+   * 将角度转换为弧度
+   */
+  private degreesToRadians(degrees: number): number {
+    return degrees * (Math.PI / 180);
   }
 
   /**
