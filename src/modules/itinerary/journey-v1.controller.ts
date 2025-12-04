@@ -21,9 +21,12 @@ import { ItineraryService } from './itinerary.service';
 import { JourneyAssistantService } from './services/journey-assistant.service';
 import { CulturalGuideService } from './services/cultural-guide.service';
 import { LocalEssentialsService } from './services/local-essentials.service';
+import { ItineraryOptimizerService } from './services/itinerary-optimizer.service';
 import {
   GenerateItineraryRequestDto,
   GenerateItineraryResponseDto,
+  OptimizeRouteRequestDto,
+  OptimizeRouteResponseDto,
   CreateItineraryRequestDto,
   CreateItineraryFromFrontendDataDto,
   UpdateItineraryRequestDto,
@@ -98,6 +101,7 @@ export class JourneyV1Controller {
     private readonly journeyAssistantService: JourneyAssistantService,
     private readonly culturalGuideService: CulturalGuideService,
     private readonly localEssentialsService: LocalEssentialsService,
+    private readonly itineraryOptimizerService: ItineraryOptimizerService,
   ) {}
 
   @Post('generate')
@@ -1235,6 +1239,44 @@ export class JourneyV1Controller {
       user.userId,
       query.language || 'zh-CN',
     );
+  }
+
+  @Post('optimize-route')
+  @ApiOperation({
+    summary: '优化路线顺序',
+    description:
+      '使用 TSP 算法优化活动顺序，计算最短路径。支持驾车、步行、骑行三种交通方式。',
+  })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiBody({ type: OptimizeRouteRequestDto })
+  @ApiResponse({
+    status: 200,
+    description: '路线优化成功',
+    type: OptimizeRouteResponseDto,
+  })
+  async optimizeRoute(
+    @Body() dto: OptimizeRouteRequestDto,
+    @CurrentUser() user: { userId: string },
+  ): Promise<OptimizeRouteResponseDto> {
+    const result = await this.itineraryOptimizerService.optimizeRoute(
+      dto.activities,
+      {
+        profile: dto.profile || 'driving',
+        roundtrip: dto.roundtrip ?? false,
+        source: dto.source || 'first',
+        destination: dto.destination || 'any',
+      },
+    );
+
+    return {
+      success: true,
+      activities: result.activities,
+      totalDistance: result.totalDistance,
+      totalDuration: result.totalDuration,
+      routeGeometry: result.routeGeometry,
+      legs: result.legs,
+    } as OptimizeRouteResponseDto;
   }
 }
 

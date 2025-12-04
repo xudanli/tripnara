@@ -2898,6 +2898,134 @@ export class GetWeatherInfoResponseDto {
 
   @ApiProperty({ description: '结束日期', example: '2025-12-08' })
   endDate!: string;
+}
+
+/**
+ * 路线优化请求 DTO
+ */
+export class OptimizeRouteRequestDto {
+  @ApiProperty({
+    description: '活动列表（必须包含 location 坐标）',
+    type: [Object],
+    example: [
+      {
+        id: 'activity-1',
+        title: '琉森湖游船',
+        location: { lat: 47.0502, lng: 8.3093 },
+        type: 'attraction',
+        time: '09:00',
+        duration: 120,
+      },
+      {
+        id: 'activity-2',
+        title: '铁力士峰',
+        location: { lat: 46.7704, lng: 8.4050 },
+        type: 'attraction',
+        time: '14:00',
+        duration: 180,
+      },
+    ],
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => Object)
+  activities!: Array<{
+    id?: string;
+    title: string;
+    location: { lat: number; lng: number };
+    type?: string;
+    time?: string;
+    duration?: number;
+    [key: string]: unknown;
+  }>;
+
+  @ApiPropertyOptional({
+    description: '交通方式',
+    enum: ['driving', 'walking', 'cycling'],
+    default: 'driving',
+  })
+  @IsOptional()
+  @IsEnum(['driving', 'walking', 'cycling'])
+  profile?: 'driving' | 'walking' | 'cycling';
+
+  @ApiPropertyOptional({
+    description: '是否回到起点（往返路线）',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  roundtrip?: boolean;
+
+  @ApiPropertyOptional({
+    description: '固定起点',
+    enum: ['first', 'any'],
+    default: 'first',
+  })
+  @IsOptional()
+  @IsEnum(['first', 'any'])
+  source?: 'first' | 'any';
+
+  @ApiPropertyOptional({
+    description: '固定终点',
+    enum: ['last', 'any'],
+    default: 'any',
+  })
+  @IsOptional()
+  @IsEnum(['last', 'any'])
+  destination?: 'last' | 'any';
+}
+
+/**
+ * 路线优化响应 DTO
+ */
+export class OptimizeRouteResponseDto {
+  @ApiProperty({ description: '是否成功', example: true })
+  success!: boolean;
+
+  @ApiProperty({
+    description: '优化后的活动列表（按最优路线排序）',
+    type: [Object],
+  })
+  activities!: Array<{
+    id?: string;
+    title: string;
+    location: { lat: number; lng: number };
+    type?: string;
+    time?: string;
+    duration?: number;
+    [key: string]: unknown;
+  }>;
+
+  @ApiProperty({
+    description: '总距离（米）',
+    example: 12500,
+  })
+  totalDistance!: number;
+
+  @ApiProperty({
+    description: '总时长（秒）',
+    example: 1800,
+  })
+  totalDuration!: number;
+
+  @ApiPropertyOptional({
+    description: '路线几何形状（GeoJSON LineString）',
+  })
+  routeGeometry?: {
+    coordinates: [number, number][];
+    type: string;
+  };
+
+  @ApiPropertyOptional({
+    description: '路线分段信息',
+    type: [Object],
+  })
+  legs?: Array<{
+    distance: number; // 米
+    duration: number; // 秒
+    from: number; // 起点索引
+    to: number; // 终点索引
+  }>;
 
   @ApiProperty({
     description: '天气信息',
