@@ -401,14 +401,14 @@ curl -X POST 'https://api.example.com/api/location/generate-batch' \
         "lat": 46.7704,
         "lng": 8.4050,
         "region": "市中心区域"
-      }
-    },
-    {
-      "activityName": "琉森湖游船",
-      "destination": "瑞士琉森",
-      "activityType": "attraction",
-      "coordinates": {
-        "lat": 47.0502,
+        }
+      },
+      {
+        "activityName": "琉森湖游船",
+        "destination": "瑞士琉森",
+        "activityType": "attraction",
+        "coordinates": {
+          "lat": 47.0502,
         "lng": 8.3093,
         "region": "琉森湖"
       }
@@ -488,7 +488,7 @@ console.log('Job ID:', jobId);
 // 2. 轮询任务状态
 const pollJobStatus = async (jobId) => {
   const statusResponse = await fetch(`/api/location/job/${jobId}`, {
-    headers: {
+      headers: {
       'Authorization': 'Bearer YOUR_JWT_TOKEN'
     }
   });
@@ -1172,8 +1172,8 @@ curl -X GET 'https://api.example.com/api/location/search?activityName=铁力士'
 {
   "success": true,
   "data": {
-    "chineseName": "铁力士峰云端漫步",
-    "localName": "Titlis Cliff Walk",
+        "chineseName": "铁力士峰云端漫步",
+        "localName": "Titlis Cliff Walk",
     "chineseAddress": "Titlis Bergstation, 6390 Engelberg, Switzerland",
     "localAddress": "Titlis Bergstation, 6390 Engelberg, Switzerland",
     "transportInfo": "从琉森乘火车约45分钟至Engelberg站...",
@@ -1238,7 +1238,7 @@ const result = await response.json();
 
 if (result.data) {
   console.log('Location found:', result.data);
-} else {
+  } else {
   console.log('Location not found');
 }
 ```

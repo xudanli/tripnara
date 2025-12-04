@@ -215,8 +215,8 @@ export class VisaService {
         const expiry = new Date(policy.expiryDate);
         if (expiry < now) return false;
       }
-      return true;
-    });
+        return true;
+      });
 
     // 转换为 VisaInfo
     const allResults = validPolicies.map(this.mapToVisaInfo);
@@ -246,11 +246,11 @@ export class VisaService {
             `Redis cache set (empty) for visa info: ${cacheKey}, TTL: ${this.emptyCacheTtlSeconds}s`,
           );
         } else {
-          await this.redisClient.setex(
-            cacheKey,
+        await this.redisClient.setex(
+          cacheKey,
             cacheTtl,
-            JSON.stringify(results),
-          );
+          JSON.stringify(results),
+        );
           this.logger.debug(
             `Redis cache set for visa info: ${cacheKey}, TTL: ${cacheTtl}s`,
           );
