@@ -2,10 +2,25 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, MinLength, IsNumber, IsOptional } from 'class-validator';
 
 export class LocationSearchQueryDto {
-  @ApiProperty({ description: '目的地关键字', example: '拉萨' })
+  @ApiProperty({ description: '目的地关键字', example: 'Restaurant Crystal' })
   @IsString()
   @MinLength(1)
   query!: string;
+
+  @ApiPropertyOptional({ description: '城市名称（用于优化搜索）', example: 'Zermatt' })
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @ApiPropertyOptional({ description: '国家名称（用于优化搜索）', example: 'Switzerland' })
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @ApiPropertyOptional({ description: '国家代码（ISO 3166-1 alpha-2，用于坐标验证）', example: 'CH' })
+  @IsOptional()
+  @IsString()
+  countryCode?: string;
 }
 
 export class AttractionDetailsParamDto {

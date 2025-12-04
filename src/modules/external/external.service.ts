@@ -103,7 +103,108 @@ export class ExternalService {
     return config;
   }
 
-  async searchLocations(query: string) {
+  /**
+   * 获取国家边界框（Bounding Box）
+   * 用于验证坐标是否在目标国家内
+   */
+  private getCountryBoundingBox(countryCode?: string): {
+    minLat: number;
+    maxLat: number;
+    minLng: number;
+    maxLng: number;
+  } | null {
+    if (!countryCode) return null;
+
+    const countryCodeUpper = countryCode.toUpperCase();
+    
+    // 常见国家的边界框（可以根据需要扩展）
+    const boundingBoxes: Record<string, { minLat: number; maxLat: number; minLng: number; maxLng: number }> = {
+      // 瑞士
+      CH: { minLat: 45.8, maxLat: 47.8, minLng: 5.9, maxLng: 10.5 },
+      // 日本
+      JP: { minLat: 24.0, maxLat: 46.0, minLng: 122.0, maxLng: 146.0 },
+      // 法国
+      FR: { minLat: 41.3, maxLat: 51.1, minLng: -5.1, maxLng: 9.6 },
+      // 德国
+      DE: { minLat: 47.3, maxLat: 55.1, minLng: 5.9, maxLng: 15.0 },
+      // 意大利
+      IT: { minLat: 36.6, maxLat: 47.1, minLng: 6.6, maxLng: 18.5 },
+      // 西班牙
+      ES: { minLat: 35.2, maxLat: 43.8, minLng: -9.3, maxLng: 4.3 },
+      // 美国
+      US: { minLat: 24.4, maxLat: 49.4, minLng: -125.0, maxLng: -66.9 },
+      // 中国
+      CN: { minLat: 18.2, maxLat: 53.6, minLng: 73.5, maxLng: 135.0 },
+      // 英国
+      GB: { minLat: 49.9, maxLat: 60.8, minLng: -8.6, maxLng: 1.8 },
+      // 澳大利亚
+      AU: { minLat: -43.6, maxLat: -10.7, minLng: 113.3, maxLng: 153.6 },
+    };
+
+    return boundingBoxes[countryCodeUpper] || null;
+  }
+
+  /**
+   * 验证坐标是否在目标国家的边界框内
+   */
+  private isCoordinateInCountry(
+    lat: number,
+    lng: number,
+    countryCode?: string,
+  ): boolean {
+    if (!countryCode) return true; // 如果没有国家代码，不进行验证
+
+    const bbox = this.getCountryBoundingBox(countryCode);
+    if (!bbox) return true; // 如果没有边界框数据，不进行验证
+
+    return (
+      lat >= bbox.minLat &&
+      lat <= bbox.maxLat &&
+      lng >= bbox.minLng &&
+      lng <= bbox.maxLng
+    );
+  }
+
+  /**
+   * 构建优化的搜索查询（添加城市和国家上下文）
+   */
+  private buildOptimizedQuery(
+    query: string,
+    city?: string,
+    country?: string,
+  ): string {
+    // 如果查询已经包含城市或国家信息，直接返回
+    const queryLower = query.toLowerCase();
+    if (city && queryLower.includes(city.toLowerCase())) {
+      // 如果已经包含城市，只添加国家（如果还没有）
+      if (country && !queryLower.includes(country.toLowerCase())) {
+        return `${query}, ${country}`;
+      }
+      return query;
+    }
+
+    // 构建优化的查询：query, city, country
+    const parts: string[] = [query];
+    
+    if (city) {
+      parts.push(city);
+    }
+    
+    if (country) {
+      parts.push(country);
+    }
+
+    return parts.join(', ');
+  }
+
+  async searchLocations(
+    query: string,
+    options?: {
+      city?: string;
+      country?: string;
+      countryCode?: string;
+    },
+  ) {
     if (!this.travelAdvisorApiKey || this.travelAdvisorApiKey.trim() === '') {
       this.logger.warn(
         `Travel Advisor API Key is not configured, returning empty result for query: ${query}`,
@@ -121,7 +222,18 @@ export class ExternalService {
       };
     }
 
-    const cacheKey = `travel-advisor:${query.toLowerCase()}`;
+    // 构建优化的搜索查询（添加城市和国家上下文）
+    const optimizedQuery = this.buildOptimizedQuery(
+      query,
+      options?.city,
+      options?.country,
+    );
+
+    this.logger.debug(
+      `搜索查询优化: "${query}" -> "${optimizedQuery}" (city: ${options?.city}, country: ${options?.country})`,
+    );
+
+    const cacheKey = `travel-advisor:${optimizedQuery.toLowerCase()}`;
     const cached = this.getFromCache(cacheKey);
     if (cached) {
       return cached;
@@ -140,13 +252,19 @@ export class ExternalService {
       const data = await this.executeWithRetry(
         () => axios.get(searchUrl, {
           ...config,
-          params: { query },
+          params: { query: optimizedQuery },
         }),
         'Travel Advisor',
       );
-      
-      this.setCache(cacheKey, data.data);
-      return data.data;
+
+      // 过滤和验证结果
+      const filteredData = this.filterAndValidateResults(
+        data.data,
+        options?.countryCode,
+      );
+
+      this.setCache(cacheKey, filteredData);
+      return filteredData;
     } catch (error) {
       const status = (error as AxiosError)?.response?.status;
       const errorMessage = status === 429
@@ -164,6 +282,74 @@ export class ExternalService {
         HttpStatus.BAD_GATEWAY,
       );
     }
+  }
+
+  /**
+   * 过滤和验证搜索结果
+   * 1. 检查坐标是否在目标国家的边界框内
+   * 2. 过滤掉 APPROXIMATE 或 GEOMETRIC_CENTER 类型的结果（如果可能）
+   */
+  private filterAndValidateResults(
+    data: any,
+    countryCode?: string,
+  ): any {
+    if (!data || !data.data || !Array.isArray(data.data)) {
+      return data;
+    }
+
+    const validResults: any[] = [];
+    const invalidResults: any[] = [];
+
+    for (const item of data.data) {
+      const resultObject = item.result_object || item;
+      const coordinates = resultObject.coordinates;
+
+      // 检查坐标是否有效
+      if (!coordinates || !coordinates.latitude || !coordinates.longitude) {
+        this.logger.debug(
+          `跳过无坐标的结果: ${resultObject.name || '未知'}`,
+        );
+        continue;
+      }
+
+      const lat = parseFloat(coordinates.latitude);
+      const lng = parseFloat(coordinates.longitude);
+
+      // 验证坐标是否在目标国家的边界框内
+      if (!this.isCoordinateInCountry(lat, lng, countryCode)) {
+        this.logger.warn(
+          `坐标超出目标国家边界框: ${resultObject.name || '未知'} (${lat}, ${lng}), 国家: ${countryCode}`,
+        );
+        invalidResults.push(item);
+        continue;
+      }
+
+      // 检查 location_type（如果 API 返回了此字段）
+      // Travel Advisor API 可能不返回 location_type，但我们可以检查其他指标
+      const locationType = resultObject.location_type || resultObject.result_type;
+      
+      // 如果 location_type 是 APPROXIMATE 或 GEOMETRIC_CENTER，记录警告但不过滤
+      // 因为 Travel Advisor API 可能不提供此字段
+      if (locationType === 'APPROXIMATE' || locationType === 'GEOMETRIC_CENTER') {
+        this.logger.warn(
+          `结果位置类型为 ${locationType}: ${resultObject.name || '未知'}，可能需要更精确的搜索`,
+        );
+        // 仍然保留结果，但标记为可能不准确
+      }
+
+      validResults.push(item);
+    }
+
+    if (invalidResults.length > 0) {
+      this.logger.warn(
+        `过滤掉 ${invalidResults.length} 个无效结果（坐标超出边界框）`,
+      );
+    }
+
+    return {
+      ...data,
+      data: validResults,
+    };
   }
 
   async getAttractionDetails(

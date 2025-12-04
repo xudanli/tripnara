@@ -39,8 +39,40 @@ export class PoiService {
         searchQuery = `${dto.query} ${dto.destination}`;
       }
 
-      // 使用 Travel Advisor 搜索位置
-      const locationResults = await this.externalService.searchLocations(searchQuery);
+      // 尝试从坐标获取城市和国家信息（用于优化搜索和结果过滤）
+      let city: string | undefined;
+      let country: string | undefined;
+      let countryCode: string | undefined;
+
+      if (dto.latitude && dto.longitude) {
+        try {
+          // 使用反向地理编码获取位置信息
+          const geocodeResult = await this.geocodeService.reverseGeocode({
+            lat: dto.latitude,
+            lng: dto.longitude,
+            language: 'zh-CN',
+            limit: 1,
+          });
+          
+          if (geocodeResult.data) {
+            city = geocodeResult.data.city;
+            country = geocodeResult.data.country;
+            countryCode = geocodeResult.data.countryCode;
+          }
+        } catch (error) {
+          // 反向地理编码失败不影响主流程，只记录警告
+          this.logger.warn(
+            `反向地理编码失败，将使用原始查询: ${error instanceof Error ? error.message : error}`,
+          );
+        }
+      }
+
+      // 使用 Travel Advisor 搜索位置（传递城市和国家信息以优化搜索）
+      const locationResults = await this.externalService.searchLocations(searchQuery, {
+        city,
+        country,
+        countryCode,
+      });
 
       // 转换结果为 POI 格式
       const pois: PoiItemDto[] = [];

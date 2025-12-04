@@ -36,7 +36,11 @@ export class ExternalController {
     type: LocationSearchResponseDto,
   })
   async searchLocations(@Query() query: LocationSearchQueryDto): Promise<LocationSearchResponseDto> {
-    const result = await this.externalService.searchLocations(query.query);
+    const result = await this.externalService.searchLocations(query.query, {
+      city: query.city,
+      country: query.country,
+      countryCode: query.countryCode,
+    });
     return { data: result };
   }
 
