@@ -337,24 +337,23 @@ export class ItineraryOptimizerService {
       const trip = data.trips[0];
       const waypoints = data.waypoints;
 
-      // 3. 根据优化后的 waypoint_index 重新排序活动
-      // Mapbox 返回的 waypoints 已经按照优化后的顺序排列
-      // waypoint_index 表示原始索引，我们需要根据当前顺序重新映射
-      const sortedActivities: ActivityWithLocation[] = [];
-      const indexMap = new Map<number, number>(); // 原始索引 -> 新索引
-
-      // 按 waypoint_index 排序，获取优化后的顺序
+      // 3. 根据优化后的 trips_index 重新排序活动
+      // FIX: 必须使用 trips_index (优化后的顺序) 进行排序，而不是 waypoint_index (原始输入顺序)
+      // waypoint_index 指向原始 activities 数组中的下标
+      // trips_index 表示优化后的顺序索引
       const sortedWaypoints = [...waypoints].sort(
-        (a, b) => a.waypoint_index - b.waypoint_index,
+        (a, b) => a.trips_index - b.trips_index,
       );
 
-      sortedWaypoints.forEach((wp, newIndex) => {
-        const originalIndex = wp.waypoint_index;
-        indexMap.set(originalIndex, newIndex);
-        sortedActivities.push(activities[originalIndex]);
+      const sortedActivities: ActivityWithLocation[] = [];
+      
+      sortedWaypoints.forEach((wp) => {
+        // wp.waypoint_index 指向原始 activities 数组中的下标
+        const originalActivity = activities[wp.waypoint_index];
+        sortedActivities.push(originalActivity);
       });
 
-      // 4. 构建路线信息
+      // 4. 构建路线信息 (Legs)
       const legs: Array<{
         distance: number;
         duration: number;
@@ -364,17 +363,13 @@ export class ItineraryOptimizerService {
 
       if (trip.legs) {
         trip.legs.forEach((leg, legIndex) => {
-          const fromIndex = sortedWaypoints[legIndex]?.waypoint_index ?? 0;
-          const toIndex =
-            sortedWaypoints[legIndex + 1]?.waypoint_index ??
-            sortedWaypoints[0]?.waypoint_index ??
-            0;
-
+          // 获取当前路段的起点和终点在 sortedActivities 中的索引
+          // legs[0] 是从 sortedWaypoints[0] 到 sortedWaypoints[1]
           legs.push({
             distance: leg.distance,
             duration: leg.duration,
-            from: fromIndex,
-            to: toIndex,
+            from: legIndex,       // 优化后数组的当前索引
+            to: legIndex + 1,     // 优化后数组的下一索引
           });
         });
       }
