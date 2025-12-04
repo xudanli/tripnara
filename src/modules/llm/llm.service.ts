@@ -9,6 +9,8 @@ import { PreferencesService } from '../preferences/preferences.service';
 // 导入 Google Generative AI SDK
 // 使用官方 SDK: @google/generative-ai
 import { GoogleGenerativeAI } from '@google/generative-ai';
+// 引入 undici 用于配置全局代理（Google Generative AI SDK 使用 fetch，需要 undici 的代理支持）
+import { setGlobalDispatcher, ProxyAgent } from 'undici';
 
 export type LlmProvider = 'openai' | 'deepseek' | 'gemini';
 
@@ -68,22 +70,37 @@ export class LlmService {
     this.timeoutMs = this.configService.get<number>('LLM_TIMEOUT_MS', 300000);
     this.maxRetries = this.configService.get<number>('LLM_MAX_RETRIES', 3);
 
+    // 配置全局代理（必须在 SDK 初始化之前执行）
+    // Google Generative AI SDK 使用 fetch，需要 undici 的代理支持
+    const proxyUrl = this.configService.get<string>('HTTPS_PROXY') || 
+                    this.configService.get<string>('HTTP_PROXY') ||
+                    process.env.HTTPS_PROXY ||
+                    process.env.HTTP_PROXY ||
+                    'http://127.0.0.1:9090';
+    
+    if (proxyUrl) {
+      try {
+        this.logger.log(`[LlmService] Configuring Global Proxy Agent: ${proxyUrl}`);
+        const dispatcher = new ProxyAgent(proxyUrl);
+        setGlobalDispatcher(dispatcher);
+        this.logger.log('[LlmService] Global proxy dispatcher configured successfully');
+      } catch (error) {
+        this.logger.warn(
+          `[LlmService] Failed to configure global proxy dispatcher: ${error instanceof Error ? error.message : error}`,
+        );
+        // 继续执行，使用环境变量作为降级方案
+        if (!process.env.HTTPS_PROXY && !process.env.HTTP_PROXY) {
+          process.env.HTTPS_PROXY = proxyUrl;
+          process.env.HTTP_PROXY = proxyUrl;
+          this.logger.log(`[LlmService] Fallback: Set proxy environment variables: ${proxyUrl}`);
+        }
+      }
+    }
+
     // 初始化 Gemini SDK
     try {
       const geminiApiKey = this.configService.get<string>('GEMINI_API_KEY');
       if (geminiApiKey) {
-        // 配置代理环境变量（如果本地代理端口是 9090）
-        const proxyUrl = this.configService.get<string>('HTTP_PROXY') || 
-                        this.configService.get<string>('HTTPS_PROXY') ||
-                        'http://127.0.0.1:9090';
-        
-        // 设置代理环境变量（Node.js fetch 会自动读取）
-        if (proxyUrl && !process.env.HTTPS_PROXY && !process.env.HTTP_PROXY) {
-          process.env.HTTPS_PROXY = proxyUrl;
-          process.env.HTTP_PROXY = proxyUrl;
-          this.logger.log(`Configured proxy for Gemini SDK: ${proxyUrl}`);
-        }
-
         // 初始化 Google Generative AI 客户端
         // 使用官方 SDK: new GoogleGenerativeAI(apiKey)
         this.genAI = new GoogleGenerativeAI(geminiApiKey);
