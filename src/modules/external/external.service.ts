@@ -441,9 +441,25 @@ export class ExternalService {
       // 构建搜索查询：site:domain destination 攻略
       const query = `site:${platform.domain} ${destination} 攻略`;
 
+      // 确保使用 HTTPS，防止 SSL 错误
+      // 明确使用 https:// 协议，Google API 强制要求 SSL
+      let googleSearchUrl = 'https://www.googleapis.com/customsearch/v1';
+      
+      // 双重检查：确保 URL 使用 HTTPS
+      if (googleSearchUrl.startsWith('http://')) {
+        googleSearchUrl = googleSearchUrl.replace(/^http:\/\//, 'https://');
+        this.logger.warn(
+          `Google Search URL was using HTTP, converted to HTTPS: ${googleSearchUrl}`,
+        );
+      }
+      
+      this.logger.debug(
+        `Calling Google Custom Search API: ${googleSearchUrl.replace(/key=[^&]+/, 'key=***')}`,
+      );
+      
       const response = await this.executeWithRetry(
         () =>
-          axios.get('https://www.googleapis.com/customsearch/v1', {
+          axios.get(googleSearchUrl, {
             params: {
               key: this.googleApiKey,
               cx: this.googleCx,
@@ -451,6 +467,10 @@ export class ExternalService {
               num: 10, // 每个平台最多返回10个结果
               hl: 'zh-CN',
             },
+            // 强制使用 HTTPS，防止代理或配置导致使用 HTTP
+            // 不设置 httpsAgent，使用默认的 Node.js HTTPS agent
+            maxRedirects: 0, // 不允许重定向，防止被重定向到 HTTP
+            validateStatus: (status) => status < 500, // 允许 4xx 错误但不重试
           }),
         `Google Custom Search (${platform.name})`,
       );

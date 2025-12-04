@@ -60,10 +60,26 @@ export class GuideSourceService {
     }
 
     try {
+      // 确保使用 HTTPS，防止 SSL 错误
+      // Google Custom Search API 强制要求使用 HTTPS
+      let googleSearchUrl = 'https://www.googleapis.com/customsearch/v1';
+      
+      // 双重检查：确保 URL 使用 HTTPS
+      if (googleSearchUrl.startsWith('http://')) {
+        googleSearchUrl = googleSearchUrl.replace(/^http:\/\//, 'https://');
+        this.logger.warn(
+          `Google Search URL was using HTTP, converted to HTTPS: ${googleSearchUrl}`,
+        );
+      }
+      
       const response = await firstValueFrom(
         this.httpService.get<GoogleSearchResponse>(
-          'https://www.googleapis.com/customsearch/v1',
-          { params },
+          googleSearchUrl,
+          { 
+            params,
+            // 不允许重定向，防止被重定向到 HTTP
+            maxRedirects: 0,
+          },
         ),
       );
 
