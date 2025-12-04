@@ -41,7 +41,7 @@
     "cleanup:orphan-data": "ts-node --transpile-only scripts/cleanup-orphan-data.ts"
   },
   "dependencies": {
-    "@google/genai": "^1.30.0",
+    "@google/generative-ai": "^0.21.0",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/bull": "^11.0.4",
     "@nestjs/common": "^11.0.1",

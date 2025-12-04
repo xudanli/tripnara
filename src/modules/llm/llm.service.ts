@@ -6,24 +6,9 @@ import { firstValueFrom } from 'rxjs';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import type { Agent as HttpsAgent } from 'https';
 import { PreferencesService } from '../preferences/preferences.service';
-// 尝试导入 Google GenAI SDK（如果可用）
-// 注意：正确的包名是 @google/generative-ai，但当前使用的是 @google/genai
-// 如果 @google/genai 不存在，尝试 @google/generative-ai
-let GoogleGenAI: any;
-let GoogleGenerativeAI: any;
-try {
-  // 优先尝试 @google/generative-ai（官方 SDK）
-  try {
-    const genaiModule = require('@google/generative-ai');
-    GoogleGenerativeAI = genaiModule.GoogleGenerativeAI || genaiModule.default?.GoogleGenerativeAI || genaiModule.default;
-  } catch (e) {
-    // 如果 @google/generative-ai 不存在，尝试 @google/genai
-    const genaiModule = require('@google/genai');
-    GoogleGenAI = genaiModule.GoogleGenAI || genaiModule.default?.GoogleGenAI;
-  }
-} catch (error) {
-  // SDK 未安装或导入失败，将使用 REST API 作为降级方案
-}
+// 导入 Google Generative AI SDK
+// 使用官方 SDK: @google/generative-ai
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export type LlmProvider = 'openai' | 'deepseek' | 'gemini';
 
@@ -71,7 +56,7 @@ export class LlmService {
   private readonly logger = new Logger(LlmService.name);
   private readonly timeoutMs: number;
   private readonly maxRetries: number;
-  private geminiClient: any; // GoogleGenAI 客户端实例
+  private genAI: GoogleGenerativeAI | null = null; // Google Generative AI 客户端实例
   private readonly useGeminiSdk: boolean; // 是否使用 SDK（如果可用）
 
   constructor(
@@ -83,77 +68,35 @@ export class LlmService {
     this.timeoutMs = this.configService.get<number>('LLM_TIMEOUT_MS', 300000);
     this.maxRetries = this.configService.get<number>('LLM_MAX_RETRIES', 3);
 
-    // 初始化 Gemini SDK（如果可用）
-    // 优先使用 @google/generative-ai（官方 SDK），如果不存在则使用 @google/genai
-    this.useGeminiSdk = GoogleGenerativeAI !== undefined || GoogleGenAI !== undefined;
-    if (this.useGeminiSdk) {
-      try {
-        const geminiApiKey = this.configService.get<string>('GEMINI_API_KEY');
-        if (geminiApiKey) {
-          // 配置代理环境变量（如果本地代理端口是 9090）
-          const proxyUrl = this.configService.get<string>('HTTP_PROXY') || 
-                          this.configService.get<string>('HTTPS_PROXY') ||
-                          'http://127.0.0.1:9090';
-          
-          // 设置代理环境变量（Node.js fetch 会自动读取）
-          if (proxyUrl && !process.env.HTTPS_PROXY && !process.env.HTTP_PROXY) {
-            process.env.HTTPS_PROXY = proxyUrl;
-            process.env.HTTP_PROXY = proxyUrl;
-            this.logger.log(`Configured proxy for Gemini SDK: ${proxyUrl}`);
-          }
-
-          // 初始化 Google GenAI 客户端
-          // 优先使用 @google/generative-ai（官方 SDK）
-          if (GoogleGenerativeAI) {
-            try {
-              // 官方 SDK API: new GoogleGenerativeAI(apiKey)
-              // 检查是否是构造函数
-              if (typeof GoogleGenerativeAI === 'function') {
-                this.geminiClient = new GoogleGenerativeAI(geminiApiKey);
-                // 验证客户端是否正确初始化
-                if (this.geminiClient && typeof this.geminiClient.getGenerativeModel === 'function') {
-                  this.logger.log('Google Generative AI SDK (@google/generative-ai) initialized successfully');
-                } else {
-                  throw new Error('SDK client initialized but getGenerativeModel is not a function');
-                }
-              } else {
-                throw new Error('GoogleGenerativeAI is not a constructor');
-              }
-            } catch (error) {
-              this.logger.error(`Failed to initialize @google/generative-ai SDK: ${error instanceof Error ? error.message : error}`);
-              throw error;
-            }
-          } else if (GoogleGenAI) {
-            try {
-              // 备用 SDK API: new GoogleGenAI({ apiKey: '...' })
-              if (typeof GoogleGenAI === 'function') {
-                this.geminiClient = new GoogleGenAI({
-                  apiKey: geminiApiKey,
-                });
-                // 验证客户端是否正确初始化
-                if (this.geminiClient && typeof this.geminiClient.getGenerativeModel === 'function') {
-                  this.logger.log('Google GenAI SDK (@google/genai) initialized successfully');
-                } else {
-                  throw new Error('SDK client initialized but getGenerativeModel is not a function');
-                }
-              } else {
-                throw new Error('GoogleGenAI is not a constructor');
-              }
-            } catch (error) {
-              this.logger.error(`Failed to initialize @google/genai SDK: ${error instanceof Error ? error.message : error}`);
-              throw error;
-            }
-          }
-        } else {
-          this.logger.warn('GEMINI_API_KEY not configured, Gemini SDK will not be used');
-          this.useGeminiSdk = false;
+    // 初始化 Gemini SDK
+    try {
+      const geminiApiKey = this.configService.get<string>('GEMINI_API_KEY');
+      if (geminiApiKey) {
+        // 配置代理环境变量（如果本地代理端口是 9090）
+        const proxyUrl = this.configService.get<string>('HTTP_PROXY') || 
+                        this.configService.get<string>('HTTPS_PROXY') ||
+                        'http://127.0.0.1:9090';
+        
+        // 设置代理环境变量（Node.js fetch 会自动读取）
+        if (proxyUrl && !process.env.HTTPS_PROXY && !process.env.HTTP_PROXY) {
+          process.env.HTTPS_PROXY = proxyUrl;
+          process.env.HTTP_PROXY = proxyUrl;
+          this.logger.log(`Configured proxy for Gemini SDK: ${proxyUrl}`);
         }
-      } catch (error) {
-        this.logger.warn('Failed to initialize Google GenAI SDK, will use REST API fallback', error);
+
+        // 初始化 Google Generative AI 客户端
+        // 使用官方 SDK: new GoogleGenerativeAI(apiKey)
+        this.genAI = new GoogleGenerativeAI(geminiApiKey);
+        this.useGeminiSdk = true;
+        this.logger.log('Google Generative AI SDK (@google/generative-ai) initialized successfully');
+      } else {
+        this.logger.warn('GEMINI_API_KEY not configured, Gemini SDK will not be used');
         this.useGeminiSdk = false;
       }
-    } else {
-      this.logger.log('Google GenAI SDK not available, will use REST API');
+    } catch (error) {
+      this.logger.warn('Failed to initialize Google Generative AI SDK, will use REST API fallback', error);
+      this.useGeminiSdk = false;
+      this.genAI = null;
     }
   }
 
@@ -296,7 +239,7 @@ export class LlmService {
     }
 
     // 对于 Gemini，优先使用 SDK（如果可用）
-    if (options.provider === 'gemini' && this.useGeminiSdk && this.geminiClient) {
+    if (options.provider === 'gemini' && this.useGeminiSdk && this.genAI) {
       try {
         return await this.executeGeminiWithSdk(options, providerConfig);
       } catch (error) {
@@ -534,53 +477,30 @@ export class LlmService {
           );
         }
 
-        // 调用 SDK
-        // 检查 SDK 类型并正确调用
-        let genModel: any;
-        let response: any;
-        
-        // 检查是否是官方 SDK (@google/generative-ai)
-        // 官方 SDK 的实例有 getGenerativeModel 方法
-        if (typeof this.geminiClient.getGenerativeModel === 'function') {
-          // 官方 SDK API: client.getGenerativeModel({ model: '...', systemInstruction: '...' })
-          genModel = this.geminiClient.getGenerativeModel({ 
-            model: model,
-            systemInstruction: systemInstructionParts.length > 0 
-              ? systemInstructionParts.join('\n')
-              : undefined,
-          });
-          
-          // 构建请求内容
-          const requestContents = contents.map((c) => ({
-            role: c.role,
-            parts: c.parts,
-          }));
-
-          // 官方 SDK: model.generateContent({ contents, generationConfig })
-          response = await genModel.generateContent({
-            contents: requestContents,
-            generationConfig: generationConfig,
-          });
-        } else {
-          // 备用 SDK 或未知格式，尝试直接调用
-          this.logger.warn('Unknown Gemini SDK format, attempting direct call');
-          genModel = this.geminiClient.getGenerativeModel({ 
-            model: model,
-            systemInstruction: systemInstructionParts.length > 0 
-              ? systemInstructionParts.join('\n')
-              : undefined,
-            generationConfig: generationConfig,
-          });
-
-          const requestContents = contents.map((c) => ({
-            role: c.role,
-            parts: c.parts,
-          }));
-
-          response = await genModel.generateContent({
-            contents: requestContents,
-          });
+        // 调用官方 SDK (@google/generative-ai)
+        if (!this.genAI) {
+          throw new Error('Google Generative AI client not initialized');
         }
+
+        // 获取模型实例
+        const genModel = this.genAI.getGenerativeModel({ 
+          model: model,
+          systemInstruction: systemInstructionParts.length > 0 
+            ? systemInstructionParts.join('\n')
+            : undefined,
+        });
+        
+        // 构建请求内容
+        const requestContents = contents.map((c) => ({
+          role: c.role,
+          parts: c.parts,
+        }));
+
+        // 调用模型生成内容
+        const response = await genModel.generateContent({
+          contents: requestContents,
+          generationConfig: generationConfig,
+        });
 
         // 添加调试日志：打印完整的 API 响应
         try {
