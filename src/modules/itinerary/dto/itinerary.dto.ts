@@ -133,12 +133,31 @@ export class ItineraryActivityDto {
   @Max(1440, { message: '持续时间不能超过 1440 分钟（24小时）' })
   duration!: number;
 
-  @ApiProperty({
-    description: '位置坐标',
+  @ApiPropertyOptional({
+    description: '位置坐标（如果为 null，后端会自动通过地理编码获取）',
     example: { lat: 46.7704, lng: 8.4050 },
   })
+  @IsOptional()
   @IsObject()
-  location!: { lat: number; lng: number };
+  @ValidateIf((o) => o.location !== null && o.location !== undefined)
+  @IsValidCoordinates({ message: '坐标格式不正确' })
+  location?: { lat: number; lng: number } | null;
+
+  @ApiPropertyOptional({
+    description: '地点名称（用于地理编码）',
+    example: '琉森湖游船码头',
+  })
+  @IsOptional()
+  @IsString()
+  locationName?: string;
+
+  @ApiPropertyOptional({
+    description: '地点地址（用于地理编码）',
+    example: 'Lucerne, Switzerland',
+  })
+  @IsOptional()
+  @IsString()
+  locationAddress?: string;
 
   @ApiProperty({ description: '活动描述和建议', example: '详细的游览建议和体验描述' })
   @IsString()

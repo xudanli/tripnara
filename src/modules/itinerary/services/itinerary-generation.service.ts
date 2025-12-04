@@ -7,6 +7,7 @@ import { LlmService } from '../../llm/llm.service';
 import { PreferencesService } from '../../preferences/preferences.service';
 import { CurrencyService } from '../../currency/currency.service';
 import { InspirationService } from '../../inspiration/inspiration.service';
+import { AccurateGeocodingService } from '../../destination/services/accurate-geocoding.service';
 import { PromptService } from './prompt.service';
 import {
   GenerateItineraryRequestDto,
@@ -26,6 +27,8 @@ interface AiItineraryResponse {
       type: string;
       duration?: number;
       location?: unknown;
+      locationName?: string; // 地点名称
+      locationAddress?: string; // 地点地址
       notes?: string;
       cost?: number;
       details?: {
@@ -56,6 +59,7 @@ export class ItineraryGenerationService {
     private readonly preferencesService: PreferencesService,
     private readonly currencyService: CurrencyService,
     private readonly inspirationService: InspirationService,
+    private readonly accurateGeocodingService: AccurateGeocodingService,
     private readonly promptService: PromptService,
   ) {}
 
@@ -258,6 +262,12 @@ export class ItineraryGenerationService {
       const itineraryData = this.validateAndTransformResponse(
         aiResponse,
         dto.days,
+      );
+
+      // 🗺️ 地理编码处理：为每个活动获取真实坐标
+      await this.enrichActivitiesWithCoordinates(
+        itineraryData,
+        destination,
       );
 
       // 性能优化：如果行程中有坐标，使用坐标重新推断货币（更准确）
@@ -599,17 +609,24 @@ export class ItineraryGenerationService {
             );
           }
 
-          let location = DataValidator.normalizeLocation(
-            act.location,
-            {
-              activityTitle: act.title || '未知活动',
-              day: day.day,
-              activityIndex: actIndex + 1,
-              logger: this.logger,
-            },
-          );
-          if (!location) {
-            location = DataValidator.getDefaultLocation();
+          // 如果 location 为 null，保留为 null，等待地理编码处理
+          // 如果 location 有值，进行标准化处理
+          let location: { lat: number; lng: number } | null = null;
+          if (act.location !== null && act.location !== undefined) {
+            const normalized = DataValidator.normalizeLocation(
+              act.location,
+              {
+                activityTitle: act.title || '未知活动',
+                day: day.day,
+                activityIndex: actIndex + 1,
+                logger: this.logger,
+              },
+            );
+            if (normalized) {
+              location = normalized;
+            } else {
+              location = null; // 如果标准化失败，设为 null，等待地理编码
+            }
           }
 
           return {
@@ -623,7 +640,9 @@ export class ItineraryGenerationService {
               | 'transport'
               | 'ocean',
             duration: DataValidator.fixNumber(act.duration, 60, 1),
-            location,
+            location, // 可能为 null，等待地理编码处理
+            locationName: act.locationName || undefined, // 保留地点名称
+            locationAddress: act.locationAddress || undefined, // 保留地点地址
             notes: DataValidator.fixString(act.notes, ''),
             cost: DataValidator.fixNumber(act.cost, 0, 0),
             details: (act as any).details,
@@ -701,6 +720,115 @@ export class ItineraryGenerationService {
       summary,
       practicalInfo: itineraryData.practicalInfo, // 返回实用信息
     };
+  }
+
+  /**
+   * 为活动添加坐标信息（地理编码处理）
+   * 使用专业地图服务获取真实坐标
+   */
+  private async enrichActivitiesWithCoordinates(
+    itineraryData: ItineraryDataDto,
+    destination: string,
+  ): Promise<void> {
+    this.logger.log(
+      `开始为行程中的活动获取坐标信息，目的地：${destination}`,
+    );
+
+    // 收集所有需要地理编码的活动
+    const activitiesToGeocode: Array<{
+      day: number;
+      activityIndex: number;
+      activity: any;
+    }> = [];
+
+    itineraryData.days.forEach((day, dayIndex) => {
+      day.activities.forEach((activity, actIndex) => {
+        // 如果 location 为 null 或 undefined，且提供了 locationName 或 locationAddress，需要地理编码
+        if (
+          (!activity.location || activity.location === null) &&
+          (activity.locationName || activity.locationAddress)
+        ) {
+          activitiesToGeocode.push({
+            day: dayIndex,
+            activityIndex: actIndex,
+            activity,
+          });
+        }
+      });
+    });
+
+    if (activitiesToGeocode.length === 0) {
+      this.logger.log('所有活动已有坐标，无需地理编码');
+      return;
+    }
+
+    this.logger.log(
+      `需要地理编码的活动数量：${activitiesToGeocode.length}`,
+    );
+
+    // 并行处理所有活动的地理编码
+    const geocodePromises = activitiesToGeocode.map(
+      async ({ day, activityIndex, activity }) => {
+        try {
+          // 构建查询字符串：优先使用 locationName，其次使用 locationAddress，最后使用 title
+          const query =
+            (activity as any).locationName ||
+            (activity as any).locationAddress ||
+            activity.title;
+
+          // 使用目的地作为上下文，提高搜索准确度
+          const geoResult = await this.accurateGeocodingService.getCoordinates(
+            query,
+            destination,
+          );
+
+          if (geoResult && geoResult.location) {
+            // 更新活动的 location 字段
+            const activity = itineraryData.days[day].activities[activityIndex];
+            activity.location = {
+              lat: geoResult.location.lat,
+              lng: geoResult.location.lng,
+            };
+
+            // 如果地理编码返回了更准确的地址，更新 locationAddress
+            if (geoResult.address) {
+              (activity as any).locationAddress = geoResult.address;
+            }
+
+            // 如果地理编码返回了更准确的名称，更新 locationName
+            if (geoResult.name) {
+              (activity as any).locationName = geoResult.name;
+            }
+
+            this.logger.debug(
+              `成功获取坐标：${query} -> (${geoResult.location.lat}, ${geoResult.location.lng})`,
+            );
+          } else {
+            this.logger.warn(
+              `无法获取坐标：${query}，将使用默认位置`,
+            );
+            // 如果地理编码失败，使用默认位置（降级方案）
+            itineraryData.days[day].activities[activityIndex].location =
+              DataValidator.getDefaultLocation();
+          }
+        } catch (error) {
+          this.logger.error(
+            `地理编码失败：${activity.title}`,
+            error instanceof Error ? error.message : error,
+          );
+          // 如果地理编码失败，使用默认位置（降级方案）
+          itineraryData.days[day].activities[activityIndex].location =
+            DataValidator.getDefaultLocation();
+        }
+      },
+    );
+
+    // 等待所有地理编码完成
+    await Promise.all(geocodePromises);
+
+    this.logger.log(
+      `地理编码处理完成，成功处理 ${activitiesToGeocode.length} 个活动`,
+    );
   }
 }
 

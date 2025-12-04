@@ -432,7 +432,9 @@ ${params.dateInstructions}`;
              "title": "动词+名词的具象标题",
              "type": "attraction/meal/hotel/shopping/transport/ocean",
              "duration": 120, // 分钟
-             "location": { "lat": 0.0000, "lng": 0.0000 }, // ⚠️ 必须是对象！
+             "location": null, // ⚠️ 请留空，后端会自动获取坐标
+             "locationName": "具体地点名称（如：琉森湖游船码头）", // 可选：地点名称
+             "locationAddress": "地点地址（如：Lucerne, Switzerland）", // 可选：地点地址
              "notes": "≥80字的详细行动指南...",
              "cost": 0, // 预估费用
              "details": {
@@ -458,11 +460,11 @@ ${params.dateInstructions}`;
 
 【🚫 致命错误规避 (Critical)】
 
-1. **Location 字段必须是对象**：
-   - ❌ 绝对禁止返回字符串 (如 "location": "Paris")
-   - ✅ 必须包含 lat/lng (如 "location": { "lat": 48.8566, "lng": 2.3522 })
-   - 💡 如果不确定具体坐标，请返回该城市/景点的**大致中心坐标**，不要留空。
-   - 💡 思考过程：先确定地点名称，再根据常识或地图知识估算经纬度，最后输出对象格式。
+1. **Location 字段处理**：
+   - ⚠️ **请将 location 字段设置为 null**，不要生成坐标
+   - ✅ 请提供 **locationName**（地点名称）和 **locationAddress**（地点地址，可选）
+   - 💡 后端会自动根据地点名称和地址调用专业地图服务获取准确坐标
+   - 💡 示例：`"location": null, "locationName": "琉森湖游船码头", "locationAddress": "Lucerne, Switzerland"`
 
 2. **天数必须完整**：
    - 用户要求 ${params.days} 天，必须生成 ${params.days} 个 day 对象，一个都不能少。
@@ -558,7 +560,9 @@ Please design a **${params.days}-day** in-depth travel itinerary based on the ab
              "title": "Verb + Noun concrete title",
              "type": "attraction/meal/hotel/shopping/transport/ocean",
              "duration": 120, // minutes
-             "location": { "lat": 0.0000, "lng": 0.0000 }, // ⚠️ Must be an object!
+             "location": null, // ⚠️ Please leave empty, backend will automatically fetch coordinates
+             "locationName": "Specific location name (e.g., Lucerne Lake Cruise Pier)", // Optional: location name
+             "locationAddress": "Location address (e.g., Lucerne, Switzerland)", // Optional: location address
              "notes": "≥80 words detailed action guide...",
              "cost": 0, // estimated cost
              "details": {
@@ -584,11 +588,11 @@ Please design a **${params.days}-day** in-depth travel itinerary based on the ab
 
 【🚫 Critical Error Avoidance】
 
-1. **Location field must be an object**:
-   - ❌ Absolutely forbidden to return a string (e.g., "location": "Paris")
-   - ✅ Must include lat/lng (e.g., "location": { "lat": 48.8566, "lng": 2.3522 })
-   - 💡 If unsure of specific coordinates, return the **approximate center coordinates** of the city/attraction, do not leave it empty.
-   - 💡 Thinking process: First determine the location name, then estimate latitude and longitude based on common knowledge or map knowledge, finally output in object format.
+1. **Location field handling**:
+   - ⚠️ **Please set the location field to null**, do not generate coordinates
+   - ✅ Please provide **locationName** (location name) and **locationAddress** (location address, optional)
+   - 💡 Backend will automatically call professional map services to get accurate coordinates based on location name and address
+   - 💡 Example: `"location": null, "locationName": "Lucerne Lake Cruise Pier", "locationAddress": "Lucerne, Switzerland"`
 
 2. **Days must be complete**:
    - User requested ${params.days} days, must generate ${params.days} day objects, not one less.
