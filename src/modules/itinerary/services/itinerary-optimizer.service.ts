@@ -136,6 +136,37 @@ export class ItineraryOptimizerService {
       );
     }
 
+    // 验证坐标有效性（纬度 -90 到 90，经度 -180 到 180）
+    const invalidCoordinates = activities.filter(
+      (a) =>
+        a.location.lat < -90 ||
+        a.location.lat > 90 ||
+        a.location.lng < -180 ||
+        a.location.lng > 180,
+    );
+    if (invalidCoordinates.length > 0) {
+      throw new BadRequestException(
+        `以下活动的坐标无效：${invalidCoordinates.map((a) => `${a.title} (${a.location.lat}, ${a.location.lng})`).join(', ')}`,
+      );
+    }
+
+    // 检查是否有重复的坐标（可能导致 NoRoute 错误）
+    const duplicateCoordinates = new Set<string>();
+    const duplicates: string[] = [];
+    activities.forEach((a) => {
+      const coordKey = `${a.location.lat.toFixed(6)},${a.location.lng.toFixed(6)}`;
+      if (duplicateCoordinates.has(coordKey)) {
+        duplicates.push(a.title);
+      } else {
+        duplicateCoordinates.add(coordKey);
+      }
+    });
+    if (duplicates.length > 0) {
+      this.logger.warn(
+        `检测到重复坐标的活动：${duplicates.join(', ')}，这可能导致路线优化失败`,
+      );
+    }
+
     // Mapbox Optimization API 仅支持以下三种模式：
     // - mapbox/driving (驾车，不带实时路况)
     // - mapbox/walking (步行)
@@ -198,12 +229,38 @@ export class ItineraryOptimizerService {
       const data = response.data;
 
       if (data.code !== 'Ok') {
+        // 处理常见的错误代码
+        if (data.code === 'NoRoute') {
+          this.logger.warn(
+            `Mapbox Optimization API 返回 NoRoute 错误，可能原因：坐标之间距离过远、坐标在海洋中、或无法计算路线。返回原始顺序。`,
+          );
+          // 优雅降级：返回原始顺序
+          return {
+            activities,
+            totalDistance: 0,
+            totalDuration: 0,
+          };
+        }
+
+        // 其他错误代码，记录详细信息
         this.logger.error(
           `Mapbox Optimization API 返回错误代码: ${data.code}`,
+          {
+            coordinates: coordinates.substring(0, 100),
+            profile: mapboxProfile,
+            activitiesCount: activities.length,
+          },
         );
-        throw new BadRequestException(
-          `路线优化失败: ${data.code}`,
+        
+        // 对于其他错误，也尝试优雅降级
+        this.logger.warn(
+          `路线优化失败（错误代码: ${data.code}），返回原始顺序`,
         );
+        return {
+          activities,
+          totalDistance: 0,
+          totalDuration: 0,
+        };
       }
 
       if (!data.trips || data.trips.length === 0) {
@@ -272,9 +329,21 @@ export class ItineraryOptimizerService {
         legs,
       };
     } catch (error) {
+      // 如果是在处理 NoRoute 或其他错误代码时已经返回了原始顺序，不应该到达这里
+      // 但如果是因为网络错误或其他异常，需要降级处理
       this.handleError('optimization', error);
+      
+      // 检查是否是 BadRequestException（已经在上面处理过，不应该到达这里）
+      if (error instanceof BadRequestException) {
+        // 如果是坐标验证错误等，应该抛出
+        throw error;
+      }
+      
       // 降级策略：如果优化失败，返回原始顺序
-      this.logger.warn('路线优化失败，返回原始顺序');
+      this.logger.warn(
+        '路线优化失败，返回原始顺序',
+        error instanceof Error ? error.message : String(error),
+      );
       return {
         activities,
         totalDistance: 0,
