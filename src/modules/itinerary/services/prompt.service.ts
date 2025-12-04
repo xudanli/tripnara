@@ -464,7 +464,7 @@ ${params.dateInstructions}`;
    - ⚠️ **请将 location 字段设置为 null**，不要生成坐标
    - ✅ 请提供 **locationName**（地点名称）和 **locationAddress**（地点地址，可选）
    - 💡 后端会自动根据地点名称和地址调用专业地图服务获取准确坐标
-   - 💡 示例：`"location": null, "locationName": "琉森湖游船码头", "locationAddress": "Lucerne, Switzerland"`
+   - 💡 示例：\`"location": null, "locationName": "琉森湖游船码头", "locationAddress": "Lucerne, Switzerland"\`
 
 2. **天数必须完整**：
    - 用户要求 ${params.days} 天，必须生成 ${params.days} 个 day 对象，一个都不能少。
@@ -592,7 +592,7 @@ Please design a **${params.days}-day** in-depth travel itinerary based on the ab
    - ⚠️ **Please set the location field to null**, do not generate coordinates
    - ✅ Please provide **locationName** (location name) and **locationAddress** (location address, optional)
    - 💡 Backend will automatically call professional map services to get accurate coordinates based on location name and address
-   - 💡 Example: `"location": null, "locationName": "Lucerne Lake Cruise Pier", "locationAddress": "Lucerne, Switzerland"`
+   - 💡 Example: \`"location": null, "locationName": "Lucerne Lake Cruise Pier", "locationAddress": "Lucerne, Switzerland"\`
 
 2. **Days must be complete**:
    - User requested ${params.days} days, must generate ${params.days} day objects, not one less.
