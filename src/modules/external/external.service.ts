@@ -505,9 +505,12 @@ export class ExternalService {
         `Calling Google Custom Search API: ${googleSearchUrl.replace(/key=[^&]+/, 'key=***')}`,
       );
       
+      const config = this.createAxiosConfig();
+      
       const response = await this.executeWithRetry(
         () =>
           axios.get(googleSearchUrl, {
+            ...config,
             params: {
               key: this.googleApiKey,
               cx: this.googleCx,
@@ -516,7 +519,6 @@ export class ExternalService {
               hl: 'zh-CN',
             },
             // 强制使用 HTTPS，防止代理或配置导致使用 HTTP
-            // 不设置 httpsAgent，使用默认的 Node.js HTTPS agent
             maxRedirects: 0, // 不允许重定向，防止被重定向到 HTTP
             validateStatus: (status) => status < 500, // 允许 4xx 错误但不重试
           }),
