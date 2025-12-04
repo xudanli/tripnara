@@ -2914,6 +2914,23 @@ export class GetWeatherInfoResponseDto {
 }
 
 /**
+ * 路线优化位置坐标 DTO
+ */
+export class OptimizeRouteLocationDto {
+  @ApiProperty({ description: '纬度', example: 47.0502 })
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  lat!: number;
+
+  @ApiProperty({ description: '经度', example: 8.3093 })
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  lng!: number;
+}
+
+/**
  * 路线优化活动 DTO（用于验证）
  */
 export class OptimizeRouteActivityDto {
@@ -2953,23 +2970,6 @@ export class OptimizeRouteActivityDto {
   @IsOptional()
   @IsNumber()
   duration?: number;
-}
-
-/**
- * 路线优化位置坐标 DTO
- */
-export class OptimizeRouteLocationDto {
-  @ApiProperty({ description: '纬度', example: 47.0502 })
-  @IsNumber()
-  @Min(-90)
-  @Max(90)
-  lat!: number;
-
-  @ApiProperty({ description: '经度', example: 8.3093 })
-  @IsNumber()
-  @Min(-180)
-  @Max(180)
-  lng!: number;
 }
 
 /**
