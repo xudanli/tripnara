@@ -40,6 +40,7 @@ export interface ActivityWithLocation {
   type?: string;
   time?: string;
   duration?: number;
+  day?: number; // 活动所属天数（从1开始），用于按天分组优化
   [key: string]: unknown;
 }
 
@@ -96,6 +97,34 @@ export class ItineraryOptimizerService {
       roundtrip?: boolean; // 是否回到起点
       source?: 'first' | 'any'; // 固定起点（first=第一个活动，any=任意起点）
       destination?: 'last' | 'any'; // 固定终点（last=最后一个活动，any=任意终点）
+    },
+  ): Promise<OptimizedRouteResult> {
+    // 检查是否有 day 字段，如果有，按天分组优化
+    const hasDayInfo = activities.some((a) => a.day !== undefined && a.day !== null);
+    if (hasDayInfo) {
+      this.logger.debug('检测到活动包含天数信息，将按天分组进行优化');
+      return this.optimizeRouteByDay(activities, options);
+    }
+
+    // 没有 day 字段，直接调用内部优化方法
+    return this.optimizeRouteInternal(activities, options);
+  }
+
+  /**
+   * 内部优化方法（不检查 day 字段，直接进行优化）
+   * 用于按天分组优化时调用，避免递归
+   *
+   * @param activities 活动列表（带坐标，不应包含 day 字段）
+   * @param options 优化选项
+   * @returns 优化后的活动列表和路线信息
+   */
+  private async optimizeRouteInternal(
+    activities: ActivityWithLocation[],
+    options?: {
+      profile?: 'driving' | 'walking' | 'cycling';
+      roundtrip?: boolean;
+      source?: 'first' | 'any';
+      destination?: 'last' | 'any';
     },
   ): Promise<OptimizedRouteResult> {
     if (!this.accessToken) {
@@ -457,6 +486,178 @@ export class ItineraryOptimizerService {
     const distance = R * c;
 
     return distance;
+  }
+
+  /**
+   * 按天分组优化路线
+   * 只对同一天内的活动进行 TSP 优化，跨天的活动保持原始顺序
+   *
+   * @param activities 活动列表（包含 day 字段）
+   * @param options 优化选项
+   * @returns 优化后的活动列表和路线信息
+   */
+  private async optimizeRouteByDay(
+    activities: ActivityWithLocation[],
+    options?: {
+      profile?: 'driving' | 'walking' | 'cycling';
+      roundtrip?: boolean;
+      source?: 'first' | 'any';
+      destination?: 'last' | 'any';
+    },
+  ): Promise<OptimizedRouteResult> {
+    // 按天分组
+    const activitiesByDay = new Map<number, ActivityWithLocation[]>();
+    const activitiesWithoutDay: ActivityWithLocation[] = [];
+
+    activities.forEach((activity) => {
+      if (activity.day !== undefined && activity.day !== null) {
+        if (!activitiesByDay.has(activity.day)) {
+          activitiesByDay.set(activity.day, []);
+        }
+        activitiesByDay.get(activity.day)!.push(activity);
+      } else {
+        activitiesWithoutDay.push(activity);
+      }
+    });
+
+    // 如果没有按天分组的活动，回退到原始优化逻辑
+    if (activitiesByDay.size === 0) {
+      this.logger.warn('活动包含 day 字段但值为空，回退到原始优化逻辑');
+      // 移除 day 字段，调用内部优化方法（避免递归）
+      const activitiesWithoutDayField = activities.map(({ day, ...rest }) => rest);
+      return this.optimizeRouteInternal(activitiesWithoutDayField, options);
+    }
+
+    // 对每一天的活动进行优化
+    const sortedDays = Array.from(activitiesByDay.keys()).sort((a, b) => a - b);
+    const optimizedResults: OptimizedRouteResult[] = [];
+    let totalDistance = 0;
+    let totalDuration = 0;
+    const allLegs: Array<{
+      distance: number;
+      duration: number;
+      from: number;
+      to: number;
+    }> = [];
+    let globalActivityIndex = 0;
+
+    for (const day of sortedDays) {
+      const dayActivities = activitiesByDay.get(day)!;
+
+      if (dayActivities.length < 2) {
+        // 少于2个活动，无需优化
+        this.logger.debug(`第 ${day} 天只有 ${dayActivities.length} 个活动，跳过优化`);
+        optimizedResults.push({
+          activities: dayActivities,
+          totalDistance: 0,
+          totalDuration: 0,
+        });
+        globalActivityIndex += dayActivities.length;
+        continue;
+      }
+
+      // 对同一天内的活动进行优化
+      this.logger.debug(
+        `正在优化第 ${day} 天的 ${dayActivities.length} 个活动`,
+      );
+      
+      try {
+        // 移除 day 字段，调用内部优化方法（避免递归）
+        const dayActivitiesWithoutDay = dayActivities.map(({ day, ...rest }) => rest);
+        const dayResult = await this.optimizeRouteInternal(dayActivitiesWithoutDay, options);
+
+        // 恢复 day 字段
+        const optimizedDayActivities = dayResult.activities.map((act) => ({
+          ...act,
+          day,
+        }));
+
+        // 调整 legs 的索引（相对于全局活动列表）
+        const adjustedLegs = (dayResult.legs || []).map((leg) => ({
+          ...leg,
+          from: leg.from + globalActivityIndex,
+          to: leg.to + globalActivityIndex,
+        }));
+
+        optimizedResults.push({
+          activities: optimizedDayActivities,
+          totalDistance: dayResult.totalDistance,
+          totalDuration: dayResult.totalDuration,
+          routeGeometry: dayResult.routeGeometry,
+          legs: adjustedLegs,
+        });
+
+        totalDistance += dayResult.totalDistance;
+        totalDuration += dayResult.totalDuration;
+        if (adjustedLegs.length > 0) {
+          allLegs.push(...adjustedLegs);
+        }
+
+        globalActivityIndex += optimizedDayActivities.length;
+      } catch (error) {
+        // 如果某一天的优化失败，使用原始顺序
+        this.logger.warn(
+          `第 ${day} 天的活动优化失败，使用原始顺序`,
+          error instanceof Error ? error.message : String(error),
+        );
+        optimizedResults.push({
+          activities: dayActivities,
+          totalDistance: 0,
+          totalDuration: 0,
+        });
+        globalActivityIndex += dayActivities.length;
+      }
+    }
+
+    // 处理没有 day 字段的活动（放在最后，保持原始顺序）
+    if (activitiesWithoutDay.length > 0) {
+      this.logger.warn(
+        `发现 ${activitiesWithoutDay.length} 个没有 day 字段的活动，将放在最后并保持原始顺序`,
+      );
+      optimizedResults.push({
+        activities: activitiesWithoutDay,
+        totalDistance: 0,
+        totalDuration: 0,
+      });
+    }
+
+    // 合并所有天的优化结果
+    const allOptimizedActivities = optimizedResults.flatMap((result) => result.activities);
+
+    // 合并路线几何形状（如果有）
+    let mergedRouteGeometry: OptimizedRouteResult['routeGeometry'] | undefined;
+    const routeGeometries = optimizedResults
+      .map((r) => r.routeGeometry)
+      .filter((g): g is NonNullable<typeof g> => g !== undefined);
+    
+    if (routeGeometries.length > 0) {
+      // 合并所有路线的坐标点
+      const allCoordinates: [number, number][] = [];
+      routeGeometries.forEach((geom) => {
+        if (geom.coordinates && Array.isArray(geom.coordinates)) {
+          allCoordinates.push(...geom.coordinates);
+        }
+      });
+      
+      if (allCoordinates.length > 0) {
+        mergedRouteGeometry = {
+          coordinates: allCoordinates,
+          type: 'LineString',
+        };
+      }
+    }
+
+    this.logger.log(
+      `按天分组优化完成：共 ${sortedDays.length} 天，总距离 ${totalDistance.toFixed(0)} 米，总时长 ${totalDuration.toFixed(0)} 秒`,
+    );
+
+    return {
+      activities: allOptimizedActivities,
+      totalDistance,
+      totalDuration,
+      routeGeometry: mergedRouteGeometry,
+      legs: allLegs.length > 0 ? allLegs : undefined,
+    };
   }
 
   /**

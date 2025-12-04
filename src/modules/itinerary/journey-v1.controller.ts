@@ -1267,6 +1267,7 @@ export class JourneyV1Controller {
       type: act.type,
       time: act.time,
       duration: act.duration,
+      day: act.day, // 传递天数信息，用于按天分组优化
     }));
 
     const result = await this.itineraryOptimizerService.optimizeRoute(

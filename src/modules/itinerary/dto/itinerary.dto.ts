@@ -2970,6 +2970,15 @@ export class OptimizeRouteActivityDto {
   @IsOptional()
   @IsNumber()
   duration?: number;
+
+  @ApiPropertyOptional({
+    description: '活动所属天数（从1开始），用于按天分组优化。如果提供，只对同一天内的活动进行优化',
+    example: 1,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  day?: number;
 }
 
 /**
