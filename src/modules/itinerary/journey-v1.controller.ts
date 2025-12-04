@@ -1259,8 +1259,18 @@ export class JourneyV1Controller {
     @Body() dto: OptimizeRouteRequestDto,
     @CurrentUser() user: { userId: string },
   ): Promise<OptimizeRouteResponseDto> {
+    // 转换 DTO 到服务期望的接口类型
+    const activities = dto.activities.map((act) => ({
+      id: act.id,
+      title: act.title,
+      location: act.location,
+      type: act.type,
+      time: act.time,
+      duration: act.duration,
+    }));
+
     const result = await this.itineraryOptimizerService.optimizeRoute(
-      dto.activities,
+      activities,
       {
         profile: dto.profile || 'driving',
         roundtrip: dto.roundtrip ?? false,

@@ -17,6 +17,7 @@ import {
   IsBoolean,
   IsEnum,
   IsUUID,
+  ArrayMinSize,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import {
@@ -2913,12 +2914,71 @@ export class GetWeatherInfoResponseDto {
 }
 
 /**
+ * 路线优化活动 DTO（用于验证）
+ */
+export class OptimizeRouteActivityDto {
+  @ApiPropertyOptional({ description: '活动ID', example: 'activity-1' })
+  @IsOptional()
+  @IsString()
+  id?: string;
+
+  @ApiProperty({ description: '活动标题', example: '琉森湖游船' })
+  @IsString()
+  @IsNotEmpty()
+  title!: string;
+
+  @ApiProperty({
+    description: '活动坐标',
+    example: { lat: 47.0502, lng: 8.3093 },
+  })
+  @IsObject()
+  @ValidateNested()
+  @Type(() => OptimizeRouteLocationDto)
+  location!: OptimizeRouteLocationDto;
+
+  @ApiPropertyOptional({
+    description: '活动类型',
+    example: 'attraction',
+  })
+  @IsOptional()
+  @IsString()
+  type?: string;
+
+  @ApiPropertyOptional({ description: '活动时间', example: '09:00' })
+  @IsOptional()
+  @IsString()
+  time?: string;
+
+  @ApiPropertyOptional({ description: '活动时长（分钟）', example: 120 })
+  @IsOptional()
+  @IsNumber()
+  duration?: number;
+}
+
+/**
+ * 路线优化位置坐标 DTO
+ */
+export class OptimizeRouteLocationDto {
+  @ApiProperty({ description: '纬度', example: 47.0502 })
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  lat!: number;
+
+  @ApiProperty({ description: '经度', example: 8.3093 })
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  lng!: number;
+}
+
+/**
  * 路线优化请求 DTO
  */
 export class OptimizeRouteRequestDto {
   @ApiProperty({
     description: '活动列表（必须包含 location 坐标）',
-    type: [Object],
+    type: [OptimizeRouteActivityDto],
     example: [
       {
         id: 'activity-1',
@@ -2939,17 +2999,11 @@ export class OptimizeRouteRequestDto {
     ],
   })
   @IsArray()
+  @IsNotEmpty()
+  @ArrayMinSize(1, { message: '活动列表至少需要1个活动' })
   @ValidateNested({ each: true })
-  @Type(() => Object)
-  activities!: Array<{
-    id?: string;
-    title: string;
-    location: { lat: number; lng: number };
-    type?: string;
-    time?: string;
-    duration?: number;
-    [key: string]: unknown;
-  }>;
+  @Type(() => OptimizeRouteActivityDto)
+  activities!: OptimizeRouteActivityDto[];
 
   @ApiPropertyOptional({
     description: '交通方式',
