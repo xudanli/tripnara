@@ -25,6 +25,7 @@
     "test:itinerary-crud": "ts-node --transpile-only scripts/test-itinerary-crud.ts",
     "test:redis": "ts-node --transpile-only scripts/test-redis.ts",
     "test:redis:integration": "ts-node --transpile-only scripts/test-redis-integration.ts",
+    "test:weather": "ts-node --transpile-only scripts/test-weather-api.ts",
     "view:queue:jobs": "ts-node --transpile-only scripts/view-queue-jobs.ts",
     "diagnose:google-oauth": "ts-node --transpile-only scripts/diagnose-google-oauth-network.ts",
     "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d typeorm.config.ts",
