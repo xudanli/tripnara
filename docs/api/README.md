@@ -32,7 +32,17 @@
 
 ---
 
-### 4. 媒体服务 API
+### 4. 高海拔地区 API
+**文档**: [altitude-api.md](./altitude-api.md)
+
+- `GET /travel-advisor/altitude/search` - 搜索高海拔地区
+- `GET /travel-advisor/altitude/risk` - 获取高海拔地区风险报告
+
+**功能**: 搜索高海拔地区并获取实时天气和风险评估，帮助用户了解高反风险。支持模糊搜索，结合实时天气数据智能评估风险等级。
+
+---
+
+### 5. 媒体服务 API
 **文档**: [media-api.md](./media-api.md)
 
 - `POST /api/v1/media/search-image` - 搜索图片（代理 Unsplash/Pexels）
@@ -44,7 +54,7 @@
 
 ---
 
-### 5. 旅伴管理 API
+### 6. 旅伴管理 API
 **文档**: 
 - [journey-api-34-members.md](./journey-api-34-members.md) - 成员管理
 - [journey-api-37-verify-invitation.md](./journey-api-37-verify-invitation.md) - 验证邀请
@@ -60,7 +70,7 @@
 
 ---
 
-### 6. 货币服务 API
+### 7. 货币服务 API
 **文档**: [backend-migration-guide.md](./backend-migration-guide.md)
 
 - `GET /api/v1/currency/infer` - 推断货币信息
@@ -71,7 +81,7 @@
 
 ---
 
-### 7. 预算管理 API
+### 8. 预算管理 API
 **文档**: 
 - [journey-api-33-get-expenses.md](./journey-api-33-get-expenses.md) - 获取支出列表
 - [journey-api-34-create-expense.md](./journey-api-34-create-expense.md) - 创建支出
@@ -87,7 +97,7 @@
 
 ---
 
-### 8. 货币和国家代码管理 API（后台管理）
+### 9. 货币和国家代码管理 API（后台管理）
 **文档**: [journey-api-42-currency-admin.md](./journey-api-42-currency-admin.md)
 
 - `POST /api/v1/admin/currency/currencies` - 创建货币
@@ -108,7 +118,7 @@
 
 ---
 
-### 9. 通用安全提示 API（公开接口）
+### 10. 通用安全提示 API（公开接口）
 **文档**: 
 - [journey-api-28-create-alert.md](./journey-api-28-create-alert.md) - 创建安全提示
 - [journey-api-39-get-alert.md](./journey-api-39-get-alert.md) - 获取单个安全提示详情
@@ -146,7 +156,7 @@
 
 ---
 
-### 7. 后端迁移指南 ⚠️ **重要**
+### 11. 后端迁移指南 ⚠️ **重要**
 **文档**: [backend-migration-guide.md](./backend-migration-guide.md)
 
 **功能**: 说明后端已完成的数据格式验证、总费用计算、数据转换统一和货币推断功能，以及前端需要做的相应调整。
