@@ -1646,6 +1646,20 @@ export class ItineraryService {
   }
 
   /**
+   * 判断是否为中文
+   */
+  private isChinese(text: string): boolean {
+    return /[\u4e00-\u9fa5]/.test(text);
+  }
+
+  /**
+   * 判断是否为英文
+   */
+  private isEnglish(text: string): boolean {
+    return /^[a-zA-Z\s]+$/.test(text);
+  }
+
+  /**
    * 将 activities 转换为 timeSlots 格式（统一前端格式）
    * 使用 DataValidator 确保所有字段格式正确
    */
@@ -1666,6 +1680,37 @@ export class ItineraryService {
         ...(act.details || {}),
       };
 
+      // 从 details 中提取多语言字段
+      const detailsName = (act.details as any)?.name;
+      const detailsAddress = (act.details as any)?.address;
+      const locationDetails = (act.details as any)?.locationDetails;
+      
+      // 提取中文名称
+      const chineseName = 
+        detailsName?.chinese || 
+        locationDetails?.chineseName || 
+        (this.isChinese(fixedTitle) ? fixedTitle : undefined);
+      
+      // 提取英文名称
+      const englishName = 
+        detailsName?.english || 
+        locationDetails?.englishName || 
+        (this.isEnglish(fixedTitle) ? fixedTitle : undefined);
+      
+      // 提取目的地语言名称
+      const destinationLanguageName = 
+        detailsName?.local || 
+        locationDetails?.localName || 
+        locationDetails?.destinationLanguageName;
+      
+      // 提取位置名称
+      const locationName = 
+        detailsAddress?.chinese || 
+        detailsAddress?.local || 
+        locationDetails?.locationName || 
+        act.locationName || 
+        act.locationAddress;
+
       return {
         id: activityIds?.[index], // 活动ID（slotId，用于编辑/删除）
         dayId: dayId, // 天数ID（用于编辑/删除）
@@ -1685,6 +1730,10 @@ export class ItineraryService {
         duration: DataValidator.fixNumber(act.duration, 60, 1), // 至少1分钟
         cost: DataValidator.fixNumber(act.cost, 0, 0),
         details,
+        chineseName,
+        englishName,
+        destinationLanguageName,
+        locationName,
       };
     });
   }

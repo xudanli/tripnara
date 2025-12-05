@@ -84,7 +84,11 @@ curl -X PATCH "http://localhost:3000/api/v1/journeys/04d7126d-219f-49ab-b71a-a59
   "duration": 150,
   "location": { "lat": 64.1419, "lng": -21.9274 },
   "notes": "更新后的备注",
-  "cost": 1500
+  "cost": 1500,
+  "chineseName": "蓝湖温泉",
+  "englishName": "Blue Lagoon",
+  "destinationLanguageName": "Bláa lónið",
+  "locationName": "Nordurljosavegur 9, 240 Grindavík, Iceland"
 }
 ```
 
@@ -100,6 +104,10 @@ curl -X PATCH "http://localhost:3000/api/v1/journeys/04d7126d-219f-49ab-b71a-a59
 | `location` | object | 位置坐标 |
 | `notes` | string | 活动备注 |
 | `cost` | number | 预估费用 |
+| `chineseName` | string | 中文名称（可选） |
+| `englishName` | string | 英文名称（可选） |
+| `destinationLanguageName` | string | 目的地语言名称（可选，当地语言） |
+| `locationName` | string | 位置名称（可选，完整地址或位置描述） |
 
 ---
 

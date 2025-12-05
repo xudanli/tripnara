@@ -72,7 +72,11 @@ const result = await response.json();
       "region": "西藏",
       "altitudeRange": "约 3650m",
       "category": "extreme",
-      "notes": "进藏首站，需注意第一晚睡眠。"
+      "notes": "进藏首站，需注意第一晚睡眠。",
+      "chineseName": "拉萨",
+      "englishName": "Lhasa",
+      "destinationLanguageName": "ལྷ་ས",
+      "locationName": "西藏拉萨中国"
     },
     {
       "id": "cn-kunming",
@@ -82,7 +86,10 @@ const result = await response.json();
       "region": "云南",
       "altitudeRange": "约 1890m",
       "category": "medium",
-      "notes": "基本无高反风险。"
+      "notes": "基本无高反风险。",
+      "chineseName": "昆明",
+      "englishName": "Kunming",
+      "locationName": "云南昆明中国"
     }
   ]
 }
@@ -101,6 +108,10 @@ const result = await response.json();
 | `results[].altitudeRange` | string | 海拔范围描述 | `"约 3650m"` |
 | `results[].category` | string | 海拔分类 | `"low"` / `"medium"` / `"high"` / `"extreme"` |
 | `results[].notes` | string | 特殊说明（可选） | `"进藏首站，需注意第一晚睡眠。"` |
+| `results[].chineseName` | string | 中文名称（可选） | `"拉萨"` |
+| `results[].englishName` | string | 英文名称（可选） | `"Lhasa"` |
+| `results[].destinationLanguageName` | string | 目的地语言名称（可选，当地语言） | `"ལྷ་ས"`（藏文） |
+| `results[].locationName` | string | 位置名称（可选，完整地址或位置描述） | `"西藏拉萨中国"` |
 
 ### 海拔分类说明
 
@@ -205,7 +216,11 @@ const result = await response.json();
     "advice": "高海拔地区，建议到达后在酒店休息 2-3 小时再活动。 ⚠️ 当前气温极低，极易诱发失温和肺水肿，请务必保暖！ ⚠️ 外部风力强劲，体感温度会更低。",
     "tags": ["高海拔", "寒冷", "大风"]
   },
-  "fromCache": false
+  "fromCache": false,
+  "chineseName": "拉萨",
+  "englishName": "Lhasa",
+  "destinationLanguageName": "ལྷ་ས",
+  "locationName": "西藏拉萨中国"
 }
 ```
 
@@ -224,6 +239,10 @@ const result = await response.json();
 | `riskAssessment.advice` | string | 风险建议文本 | `"高海拔地区，建议到达后在酒店休息 2-3 小时再活动。"` |
 | `riskAssessment.tags` | string[] | 风险标签列表 | `["高海拔", "寒冷", "大风"]` |
 | `fromCache` | boolean | 是否来自缓存 | `false` |
+| `chineseName` | string | 中文名称（可选） | `"拉萨"` |
+| `englishName` | string | 英文名称（可选） | `"Lhasa"` |
+| `destinationLanguageName` | string | 目的地语言名称（可选，当地语言） | `"ལྷ་ས"`（藏文） |
+| `locationName` | string | 位置名称（可选，完整地址或位置描述） | `"西藏拉萨中国"` |
 
 ### 风险等级说明
 
@@ -368,7 +387,22 @@ async function checkAltitudeRisk(destination: string) {
   - 缓存命中：响应时间 < 100ms
   - 缓存失效：30 分钟后自动刷新
 
-### 3. 风险算法说明
+### 3. 多语言字段说明
+
+所有返回的地区数据都包含多语言名称字段，方便前端根据用户语言偏好显示：
+
+- **chineseName**: 中文名称，用于中文界面显示
+- **englishName**: 英文名称，用于英文界面显示
+- **destinationLanguageName**: 目的地当地语言名称（如藏文、日文、法文等），用于展示当地文化特色
+- **locationName**: 完整的位置描述，通常由"地区+城市+国家"组成
+
+**注意**：
+- 如果数据源中未明确指定这些字段，系统会从 `name` 和 `aliases` 自动推导
+- 中文名称会从 `name` 字段中识别（如果包含中文字符）
+- 英文名称会从 `aliases` 的第一个元素或 `name` 字段中获取（如果为英文）
+- 位置名称会自动构建为"地区+城市+国家"的格式
+
+### 4. 风险算法说明
 
 风险等级由以下因素综合计算：
 
@@ -387,19 +421,19 @@ async function checkAltitudeRisk(destination: string) {
 4. **特殊说明**（重要因素）
    - 包含"开车直达" → 升级为 HIGH（身体缺乏适应时间）
 
-### 4. 错误处理
+### 5. 错误处理
 
 - 如果天气 API 调用失败，系统会使用默认值（温度 10°C，风速 0 km/h），不会导致接口报错
 - 地区不存在时返回 404 错误
 - 建议前端实现错误处理和用户提示
 
-### 5. 缓存机制
+### 6. 缓存机制
 
 - 风险报告使用 Redis 缓存，缓存时间 30 分钟
 - 如果 Redis 不可用，系统会正常工作，但每次请求都会调用天气 API
 - `fromCache` 字段可以用于调试和性能监控
 
-### 6. 使用建议
+### 7. 使用建议
 
 - **搜索阶段**：用户在输入框输入时，实时调用搜索接口（建议防抖处理）
 - **详情阶段**：用户点击某个地区时，调用风险报告接口

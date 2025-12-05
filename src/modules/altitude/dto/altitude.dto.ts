@@ -27,6 +27,19 @@ export class AltitudeRegionDto {
 
   @ApiProperty({ description: '特殊说明', example: '建议到达后休息2-3小时再活动', required: false })
   notes?: string;
+
+  // 多语言名称字段
+  @ApiProperty({ description: '中文名称', example: '拉萨', required: false })
+  chineseName?: string;
+
+  @ApiProperty({ description: '英文名称', example: 'Lhasa', required: false })
+  englishName?: string;
+
+  @ApiProperty({ description: '目的地语言名称（当地语言）', example: 'ལྷ་ས', required: false })
+  destinationLanguageName?: string;
+
+  @ApiProperty({ description: '位置名称（完整地址或位置描述）', example: '西藏自治区拉萨市', required: false })
+  locationName?: string;
 }
 
 /**
@@ -99,5 +112,18 @@ export class RiskReportResponseDto {
 
   @ApiProperty({ description: '是否来自缓存', example: false })
   fromCache?: boolean;
+
+  // 多语言名称字段
+  @ApiProperty({ description: '中文名称', example: '拉萨', required: false })
+  chineseName?: string;
+
+  @ApiProperty({ description: '英文名称', example: 'Lhasa', required: false })
+  englishName?: string;
+
+  @ApiProperty({ description: '目的地语言名称（当地语言）', example: 'ལྷ་ས', required: false })
+  destinationLanguageName?: string;
+
+  @ApiProperty({ description: '位置名称（完整地址或位置描述）', example: '西藏自治区拉萨市', required: false })
+  locationName?: string;
 }
 

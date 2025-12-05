@@ -117,6 +117,10 @@
 | duration | number | 否 | 持续时间（分钟，默认：60） |
 | cost | number | 否 | 成本（默认：0） |
 | details | object | 否 | 详细信息（JSON对象，**会被保存到数据库**），包含多语言名称、地址、开放时间、价格详情、推荐信息等 |
+| chineseName | string | 否 | 中文名称（可选，会从 details.name.chinese 或自动推导） |
+| englishName | string | 否 | 英文名称（可选，会从 details.name.english 或自动推导） |
+| destinationLanguageName | string | 否 | 目的地语言名称（可选，会从 details.name.local 提取） |
+| locationName | string | 否 | 位置名称（可选，会从 details.address 或自动构建） |
 
 #### tasks 数组项（可选）
 
@@ -155,6 +159,7 @@
         "date": "2025-11-21",
         "activities": [
           {
+            "id": "activity-id-1",
             "time": "08:00",
             "title": "翱翔冰岛之翼：抵达雷克雅未克",
             "type": "transport",
@@ -164,7 +169,11 @@
               "lng": -21.8278
             },
             "notes": "从机场乘坐巴士或出租车前往市区...",
-            "cost": 50
+            "cost": 50,
+            "chineseName": "翱翔冰岛之翼：抵达雷克雅未克",
+            "englishName": "Arrival in Reykjavik",
+            "destinationLanguageName": "Koma til Reykjavíkur",
+            "locationName": "Keflavik Airport, Iceland"
           }
         ]
       }

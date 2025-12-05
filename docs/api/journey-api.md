@@ -237,6 +237,10 @@ GET /api/v1/journeys/770e8400-e29b-41d4-a716-446655440000
 - `source`: 数据来源
 - `aiGenerated`: 是否为 AI 生成
 - `lockedByUser`: 是否被用户锁定
+- `chineseName`: 中文名称（可选）
+- `englishName`: 英文名称（可选）
+- `destinationLanguageName`: 目的地语言名称（可选，当地语言）
+- `locationName`: 位置名称（可选，完整地址或位置描述）
 
 **错误响应：**
 

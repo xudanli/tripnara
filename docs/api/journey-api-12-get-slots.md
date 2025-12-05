@@ -44,7 +44,11 @@ curl -X GET "http://localhost:3000/api/v1/journeys/04d7126d-219f-49ab-b71a-a595c
     "duration": 120,
     "location": { "lat": 64.1419, "lng": -21.9274 },
     "notes": "提前预订门票",
-    "cost": 1200
+    "cost": 1200,
+    "chineseName": "蓝湖温泉",
+    "englishName": "Blue Lagoon",
+    "destinationLanguageName": "Bláa lónið",
+    "locationName": "Nordurljosavegur 9, 240 Grindavík, Iceland"
   },
   {
     "id": "activity-id-2",
@@ -54,7 +58,11 @@ curl -X GET "http://localhost:3000/api/v1/journeys/04d7126d-219f-49ab-b71a-a595c
     "duration": 180,
     "location": { "lat": 64.2550, "lng": -20.5145 },
     "notes": "包含三个主要景点",
-    "cost": 2500
+    "cost": 2500,
+    "chineseName": "黄金圈游览",
+    "englishName": "Golden Circle Tour",
+    "destinationLanguageName": "Gullni hringurinn",
+    "locationName": "Golden Circle, Iceland"
   },
   {
     "id": "activity-id-3",
@@ -64,7 +72,11 @@ curl -X GET "http://localhost:3000/api/v1/journeys/04d7126d-219f-49ab-b71a-a595c
     "duration": 90,
     "location": { "lat": 64.1419, "lng": -21.9274 },
     "notes": "推荐尝试当地特色菜",
-    "cost": 800
+    "cost": 800,
+    "chineseName": "冰岛特色餐厅",
+    "englishName": "Icelandic Restaurant",
+    "destinationLanguageName": "Íslenskt veitingahús",
+    "locationName": "Reykjavik, Iceland"
   }
 ]
 ```
@@ -81,6 +93,10 @@ curl -X GET "http://localhost:3000/api/v1/journeys/04d7126d-219f-49ab-b71a-a595c
 | `[].location` | object | 位置坐标 `{ "lat": number, "lng": number }` |
 | `[].notes` | string | 活动备注 |
 | `[].cost` | number | 预估费用 |
+| `[].chineseName` | string | 中文名称（可选） |
+| `[].englishName` | string | 英文名称（可选） |
+| `[].destinationLanguageName` | string | 目的地语言名称（可选，当地语言） |
+| `[].locationName` | string | 位置名称（可选，完整地址或位置描述） |
 
 ---
 

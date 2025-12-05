@@ -94,6 +94,10 @@ Content-Type: application/json
         },
         "notes": "登上哈尔格林姆教堂塔顶，俯瞰雷克雅未克彩色屋顶和远山...",
         "cost": 1200,
+        "chineseName": "探秘雷克雅未克大教堂的螺旋天际",
+        "englishName": "Hallgrímskirkja Spiral Skyline Tour",
+        "destinationLanguageName": "Hallgrímskirkja Spiral Skyline Tour",
+        "locationName": "Hallgrímstorg 1, 101 Reykjavík, Iceland",
         "details": {
           "notes": "...",
           "description": "...",
@@ -204,6 +208,10 @@ Content-Type: application/json
 | `location` | object | 位置坐标 `{ lat: number, lng: number }` |
 | `notes` | string | 备注 |
 | `cost` | number | 预估费用 |
+| `chineseName` | string | 中文名称（可选，从 details.name.chinese 或自动推导） |
+| `englishName` | string | 英文名称（可选，从 details.name.english 或自动推导） |
+| `destinationLanguageName` | string | 目的地语言名称（可选，从 details.name.local 提取） |
+| `locationName` | string | 位置名称（可选，从 details.address 或自动构建） |
 | `details` | object | 详细信息（JSON对象），包含多语言名称、地址、开放时间、价格详情、推荐信息等。**会被保存到数据库** |
 
 ---

@@ -127,6 +127,10 @@
 | `details` | object | 否 | 活动详细信息（JSON对象），包含多语言名称、地址、开放时间、价格详情、推荐信息等，**会被保存到数据库** | 见下方说明 |
 | `cost` | number | 否 | 预估费用 |
 | `duration` | number | 否 | 持续时间（分钟） |
+| `chineseName` | string | 否 | 中文名称（可选，会从 details.name.chinese 或自动推导） |
+| `englishName` | string | 否 | 英文名称（可选，会从 details.name.english 或自动推导） |
+| `destinationLanguageName` | string | 否 | 目的地语言名称（可选，会从 details.name.local 提取） |
+| `locationName` | string | 否 | 位置名称（可选，会从 details.address 或自动构建） |
 
 #### details 对象结构（可选）
 
@@ -250,6 +254,7 @@ curl -X PATCH "http://localhost:3000/api/v1/journeys/04d7126d-219f-49ab-b71a-a59
         "activities": [
           {
             "id": "activity-id-1",
+            "id": "activity-id-1",
             "time": "09:00",
             "title": "蓝湖温泉",
             "type": "attraction",
@@ -257,10 +262,15 @@ curl -X PATCH "http://localhost:3000/api/v1/journeys/04d7126d-219f-49ab-b71a-a59
             "location": { "lat": 64.1419, "lng": -21.9274 },
             "notes": "提前预订门票",
             "cost": 1200,
+            "chineseName": "蓝湖温泉",
+            "englishName": "Blue Lagoon",
+            "destinationLanguageName": "Bláa lónið",
+            "locationName": "Nordurljosavegur 9, 240 Grindavík, Iceland",
             "details": {
               "name": {
                 "chinese": "蓝湖温泉",
-                "english": "Blue Lagoon"
+                "english": "Blue Lagoon",
+                "local": "Bláa lónið"
               },
               "openingHours": "每日9:00-22:00",
               "rating": 4.7
@@ -311,6 +321,10 @@ curl -X PATCH "http://localhost:3000/api/v1/journeys/04d7126d-219f-49ab-b71a-a59
 | `data.days[].activities[].notes` | string | 活动备注 |
 | `data.days[].activities[].cost` | number | 预估费用 |
 | `data.days[].activities[].details` | object | 活动详细信息（JSON对象） |
+| `data.days[].activities[].chineseName` | string | 中文名称（可选） |
+| `data.days[].activities[].englishName` | string | 英文名称（可选） |
+| `data.days[].activities[].destinationLanguageName` | string | 目的地语言名称（可选） |
+| `data.days[].activities[].locationName` | string | 位置名称（可选） |
 | `data.createdAt` | string | 创建时间（ISO 8601格式） |
 | `data.updatedAt` | string | 更新时间（ISO 8601格式） |
 

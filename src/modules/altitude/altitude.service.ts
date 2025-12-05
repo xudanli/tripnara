@@ -218,6 +218,12 @@ export class AltitudeService {
       }
     }
 
+    // 从现有数据推导多语言字段
+    const chineseName = region.chineseName || (this.isChinese(region.name) ? region.name : undefined);
+    const englishName = region.englishName || (this.isEnglish(region.name) ? region.name : region.aliases?.[0]);
+    const destinationLanguageName = region.destinationLanguageName;
+    const locationName = region.locationName || this.buildLocationName(region);
+
     return {
       regionName: region.name,
       elevation: region.altitudeRange,
@@ -232,6 +238,10 @@ export class AltitudeService {
         tags: tags,
       },
       fromCache: false,
+      chineseName,
+      englishName,
+      destinationLanguageName,
+      locationName,
     };
   }
 
@@ -255,6 +265,12 @@ export class AltitudeService {
    * 映射到 DTO
    */
   private mapToDto(region: HighAltitudeRegion): AltitudeRegionDto {
+    // 从现有数据推导多语言字段
+    const chineseName = region.chineseName || (this.isChinese(region.name) ? region.name : undefined);
+    const englishName = region.englishName || (this.isEnglish(region.name) ? region.name : region.aliases?.[0]);
+    const destinationLanguageName = region.destinationLanguageName;
+    const locationName = region.locationName || this.buildLocationName(region);
+
     return {
       id: region.id,
       name: region.name,
@@ -264,7 +280,42 @@ export class AltitudeService {
       altitudeRange: region.altitudeRange,
       category: region.category,
       notes: region.notes,
+      chineseName,
+      englishName,
+      destinationLanguageName,
+      locationName,
     };
+  }
+
+  /**
+   * 判断是否为中文
+   */
+  private isChinese(text: string): boolean {
+    return /[\u4e00-\u9fa5]/.test(text);
+  }
+
+  /**
+   * 判断是否为英文
+   */
+  private isEnglish(text: string): boolean {
+    return /^[a-zA-Z\s]+$/.test(text);
+  }
+
+  /**
+   * 构建位置名称
+   */
+  private buildLocationName(region: HighAltitudeRegion): string {
+    const parts: string[] = [];
+    if (region.region) {
+      parts.push(region.region);
+    }
+    if (region.name) {
+      parts.push(region.name);
+    }
+    if (region.country) {
+      parts.push(region.country);
+    }
+    return parts.join('');
   }
 
   /**

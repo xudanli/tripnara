@@ -136,11 +136,15 @@ curl -X POST "http://localhost:3000/api/v1/journeys/04d7126d-219f-49ab-b71a-a595
   "duration": 120,
   "location": { "lat": 64.1419, "lng": -21.9274 },
   "notes": "提前预订门票",
-  "cost": 1200
+  "cost": 1200,
+  "chineseName": "蓝湖温泉",
+  "englishName": "Blue Lagoon",
+  "destinationLanguageName": "Bláa lónið",
+  "locationName": "Nordurljosavegur 9, 240 Grindavík, Iceland"
 }
 ```
 
-**注意**：位置详细信息存储在活动的 `details` 字段中，可以通过获取活动详情接口获取完整信息。
+**注意**：位置详细信息存储在活动的 `details` 字段中，可以通过获取活动详情接口获取完整信息。多语言字段会从 `locationDetails` 或 `details` 中自动提取。
 
 ### 响应字段说明
 
@@ -154,6 +158,10 @@ curl -X POST "http://localhost:3000/api/v1/journeys/04d7126d-219f-49ab-b71a-a595
 | `location` | object | 位置坐标 |
 | `notes` | string | 活动备注 |
 | `cost` | number | 预估费用 |
+| `chineseName` | string | 中文名称（可选，从 locationDetails.chineseName 或 details.name.chinese 提取） |
+| `englishName` | string | 英文名称（可选，从 locationDetails.localName 或 details.name.english 提取） |
+| `destinationLanguageName` | string | 目的地语言名称（可选，从 locationDetails.localName 或 details.name.local 提取） |
+| `locationName` | string | 位置名称（可选，从 locationDetails 或 details.address 提取） |
 
 ---
 

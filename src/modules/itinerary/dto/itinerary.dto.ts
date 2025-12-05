@@ -687,6 +687,27 @@ export class ItineraryTimeSlotDto {
   @IsOptional()
   @IsObject()
   details?: Record<string, unknown>;
+
+  // 多语言名称字段
+  @ApiPropertyOptional({ description: '中文名称', example: '铁力士峰云端漫步' })
+  @IsOptional()
+  @IsString()
+  chineseName?: string;
+
+  @ApiPropertyOptional({ description: '英文名称', example: 'Titlis Cliff Walk' })
+  @IsOptional()
+  @IsString()
+  englishName?: string;
+
+  @ApiPropertyOptional({ description: '目的地语言名称（当地语言）', example: 'Titlis Cliff Walk' })
+  @IsOptional()
+  @IsString()
+  destinationLanguageName?: string;
+
+  @ApiPropertyOptional({ description: '位置名称（完整地址或位置描述）', example: 'Titlis Bergstation, 6390 Engelberg, Switzerland' })
+  @IsOptional()
+  @IsString()
+  locationName?: string;
 }
 
 export class ItineraryDayWithTimeSlotsDto {
