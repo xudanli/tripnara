@@ -155,6 +155,8 @@ export class ItineraryService {
   private readonly useRedisCache: boolean;
   private readonly safetyNoticeCacheTtlSeconds = 7 * 24 * 60 * 60; // 7天（安全状况可能变化，不宜永久）
   private readonly packingListCacheTtlSeconds = 30 * 24 * 60 * 60; // 30天（打包清单相对稳定）
+  private readonly realtimeWeatherCacheTtlSeconds = 6 * 60 * 60; // 6小时（实时天气会变化）
+  private readonly historicalWeatherCacheTtlSeconds = 7 * 24 * 60 * 60; // 7天（历史气候相对稳定）
 
   constructor(
     private readonly llmService: LlmService,
@@ -4000,6 +4002,25 @@ export class ItineraryService {
     // 判断是实时天气还是历史气候
     const isRealtime = daysUntilStart >= 0 && daysUntilStart <= 10;
 
+    // 检查缓存
+    const cacheKey = this.getWeatherInfoCacheKey(
+      journeyId,
+      startDate,
+      endDate,
+      language,
+      isRealtime,
+    );
+    const cached = await this.getWeatherInfoFromCache(cacheKey);
+    if (cached) {
+      this.logger.debug(
+        `Weather info cache hit for journey ${journeyId} (${isRealtime ? 'realtime' : 'historical'})`,
+      );
+      return {
+        ...cached,
+        fromCache: true,
+      };
+    }
+
     let weatherInfo: WeatherInfoDto;
 
     if (isRealtime) {
@@ -4170,7 +4191,7 @@ export class ItineraryService {
       };
     }
 
-    return {
+    const response: GetWeatherInfoResponseDto = {
       success: true,
       journeyId,
       destination: itinerary.destination,
@@ -4180,6 +4201,11 @@ export class ItineraryService {
       fromCache: false,
       generatedAt: new Date().toISOString(),
     };
+
+    // 保存到缓存
+    await this.setWeatherInfoCache(cacheKey, response, isRealtime);
+
+    return response;
   }
 
   /**
@@ -4432,6 +4458,69 @@ export class ItineraryService {
    */
   private getPackingListCacheKey(journeyId: string, language: string): string {
     return `packing-list:${journeyId}:${language}`;
+  }
+
+  /**
+   * 生成天气信息缓存 key
+   */
+  private getWeatherInfoCacheKey(
+    journeyId: string,
+    startDate: string,
+    endDate: string,
+    language: string,
+    isRealtime: boolean,
+  ): string {
+    const type = isRealtime ? 'realtime' : 'historical';
+    return `weather-info:${journeyId}:${startDate}:${endDate}:${language}:${type}`;
+  }
+
+  /**
+   * 从缓存获取天气信息
+   */
+  private async getWeatherInfoFromCache(
+    key: string,
+  ): Promise<GetWeatherInfoResponseDto | null> {
+    if (!this.useRedisCache || !this.redisClient) {
+      return null;
+    }
+
+    try {
+      const cached = await this.redisClient.get(key);
+      if (cached) {
+        return JSON.parse(cached) as GetWeatherInfoResponseDto;
+      }
+    } catch (error) {
+      this.logger.warn(`Redis cache read error for weather info ${key}:`, error);
+    }
+
+    return null;
+  }
+
+  /**
+   * 设置天气信息缓存
+   */
+  private async setWeatherInfoCache(
+    key: string,
+    value: GetWeatherInfoResponseDto,
+    isRealtime: boolean,
+  ): Promise<void> {
+    if (!this.useRedisCache || !this.redisClient) {
+      return;
+    }
+
+    try {
+      // 根据天气类型选择不同的 TTL
+      const ttl = isRealtime
+        ? this.realtimeWeatherCacheTtlSeconds
+        : this.historicalWeatherCacheTtlSeconds;
+
+      await this.redisClient.setex(key, ttl, JSON.stringify(value));
+      this.logger.debug(
+        `Weather info cached for key: ${key} (TTL: ${ttl}s, type: ${isRealtime ? 'realtime' : 'historical'})`,
+      );
+    } catch (error) {
+      this.logger.warn(`Redis cache write error for weather info ${key}:`, error);
+    }
   }
 
   /**
