@@ -16,6 +16,9 @@ export class AltitudeRegionDto {
   @ApiProperty({ description: '国家', example: '中国' })
   country!: string;
 
+  @ApiProperty({ description: '地区/省份', example: '西藏', required: false })
+  region?: string;
+
   @ApiProperty({ description: '海拔范围', example: '3650m' })
   altitudeRange!: string;
 

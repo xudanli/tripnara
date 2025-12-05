@@ -260,6 +260,7 @@ export class AltitudeService {
       name: region.name,
       aliases: region.aliases,
       country: region.country,
+      region: region.region,
       altitudeRange: region.altitudeRange,
       category: region.category,
       notes: region.notes,
